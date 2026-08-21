@@ -46,22 +46,31 @@ def _prefix_rule_payload(rule) -> dict[str, object]:
     }
 
 
+def _region_payload(region) -> dict[str, object]:
+    return {
+        "standardized_distance": region.standardized_distance,
+        "loo_accuracy": region.loo_accuracy,
+        "mean_plain": region.mean_plain,
+        "mean_rounded": region.mean_rounded,
+    }
+
+
 def _analysis_payload(result) -> dict[str, object]:
     return {
         "base_unit": result.base_unit,
         "samples": result.samples,
         "skipped": result.skipped,
-        "mean_distance": result.mean_distance,
-        "distance_cv": result.distance_cv,
+        "mean_core_distance": result.mean_core_distance,
+        "core_distance_cv": result.core_distance_cv,
+        "mean_late_distance": result.mean_late_distance,
+        "late_distance_cv": result.late_distance_cv,
         "subbanks": [
             {
                 "subbank": item.subbank,
                 "plain_count": item.plain_count,
                 "rounded_count": item.rounded_count,
-                "standardized_distance": item.standardized_distance,
-                "centroid_accuracy": item.centroid_accuracy,
-                "mean_plain": item.mean_plain,
-                "mean_rounded": item.mean_rounded,
+                "core": _region_payload(item.core),
+                "late": _region_payload(item.late),
             }
             for item in result.subbanks
         ],
@@ -133,28 +142,32 @@ def main() -> int:
             print(f"Base unit: {result.base_unit}")
             print(f"Samples: {result.samples}")
             print(f"Skipped: {result.skipped}")
-            if result.mean_distance is not None:
-                print(f"Mean standardized distance: {result.mean_distance:.3f}")
-                print(f"Cross-subbank distance CV: {result.distance_cv:.3f}")
+            if result.mean_core_distance is not None:
+                print(f"Mean core distance: {result.mean_core_distance:.3f}")
+                print(f"Core distance CV: {result.core_distance_cv:.3f}")
+            if result.mean_late_distance is not None:
+                print(f"Mean late distance: {result.mean_late_distance:.3f}")
+                print(f"Late distance CV: {result.late_distance_cv:.3f}")
             print()
             for item in result.subbanks:
-                print(
-                    f"{item.subbank}: plain={item.plain_count}, rounded={item.rounded_count}, "
-                    f"distance={item.standardized_distance:.3f}, "
-                    f"centroid_accuracy={item.centroid_accuracy:.3f}"
-                )
-                print(
-                    f"  centroid_hz: {item.mean_plain['centroid_hz']:.1f} -> "
-                    f"{item.mean_rounded['centroid_hz']:.1f}"
-                )
-                print(
-                    f"  high_band_ratio: {item.mean_plain['high_band_ratio']:.3f} -> "
-                    f"{item.mean_rounded['high_band_ratio']:.3f}"
-                )
-                print(
-                    f"  slope: {item.mean_plain['slope']:.3f} -> "
-                    f"{item.mean_rounded['slope']:.3f}"
-                )
+                print(f"{item.subbank}: plain={item.plain_count}, rounded={item.rounded_count}")
+                for name, region in (("core", item.core), ("late", item.late)):
+                    print(
+                        f"  {name}: distance={region.standardized_distance:.3f}, "
+                        f"loo_accuracy={region.loo_accuracy:.3f}"
+                    )
+                    print(
+                        f"    centroid_hz: {region.mean_plain['centroid_hz']:.1f} -> "
+                        f"{region.mean_rounded['centroid_hz']:.1f}"
+                    )
+                    print(
+                        f"    high_band_ratio: {region.mean_plain['high_band_ratio']:.3f} -> "
+                        f"{region.mean_rounded['high_band_ratio']:.3f}"
+                    )
+                    print(
+                        f"    slope: {region.mean_plain['slope']:.3f} -> "
+                        f"{region.mean_rounded['slope']:.3f}"
+                    )
         return 0
 
     return 1
