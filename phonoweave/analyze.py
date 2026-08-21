@@ -37,9 +37,11 @@ class SampleFeatures:
 @dataclass(frozen=True)
 class RegionContrast:
     standardized_distance: float
-    loo_accuracy: float
+    loo_balanced_accuracy: float
+    permutation_p: float
     mean_plain: dict[str, float]
     mean_rounded: dict[str, float]
+    standardized_effects: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,10 @@ class ContrastAnalysis:
     core_distance_cv: float | None
     mean_late_distance: float | None
     late_distance_cv: float | None
+    cross_core_balanced_accuracy: float | None
+    cross_late_balanced_accuracy: float | None
+    cross_core_by_subbank: dict[str, float]
+    cross_late_by_subbank: dict[str, float]
 
 
 def _subbank_name(root: Path, entry: OtoEntry) -> str:
@@ -90,46 +96,99 @@ def _means(matrix: np.ndarray) -> dict[str, float]:
     return {name: float(value) for name, value in zip(_ACOUSTIC_FEATURES, values, strict=True)}
 
 
-def _standardized_distance(plain: np.ndarray, rounded: np.ndarray) -> float:
+def _scale(plain: np.ndarray, rounded: np.ndarray) -> np.ndarray:
     combined = np.vstack([plain, rounded])
     scale = np.std(combined, axis=0, ddof=1)
+    return np.where(scale < 1e-9, 1.0, scale)
+
+
+def _standardized_effects(plain: np.ndarray, rounded: np.ndarray) -> dict[str, float]:
+    scale = _scale(plain, rounded)
+    delta = (np.mean(rounded, axis=0) - np.mean(plain, axis=0)) / scale
+    return {name: float(value) for name, value in zip(_ACOUSTIC_FEATURES, delta, strict=True)}
+
+
+def _standardized_distance(plain: np.ndarray, rounded: np.ndarray) -> float:
+    effects = np.asarray(list(_standardized_effects(plain, rounded).values()), dtype=np.float64)
+    return float(np.linalg.norm(effects) / np.sqrt(len(effects)))
+
+
+def _balanced_accuracy(labels: np.ndarray, predicted: np.ndarray) -> float:
+    scores: list[float] = []
+    for label in (0, 1):
+        mask = labels == label
+        if np.any(mask):
+            scores.append(float(np.mean(predicted[mask] == label)))
+    return float(np.mean(scores)) if scores else 0.0
+
+
+def _nearest_centroid_predict(
+    train: np.ndarray,
+    train_labels: np.ndarray,
+    test: np.ndarray,
+) -> np.ndarray:
+    scale = np.std(train, axis=0, ddof=1)
     scale = np.where(scale < 1e-9, 1.0, scale)
-    delta = (np.mean(plain, axis=0) - np.mean(rounded, axis=0)) / scale
-    return float(np.linalg.norm(delta) / np.sqrt(len(delta)))
+    train_norm = train / scale
+    test_norm = test / scale
+    plain_center = np.mean(train_norm[train_labels == 0], axis=0)
+    rounded_center = np.mean(train_norm[train_labels == 1], axis=0)
+    d_plain = np.linalg.norm(test_norm - plain_center, axis=1)
+    d_rounded = np.linalg.norm(test_norm - rounded_center, axis=1)
+    return (d_rounded < d_plain).astype(np.int8)
 
 
-def _loo_accuracy(plain: np.ndarray, rounded: np.ndarray) -> float:
+def _loo_balanced_accuracy(plain: np.ndarray, rounded: np.ndarray) -> float:
     combined = np.vstack([plain, rounded])
     labels = np.array([0] * len(plain) + [1] * len(rounded), dtype=np.int8)
-    correct = 0
+    predicted = np.empty_like(labels)
 
     for index in range(len(combined)):
         train_mask = np.ones(len(combined), dtype=bool)
         train_mask[index] = False
-        train = combined[train_mask]
-        train_labels = labels[train_mask]
+        predicted[index] = _nearest_centroid_predict(
+            combined[train_mask],
+            labels[train_mask],
+            combined[index : index + 1],
+        )[0]
 
-        scale = np.std(train, axis=0, ddof=1)
-        scale = np.where(scale < 1e-9, 1.0, scale)
-        train_norm = train / scale
-        test_norm = combined[index] / scale
-
-        plain_center = np.mean(train_norm[train_labels == 0], axis=0)
-        rounded_center = np.mean(train_norm[train_labels == 1], axis=0)
-        d_plain = np.linalg.norm(test_norm - plain_center)
-        d_rounded = np.linalg.norm(test_norm - rounded_center)
-        predicted = 1 if d_rounded < d_plain else 0
-        correct += int(predicted == labels[index])
-
-    return float(correct / len(combined))
+    return _balanced_accuracy(labels, predicted)
 
 
-def _region_contrast(plain: np.ndarray, rounded: np.ndarray) -> RegionContrast:
+def _permutation_p(
+    plain: np.ndarray,
+    rounded: np.ndarray,
+    permutations: int = 1000,
+    seed: int = 1731,
+) -> float:
+    combined = np.vstack([plain, rounded])
+    plain_count = len(plain)
+    observed = _standardized_distance(plain, rounded)
+    rng = np.random.default_rng(seed)
+    exceed = 0
+
+    for _ in range(permutations):
+        order = rng.permutation(len(combined))
+        perm_plain = combined[order[:plain_count]]
+        perm_rounded = combined[order[plain_count:]]
+        if _standardized_distance(perm_plain, perm_rounded) >= observed:
+            exceed += 1
+
+    return float((exceed + 1) / (permutations + 1))
+
+
+def _region_contrast(
+    plain: np.ndarray,
+    rounded: np.ndarray,
+    seed: int,
+) -> RegionContrast:
     return RegionContrast(
         standardized_distance=_standardized_distance(plain, rounded),
-        loo_accuracy=_loo_accuracy(plain, rounded),
+        loo_balanced_accuracy=_loo_balanced_accuracy(plain, rounded),
+        permutation_p=_permutation_p(plain, rounded, seed=seed),
         mean_plain=_means(plain),
         mean_rounded=_means(rounded),
+        standardized_effects=_standardized_effects(plain, rounded),
     )
 
 
@@ -140,6 +199,42 @@ def _summary(values: list[float]) -> tuple[float | None, float | None]:
     mean = float(np.mean(array))
     cv = float(np.std(array) / mean) if mean > 1e-9 else 0.0
     return mean, cv
+
+
+def _cross_subbank_accuracy(
+    grouped: dict[str, dict[str, list[SampleFeatures]]],
+    region: str,
+) -> tuple[float | None, dict[str, float]]:
+    scores: dict[str, float] = {}
+    names = sorted(grouped)
+    if len(names) < 2:
+        return None, scores
+
+    for held_out in names:
+        train_samples: list[SampleFeatures] = []
+        test_samples: list[SampleFeatures] = []
+        for name in names:
+            samples = grouped[name].get("plain", []) + grouped[name].get("rounded", [])
+            if name == held_out:
+                test_samples.extend(samples)
+            else:
+                train_samples.extend(samples)
+
+        if not train_samples or not test_samples:
+            continue
+        train_labels = np.array([0 if sample.context == "plain" else 1 for sample in train_samples], dtype=np.int8)
+        test_labels = np.array([0 if sample.context == "plain" else 1 for sample in test_samples], dtype=np.int8)
+        if len(np.unique(train_labels)) < 2 or len(np.unique(test_labels)) < 2:
+            continue
+
+        train_matrix = _matrix([getattr(sample, region) for sample in train_samples])
+        test_matrix = _matrix([getattr(sample, region) for sample in test_samples])
+        predicted = _nearest_centroid_predict(train_matrix, train_labels, test_matrix)
+        scores[held_out] = _balanced_accuracy(test_labels, predicted)
+
+    if not scores:
+        return None, scores
+    return float(np.mean(list(scores.values()))), scores
 
 
 def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAnalysis:
@@ -180,7 +275,7 @@ def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAna
         grouped[sample.subbank][context].append(sample)
 
     subbanks: list[SubbankContrast] = []
-    for subbank in sorted(grouped):
+    for index, subbank in enumerate(sorted(grouped)):
         plain_samples = grouped[subbank].get("plain", [])
         rounded_samples = grouped[subbank].get("rounded", [])
         if len(plain_samples) < 2 or len(rounded_samples) < 2:
@@ -196,13 +291,15 @@ def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAna
                 subbank=subbank,
                 plain_count=len(plain_samples),
                 rounded_count=len(rounded_samples),
-                core=_region_contrast(plain_core, rounded_core),
-                late=_region_contrast(plain_late, rounded_late),
+                core=_region_contrast(plain_core, rounded_core, seed=1731 + index * 2),
+                late=_region_contrast(plain_late, rounded_late, seed=1732 + index * 2),
             )
         )
 
     mean_core, core_cv = _summary([item.core.standardized_distance for item in subbanks])
     mean_late, late_cv = _summary([item.late.standardized_distance for item in subbanks])
+    cross_core, cross_core_by_subbank = _cross_subbank_accuracy(grouped, "core")
+    cross_late, cross_late_by_subbank = _cross_subbank_accuracy(grouped, "late")
 
     return ContrastAnalysis(
         base_unit=base_unit,
@@ -213,4 +310,8 @@ def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAna
         core_distance_cv=core_cv,
         mean_late_distance=mean_late,
         late_distance_cv=late_cv,
+        cross_core_balanced_accuracy=cross_core,
+        cross_late_balanced_accuracy=cross_late,
+        cross_core_by_subbank=cross_core_by_subbank,
+        cross_late_by_subbank=cross_late_by_subbank,
     )
