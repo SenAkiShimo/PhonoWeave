@@ -30,8 +30,12 @@ def _tokens(alias: str) -> list[str]:
     return [token for token in re.split(r"\s+", cleaned) if token]
 
 
+def _clean_token(token: str) -> str:
+    return re.sub(r"[^a-züv]", "", token.lower())
+
+
 def _split_syllable(token: str) -> tuple[str, str] | None:
-    token = re.sub(r"[^a-züv]", "", token.lower())
+    token = _clean_token(token)
     if not token:
         return None
 
@@ -44,13 +48,26 @@ def _split_syllable(token: str) -> tuple[str, str] | None:
 
 
 def classify_alias(entry: OtoEntry) -> MandarinObservation | None:
-    candidates = _tokens(entry.alias)
-    for token in reversed(candidates):
+    tokens = _tokens(entry.alias)
+
+    for token in reversed(tokens):
         parsed = _split_syllable(token)
-        if parsed is None:
-            continue
-        base, final = parsed
-        return MandarinObservation(entry=entry, base_unit=base, final=final, alias_token=token)
+        if parsed is not None:
+            base, final = parsed
+            return MandarinObservation(entry=entry, base_unit=base, final=final, alias_token=token)
+
+    cleaned = [_clean_token(token) for token in tokens]
+    for index in range(len(cleaned) - 1):
+        base = cleaned[index]
+        final = cleaned[index + 1]
+        if base in _BASES and final in _FINALS:
+            return MandarinObservation(
+                entry=entry,
+                base_unit=base,
+                final=final,
+                alias_token=f"{base} {final}",
+            )
+
     return None
 
 
