@@ -60,7 +60,7 @@ def read_wav(path: Path) -> tuple[np.ndarray, int]:
 
 def consonant_segment(
     entry: OtoEntry,
-    edge_trim: float = 0.12,
+    edge_trim: float = 0.08,
     min_duration_ms: float = 28.0,
 ) -> AudioSegment:
     if entry.preutterance <= 0:
@@ -73,7 +73,7 @@ def consonant_segment(
     if duration < min_duration_ms:
         raise AudioReadError(f"consonant region is too short: {duration:.1f} ms")
 
-    trim = min(duration * edge_trim, 15.0)
+    trim = min(duration * edge_trim, 10.0)
     start_ms += trim
     end_ms -= trim
     if end_ms - start_ms < min_duration_ms * 0.6:
@@ -87,6 +87,27 @@ def consonant_segment(
     return AudioSegment(
         samples=samples[start:end],
         sample_rate=sample_rate,
+        start_ms=start_ms,
+        end_ms=end_ms,
+    )
+
+
+def slice_segment(segment: AudioSegment, start_fraction: float, end_fraction: float) -> AudioSegment:
+    if not 0.0 <= start_fraction < end_fraction <= 1.0:
+        raise ValueError("invalid segment fraction")
+
+    length = len(segment.samples)
+    start = int(round(length * start_fraction))
+    end = int(round(length * end_fraction))
+    if end - start < 32:
+        raise AudioReadError("segment slice is too short")
+
+    duration_ms = segment.end_ms - segment.start_ms
+    start_ms = segment.start_ms + duration_ms * start_fraction
+    end_ms = segment.start_ms + duration_ms * end_fraction
+    return AudioSegment(
+        samples=segment.samples[start:end],
+        sample_rate=segment.sample_rate,
         start_ms=start_ms,
         end_ms=end_ms,
     )
