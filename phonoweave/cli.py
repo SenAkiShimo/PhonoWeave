@@ -49,9 +49,11 @@ def _prefix_rule_payload(rule) -> dict[str, object]:
 def _region_payload(region) -> dict[str, object]:
     return {
         "standardized_distance": region.standardized_distance,
-        "loo_accuracy": region.loo_accuracy,
+        "loo_balanced_accuracy": region.loo_balanced_accuracy,
+        "permutation_p": region.permutation_p,
         "mean_plain": region.mean_plain,
         "mean_rounded": region.mean_rounded,
+        "standardized_effects": region.standardized_effects,
     }
 
 
@@ -64,6 +66,10 @@ def _analysis_payload(result) -> dict[str, object]:
         "core_distance_cv": result.core_distance_cv,
         "mean_late_distance": result.mean_late_distance,
         "late_distance_cv": result.late_distance_cv,
+        "cross_core_balanced_accuracy": result.cross_core_balanced_accuracy,
+        "cross_late_balanced_accuracy": result.cross_late_balanced_accuracy,
+        "cross_core_by_subbank": result.cross_core_by_subbank,
+        "cross_late_by_subbank": result.cross_late_by_subbank,
         "subbanks": [
             {
                 "subbank": item.subbank,
@@ -148,25 +154,41 @@ def main() -> int:
             if result.mean_late_distance is not None:
                 print(f"Mean late distance: {result.mean_late_distance:.3f}")
                 print(f"Late distance CV: {result.late_distance_cv:.3f}")
+            if result.cross_core_balanced_accuracy is not None:
+                print(f"Cross-subbank core balanced accuracy: {result.cross_core_balanced_accuracy:.3f}")
+                details = ", ".join(
+                    f"{name}={score:.3f}" for name, score in result.cross_core_by_subbank.items()
+                )
+                print(f"  held out: {details}")
+            if result.cross_late_balanced_accuracy is not None:
+                print(f"Cross-subbank late balanced accuracy: {result.cross_late_balanced_accuracy:.3f}")
+                details = ", ".join(
+                    f"{name}={score:.3f}" for name, score in result.cross_late_by_subbank.items()
+                )
+                print(f"  held out: {details}")
             print()
             for item in result.subbanks:
                 print(f"{item.subbank}: plain={item.plain_count}, rounded={item.rounded_count}")
                 for name, region in (("core", item.core), ("late", item.late)):
                     print(
                         f"  {name}: distance={region.standardized_distance:.3f}, "
-                        f"loo_accuracy={region.loo_accuracy:.3f}"
+                        f"loo_balanced_accuracy={region.loo_balanced_accuracy:.3f}, "
+                        f"permutation_p={region.permutation_p:.4f}"
                     )
                     print(
                         f"    centroid_hz: {region.mean_plain['centroid_hz']:.1f} -> "
-                        f"{region.mean_rounded['centroid_hz']:.1f}"
+                        f"{region.mean_rounded['centroid_hz']:.1f} "
+                        f"(effect={region.standardized_effects['centroid_hz']:+.3f})"
                     )
                     print(
                         f"    high_band_ratio: {region.mean_plain['high_band_ratio']:.3f} -> "
-                        f"{region.mean_rounded['high_band_ratio']:.3f}"
+                        f"{region.mean_rounded['high_band_ratio']:.3f} "
+                        f"(effect={region.standardized_effects['high_band_ratio']:+.3f})"
                     )
                     print(
                         f"    slope: {region.mean_plain['slope']:.3f} -> "
-                        f"{region.mean_rounded['slope']:.3f}"
+                        f"{region.mean_rounded['slope']:.3f} "
+                        f"(effect={region.standardized_effects['slope']:+.3f})"
                     )
         return 0
 
