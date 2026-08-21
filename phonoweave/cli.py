@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .analyze import analyze_fricative_contrast
 from .inspect import inspect_voicebank
 
 
@@ -14,6 +15,11 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_parser = subparsers.add_parser("inspect")
     inspect_parser.add_argument("voicebank", type=Path)
     inspect_parser.add_argument("--json", action="store_true")
+
+    analyze_parser = subparsers.add_parser("analyze")
+    analyze_parser.add_argument("voicebank", type=Path)
+    analyze_parser.add_argument("--base", default="sh", choices=("sh",))
+    analyze_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -37,6 +43,28 @@ def _prefix_rule_payload(rule) -> dict[str, object]:
         "suffix": rule.suffix,
         "tones": list(rule.tones),
         "tone_ranges": list(rule.tone_ranges),
+    }
+
+
+def _analysis_payload(result) -> dict[str, object]:
+    return {
+        "base_unit": result.base_unit,
+        "samples": result.samples,
+        "skipped": result.skipped,
+        "mean_distance": result.mean_distance,
+        "distance_cv": result.distance_cv,
+        "subbanks": [
+            {
+                "subbank": item.subbank,
+                "plain_count": item.plain_count,
+                "rounded_count": item.rounded_count,
+                "standardized_distance": item.standardized_distance,
+                "centroid_accuracy": item.centroid_accuracy,
+                "mean_plain": item.mean_plain,
+                "mean_rounded": item.mean_rounded,
+            }
+            for item in result.subbanks
+        ],
     }
 
 
@@ -80,9 +108,7 @@ def main() -> int:
                     prefix = rule["prefix"] or '""'
                     suffix = rule["suffix"] or '""'
                     color = rule["color"] or "default"
-                    print(
-                        f"  {color}: prefix={prefix!r}, suffix={suffix!r}, tones={ranges}"
-                    )
+                    print(f"  {color}: prefix={prefix!r}, suffix={suffix!r}, tones={ranges}")
 
             if payload["subbanks"]:
                 print()
@@ -96,6 +122,39 @@ def main() -> int:
                     for base, contexts in subbank["groups"].items():
                         summary = ", ".join(f"{name}={count}" for name, count in contexts.items())
                         print(f"    {base}: {summary}")
+        return 0
+
+    if args.command == "analyze":
+        result = analyze_fricative_contrast(args.voicebank, args.base)
+        payload = _analysis_payload(result)
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(f"Base unit: {result.base_unit}")
+            print(f"Samples: {result.samples}")
+            print(f"Skipped: {result.skipped}")
+            if result.mean_distance is not None:
+                print(f"Mean standardized distance: {result.mean_distance:.3f}")
+                print(f"Cross-subbank distance CV: {result.distance_cv:.3f}")
+            print()
+            for item in result.subbanks:
+                print(
+                    f"{item.subbank}: plain={item.plain_count}, rounded={item.rounded_count}, "
+                    f"distance={item.standardized_distance:.3f}, "
+                    f"centroid_accuracy={item.centroid_accuracy:.3f}"
+                )
+                print(
+                    f"  centroid_hz: {item.mean_plain['centroid_hz']:.1f} -> "
+                    f"{item.mean_rounded['centroid_hz']:.1f}"
+                )
+                print(
+                    f"  high_band_ratio: {item.mean_plain['high_band_ratio']:.3f} -> "
+                    f"{item.mean_rounded['high_band_ratio']:.3f}"
+                )
+                print(
+                    f"  slope: {item.mean_plain['slope']:.3f} -> "
+                    f"{item.mean_rounded['slope']:.3f}"
+                )
         return 0
 
     return 1
