@@ -3,7 +3,9 @@ name = "phonoweave"
 version = "0.0.1"
 description = "Speaker-adaptive phonetic realization analysis and recording-scheme generation"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "numpy>=2.0",
+]
 
 [project.scripts]
 phonoweave = "phonoweave.cli:main"
