@@ -17,6 +17,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _subbank_payload(summary) -> dict[str, object]:
+    return {
+        "name": summary.name,
+        "path": str(summary.path),
+        "oto_files": summary.oto_files,
+        "entries": summary.entries,
+        "missing_wavs": summary.missing_wavs,
+        "observations": summary.observations,
+        "groups": summary.groups,
+    }
+
+
 def main() -> int:
     args = build_parser().parse_args()
 
@@ -30,6 +42,7 @@ def main() -> int:
             "parse_warnings": result.parse_warnings,
             "observations": result.observations,
             "groups": result.groups,
+            "subbanks": [_subbank_payload(summary) for summary in result.subbanks],
         }
 
         if args.json:
@@ -44,6 +57,18 @@ def main() -> int:
             for base, contexts in payload["groups"].items():
                 summary = ", ".join(f"{name}={count}" for name, count in contexts.items())
                 print(f"{base}: {summary}")
+
+            if payload["subbanks"]:
+                print()
+                print("Subbanks:")
+                for subbank in payload["subbanks"]:
+                    print(
+                        f"  {subbank['name']}: entries={subbank['entries']}, "
+                        f"missing_wavs={subbank['missing_wavs']}, observations={subbank['observations']}"
+                    )
+                    for base, contexts in subbank["groups"].items():
+                        summary = ", ".join(f"{name}={count}" for name, count in contexts.items())
+                        print(f"    {base}: {summary}")
         return 0
 
     return 1
