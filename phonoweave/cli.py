@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .analyze import analyze_fricative_contrast
 from .inspect import inspect_voicebank
+from .splice import splice_relevance_test
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser.add_argument("voicebank", type=Path)
     analyze_parser.add_argument("--base", default="sh", choices=("sh",))
     analyze_parser.add_argument("--json", action="store_true")
+
+    splice_parser = subparsers.add_parser("splice-test")
+    splice_parser.add_argument("voicebank", type=Path)
+    splice_parser.add_argument("--base", default="sh", choices=("sh",))
+    splice_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -77,6 +83,30 @@ def _analysis_payload(result) -> dict[str, object]:
                 "rounded_count": item.rounded_count,
                 "core": _region_payload(item.core),
                 "late": _region_payload(item.late),
+            }
+            for item in result.subbanks
+        ],
+    }
+
+
+def _splice_payload(result) -> dict[str, object]:
+    return {
+        "base_unit": result.base_unit,
+        "targets": result.targets,
+        "skipped": result.skipped,
+        "mean_delta": result.mean_delta,
+        "mean_relative_delta": result.mean_relative_delta,
+        "permutation_p": result.permutation_p,
+        "subbanks": [
+            {
+                "subbank": item.subbank,
+                "targets": item.targets,
+                "mean_natural_penalty": item.mean_natural_penalty,
+                "mean_rounded_control_penalty": item.mean_rounded_control_penalty,
+                "mean_plain_substitution_penalty": item.mean_plain_substitution_penalty,
+                "mean_delta": item.mean_delta,
+                "mean_relative_delta": item.mean_relative_delta,
+                "permutation_p": item.permutation_p,
             }
             for item in result.subbanks
         ],
@@ -190,6 +220,29 @@ def main() -> int:
                         f"{region.mean_rounded['slope']:.3f} "
                         f"(effect={region.standardized_effects['slope']:+.3f})"
                     )
+        return 0
+
+    if args.command == "splice-test":
+        result = splice_relevance_test(args.voicebank, args.base)
+        payload = _splice_payload(result)
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(f"Base unit: {result.base_unit}")
+            print(f"Rounded targets: {result.targets}")
+            print(f"Skipped: {result.skipped}")
+            if result.mean_delta is not None:
+                print(f"Mean substitution delta: {result.mean_delta:+.4f}")
+                print(f"Mean relative delta: {result.mean_relative_delta:+.1%}")
+                print(f"Permutation p: {result.permutation_p:.4f}")
+            print()
+            for item in result.subbanks:
+                print(f"{item.subbank}: targets={item.targets}")
+                print(f"  natural boundary: {item.mean_natural_penalty:.4f}")
+                print(f"  rounded control: {item.mean_rounded_control_penalty:.4f}")
+                print(f"  plain substitution: {item.mean_plain_substitution_penalty:.4f}")
+                print(f"  delta: {item.mean_delta:+.4f} ({item.mean_relative_delta:+.1%})")
+                print(f"  permutation_p: {item.permutation_p:.4f}")
         return 0
 
     return 1
