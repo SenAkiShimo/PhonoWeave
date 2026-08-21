@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .analyze import analyze_fricative_contrast
 from .inspect import inspect_voicebank
+from .render_ab import render_ab_pairs
 from .splice import splice_relevance_test
 
 
@@ -26,6 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
     splice_parser.add_argument("voicebank", type=Path)
     splice_parser.add_argument("--base", default="sh", choices=("sh",))
     splice_parser.add_argument("--json", action="store_true")
+
+    render_parser = subparsers.add_parser("render-ab")
+    render_parser.add_argument("voicebank", type=Path)
+    render_parser.add_argument("--base", default="sh", choices=("sh",))
+    render_parser.add_argument("--per-subbank", type=int, default=3)
+    render_parser.add_argument("--output", type=Path, default=Path("phonoweave_ab"))
     return parser
 
 
@@ -243,6 +250,25 @@ def main() -> int:
                 print(f"  plain substitution: {item.mean_plain_substitution_penalty:.4f}")
                 print(f"  delta: {item.mean_delta:+.4f} ({item.mean_relative_delta:+.1%})")
                 print(f"  permutation_p: {item.permutation_p:.4f}")
+        return 0
+
+    if args.command == "render-ab":
+        if args.per_subbank < 1:
+            raise SystemExit("--per-subbank must be at least 1")
+        result = render_ab_pairs(
+            args.voicebank,
+            args.output,
+            base_unit=args.base,
+            per_subbank=args.per_subbank,
+        )
+        print(f"Output: {result.output_dir}")
+        print(f"Pairs: {len(result.pairs)}")
+        for pair in result.pairs:
+            print(f"{pair.subbank}: target={pair.target_alias}, delta={pair.delta:+.4f}")
+            print(f"  N: {pair.natural_path.name}")
+            print(f"  A: {pair.a_path.name}  donor={pair.rounded_donor_alias}")
+            print(f"  B: {pair.b_path.name}  donor={pair.plain_donor_alias}")
+        print(f"Manifest: {result.output_dir / 'manifest.csv'}")
         return 0
 
     return 1
