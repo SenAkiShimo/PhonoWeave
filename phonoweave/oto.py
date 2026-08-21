@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+import unicodedata
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,18 @@ def _read_text(path: Path) -> str:
         except UnicodeDecodeError:
             pass
     return data.decode("utf-8", errors="replace")
+
+
+def _normalized_name(name: str) -> str:
+    return unicodedata.normalize("NFC", name)
+
+
+def _wav_lookup(directory: Path) -> dict[str, Path]:
+    lookup: dict[str, Path] = {}
+    for path in directory.iterdir():
+        if path.is_file() and path.suffix.lower() == ".wav":
+            lookup.setdefault(_normalized_name(path.name), path.resolve())
+    return lookup
 
 
 def parse_oto_line(line: str, oto_path: Path, line_number: int) -> OtoEntry:
@@ -67,13 +80,19 @@ def load_oto(path: Path) -> tuple[list[OtoEntry], list[OtoWarning]]:
     path = path.resolve()
     entries: list[OtoEntry] = []
     warnings: list[OtoWarning] = []
+    wavs = _wav_lookup(path.parent)
 
     for line_number, raw_line in enumerate(_read_text(path).splitlines(), start=1):
         line = raw_line.strip()
         if not line or line.startswith("#") or line.startswith(";"):
             continue
         try:
-            entries.append(parse_oto_line(line, path, line_number))
+            entry = parse_oto_line(line, path, line_number)
+            if not entry.wav_path.exists():
+                resolved = wavs.get(_normalized_name(entry.wav_path.name))
+                if resolved is not None:
+                    entry = replace(entry, wav_path=resolved)
+            entries.append(entry)
         except ValueError as exc:
             warnings.append(OtoWarning(path, line_number, str(exc)))
 
