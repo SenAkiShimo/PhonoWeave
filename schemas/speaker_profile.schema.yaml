@@ -1,0 +1,21 @@
+schema_version: 1
+
+speaker:
+  id: null
+  language: null
+
+realizations: []
+
+# realization item
+# - base_unit: sh
+#   variants:
+#     - id: sh
+#       contexts: [i, a, e]
+#     - id: shw
+#       contexts: [u, uo]
+#   confidence: 0.0
+#   decision: split
+
+metadata:
+  source: null
+  created_at: null
