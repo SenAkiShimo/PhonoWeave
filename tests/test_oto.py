@@ -1,6 +1,7 @@
 from pathlib import Path
+import unicodedata
 
-from phonoweave.oto import parse_oto_line
+from phonoweave.oto import load_oto, parse_oto_line
 
 
 def test_parse_oto_line() -> None:
@@ -17,3 +18,17 @@ def test_parse_oto_line() -> None:
     assert entry.preutterance == 45
     assert entry.overlap == 10
     assert entry.line_number == 3
+
+
+def test_load_oto_matches_normalized_wav_name(tmp_path: Path) -> None:
+    composed = "café.wav"
+    decomposed = unicodedata.normalize("NFD", composed)
+    (tmp_path / decomposed).write_bytes(b"")
+    oto_path = tmp_path / "oto.ini"
+    oto_path.write_text(f"{composed}=sh u,0,80,0,40,10\n", encoding="utf-8")
+
+    entries, warnings = load_oto(oto_path)
+
+    assert warnings == []
+    assert len(entries) == 1
+    assert entries[0].wav_path.exists()
