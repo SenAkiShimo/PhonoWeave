@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .affricate import analyze_affricate_contrast
 from .analyze import analyze_fricative_contrast
 from .inspect import inspect_voicebank
 from .render_ab import render_ab_pairs
@@ -22,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser.add_argument("voicebank", type=Path)
     analyze_parser.add_argument("--base", default="sh", choices=("sh",))
     analyze_parser.add_argument("--json", action="store_true")
+
+    affricate_parser = subparsers.add_parser("analyze-affricate")
+    affricate_parser.add_argument("voicebank", type=Path)
+    affricate_parser.add_argument("--base", required=True, choices=("zh", "ch"))
+    affricate_parser.add_argument("--json", action="store_true")
 
     splice_parser = subparsers.add_parser("splice-test")
     splice_parser.add_argument("voicebank", type=Path)
@@ -90,6 +96,32 @@ def _analysis_payload(result) -> dict[str, object]:
                 "rounded_count": item.rounded_count,
                 "core": _region_payload(item.core),
                 "late": _region_payload(item.late),
+            }
+            for item in result.subbanks
+        ],
+    }
+
+
+def _affricate_payload(result) -> dict[str, object]:
+    return {
+        "base_unit": result.base_unit,
+        "samples": result.samples,
+        "skipped": result.skipped,
+        "mean_distance": result.mean_distance,
+        "distance_cv": result.distance_cv,
+        "cross_subbank_balanced_accuracy": result.cross_subbank_balanced_accuracy,
+        "cross_by_subbank": result.cross_by_subbank,
+        "subbanks": [
+            {
+                "subbank": item.subbank,
+                "plain_count": item.plain_count,
+                "rounded_count": item.rounded_count,
+                "distance": item.distance,
+                "loo_balanced_accuracy": item.loo_balanced_accuracy,
+                "permutation_p": item.permutation_p,
+                "mean_plain": item.mean_plain,
+                "mean_rounded": item.mean_rounded,
+                "effects": item.effects,
             }
             for item in result.subbanks
         ],
@@ -227,6 +259,49 @@ def main() -> int:
                         f"{region.mean_rounded['slope']:.3f} "
                         f"(effect={region.standardized_effects['slope']:+.3f})"
                     )
+        return 0
+
+    if args.command == "analyze-affricate":
+        result = analyze_affricate_contrast(args.voicebank, args.base)
+        payload = _affricate_payload(result)
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(f"Base unit: {result.base_unit}")
+            print(f"Samples: {result.samples}")
+            print(f"Skipped: {result.skipped}")
+            if result.mean_distance is not None:
+                print(f"Mean distance: {result.mean_distance:.3f}")
+                print(f"Distance CV: {result.distance_cv:.3f}")
+            if result.cross_subbank_balanced_accuracy is not None:
+                print(f"Cross-subbank balanced accuracy: {result.cross_subbank_balanced_accuracy:.3f}")
+                details = ", ".join(
+                    f"{name}={score:.3f}" for name, score in result.cross_by_subbank.items()
+                )
+                print(f"  held out: {details}")
+            print()
+            for item in result.subbanks:
+                print(
+                    f"{item.subbank}: plain={item.plain_count}, rounded={item.rounded_count}, "
+                    f"distance={item.distance:.3f}, "
+                    f"loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}, "
+                    f"permutation_p={item.permutation_p:.4f}"
+                )
+                print(
+                    f"  centroid_hz: {item.mean_plain['centroid_hz']:.1f} -> "
+                    f"{item.mean_rounded['centroid_hz']:.1f} "
+                    f"(effect={item.effects['centroid_hz']:+.3f})"
+                )
+                print(
+                    f"  high_band_ratio: {item.mean_plain['high_band_ratio']:.3f} -> "
+                    f"{item.mean_rounded['high_band_ratio']:.3f} "
+                    f"(effect={item.effects['high_band_ratio']:+.3f})"
+                )
+                print(
+                    f"  frication_duration_ms: {item.mean_plain['frication_duration_ms']:.1f} -> "
+                    f"{item.mean_rounded['frication_duration_ms']:.1f} "
+                    f"(effect={item.effects['frication_duration_ms']:+.3f})"
+                )
         return 0
 
     if args.command == "splice-test":
