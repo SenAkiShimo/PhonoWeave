@@ -1,0 +1,32 @@
+language: mandarin
+version: 1
+
+contrast_groups:
+  - id: retroflex_fricative_rounding
+    base_unit: sh
+    candidates: [sh, shw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: retroflex_affricate_rounding
+    base_unit: zh
+    candidates: [zh, zhw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: aspirated_retroflex_affricate_rounding
+    base_unit: ch
+    candidates: [ch, chw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: rhotic_context
+    base_unit: r
+    candidates: [r, ry, rw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng]
+      front: [i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
