@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .mandarin import collect_observations, context_for
 from .oto import OtoEntry, load_voicebank
+from .prefixmap import PrefixMapRule, affix_pairs, load_prefix_maps
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,7 @@ class SubbankSummary:
     path: Path
     oto_files: int
     entries: int
+    valid_entries: int
     missing_wavs: int
     observations: int
     groups: dict[str, dict[str, int]]
@@ -24,16 +26,22 @@ class InspectionResult:
     root: Path
     oto_files: int
     entries: int
+    valid_entries: int
     missing_wavs: int
     parse_warnings: int
     observations: int
     groups: dict[str, dict[str, int]]
     subbanks: list[SubbankSummary]
+    prefix_rules: list[PrefixMapRule]
 
 
-def _group_counts(entries: list[OtoEntry]) -> tuple[int, dict[str, dict[str, int]]]:
+def _group_counts(
+    entries: list[OtoEntry],
+    affixes: tuple[tuple[str, str], ...],
+) -> tuple[int, dict[str, dict[str, int]]]:
     grouped: dict[str, Counter[str]] = defaultdict(Counter)
-    observations = collect_observations(entries)
+    valid_entries = [entry for entry in entries if entry.wav_path.exists()]
+    observations = collect_observations(valid_entries, affixes)
     for observation in observations:
         context = context_for(observation.base_unit, observation.final)
         if context is not None:
@@ -50,9 +58,13 @@ def _subbank_name(root: Path, directory: Path) -> str:
 def inspect_voicebank(root: Path) -> InspectionResult:
     root = root.expanduser().resolve()
     entries, warnings = load_voicebank(root)
-    missing_wavs = sum(1 for entry in entries if not entry.wav_path.exists())
+    prefix_rules = load_prefix_maps(root)
+    affixes = affix_pairs(prefix_rules)
+
+    valid_entries = [entry for entry in entries if entry.wav_path.exists()]
+    missing_wavs = len(entries) - len(valid_entries)
     oto_paths = {entry.oto_path for entry in entries} | {warning.oto_path for warning in warnings}
-    observations, groups = _group_counts(entries)
+    observations, groups = _group_counts(entries, affixes)
 
     by_directory: dict[Path, list[OtoEntry]] = defaultdict(list)
     for entry in entries:
@@ -61,14 +73,16 @@ def inspect_voicebank(root: Path) -> InspectionResult:
     subbanks: list[SubbankSummary] = []
     for directory in sorted(by_directory):
         bank_entries = by_directory[directory]
-        bank_observations, bank_groups = _group_counts(bank_entries)
+        bank_valid_entries = [entry for entry in bank_entries if entry.wav_path.exists()]
+        bank_observations, bank_groups = _group_counts(bank_entries, affixes)
         subbanks.append(
             SubbankSummary(
                 name=_subbank_name(root, directory),
                 path=directory,
                 oto_files=len({entry.oto_path for entry in bank_entries}),
                 entries=len(bank_entries),
-                missing_wavs=sum(1 for entry in bank_entries if not entry.wav_path.exists()),
+                valid_entries=len(bank_valid_entries),
+                missing_wavs=len(bank_entries) - len(bank_valid_entries),
                 observations=bank_observations,
                 groups=bank_groups,
             )
@@ -78,9 +92,11 @@ def inspect_voicebank(root: Path) -> InspectionResult:
         root=root,
         oto_files=len(oto_paths),
         entries=len(entries),
+        valid_entries=len(valid_entries),
         missing_wavs=missing_wavs,
         parse_warnings=len(warnings),
         observations=observations,
         groups=groups,
         subbanks=subbanks,
+        prefix_rules=prefix_rules,
     )
