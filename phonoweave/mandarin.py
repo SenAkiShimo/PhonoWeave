@@ -47,8 +47,25 @@ def _split_syllable(token: str) -> tuple[str, str] | None:
     return None
 
 
-def classify_alias(entry: OtoEntry) -> MandarinObservation | None:
-    tokens = _tokens(entry.alias)
+def normalize_alias(alias: str, affixes: Iterable[tuple[str, str]] = ()) -> str:
+    candidates = [alias]
+    for prefix, suffix in affixes:
+        stripped = alias
+        if prefix and stripped.startswith(prefix):
+            stripped = stripped[len(prefix):]
+        if suffix and stripped.endswith(suffix):
+            stripped = stripped[:-len(suffix)]
+        if stripped != alias:
+            candidates.append(stripped)
+    return min(candidates, key=len)
+
+
+def classify_alias(
+    entry: OtoEntry,
+    affixes: Iterable[tuple[str, str]] = (),
+) -> MandarinObservation | None:
+    alias = normalize_alias(entry.alias, affixes)
+    tokens = _tokens(alias)
 
     for token in reversed(tokens):
         parsed = _split_syllable(token)
@@ -71,10 +88,13 @@ def classify_alias(entry: OtoEntry) -> MandarinObservation | None:
     return None
 
 
-def collect_observations(entries: Iterable[OtoEntry]) -> list[MandarinObservation]:
+def collect_observations(
+    entries: Iterable[OtoEntry],
+    affixes: Iterable[tuple[str, str]] = (),
+) -> list[MandarinObservation]:
     observations: list[MandarinObservation] = []
     for entry in entries:
-        observation = classify_alias(entry)
+        observation = classify_alias(entry, affixes)
         if observation is not None:
             observations.append(observation)
     return observations
