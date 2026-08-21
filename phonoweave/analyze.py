@@ -6,21 +6,20 @@ from pathlib import Path
 
 import numpy as np
 
-from .audio import AudioReadError, consonant_segment
+from .audio import AudioReadError, consonant_segment, slice_segment
 from .features import FricativeFeatures, extract_fricative_features
 from .mandarin import collect_observations, context_for
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 
 
-_FEATURE_NAMES = (
+_ACOUSTIC_FEATURES = (
     "centroid_hz",
     "spread_hz",
     "skewness",
     "kurtosis",
     "slope",
     "high_band_ratio",
-    "duration_ms",
 )
 
 
@@ -31,7 +30,16 @@ class SampleFeatures:
     final: str
     alias: str
     wav_path: Path
-    features: FricativeFeatures
+    core: FricativeFeatures
+    late: FricativeFeatures
+
+
+@dataclass(frozen=True)
+class RegionContrast:
+    standardized_distance: float
+    loo_accuracy: float
+    mean_plain: dict[str, float]
+    mean_rounded: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -39,10 +47,8 @@ class SubbankContrast:
     subbank: str
     plain_count: int
     rounded_count: int
-    standardized_distance: float
-    centroid_accuracy: float
-    mean_plain: dict[str, float]
-    mean_rounded: dict[str, float]
+    core: RegionContrast
+    late: RegionContrast
 
 
 @dataclass(frozen=True)
@@ -51,8 +57,10 @@ class ContrastAnalysis:
     samples: int
     skipped: int
     subbanks: list[SubbankContrast]
-    mean_distance: float | None
-    distance_cv: float | None
+    mean_core_distance: float | None
+    core_distance_cv: float | None
+    mean_late_distance: float | None
+    late_distance_cv: float | None
 
 
 def _subbank_name(root: Path, entry: OtoEntry) -> str:
@@ -60,9 +68,26 @@ def _subbank_name(root: Path, entry: OtoEntry) -> str:
     return "." if directory == root else str(directory.relative_to(root))
 
 
+def _matrix(features: list[FricativeFeatures]) -> np.ndarray:
+    return np.array(
+        [
+            [
+                f.centroid_hz,
+                f.spread_hz,
+                f.skewness,
+                f.kurtosis,
+                f.slope,
+                f.high_band_ratio,
+            ]
+            for f in features
+        ],
+        dtype=np.float64,
+    )
+
+
 def _means(matrix: np.ndarray) -> dict[str, float]:
     values = np.mean(matrix, axis=0)
-    return {name: float(value) for name, value in zip(_FEATURE_NAMES, values, strict=True)}
+    return {name: float(value) for name, value in zip(_ACOUSTIC_FEATURES, values, strict=True)}
 
 
 def _standardized_distance(plain: np.ndarray, rounded: np.ndarray) -> float:
@@ -73,18 +98,48 @@ def _standardized_distance(plain: np.ndarray, rounded: np.ndarray) -> float:
     return float(np.linalg.norm(delta) / np.sqrt(len(delta)))
 
 
-def _centroid_accuracy(plain: np.ndarray, rounded: np.ndarray) -> float:
+def _loo_accuracy(plain: np.ndarray, rounded: np.ndarray) -> float:
     combined = np.vstack([plain, rounded])
     labels = np.array([0] * len(plain) + [1] * len(rounded), dtype=np.int8)
-    scale = np.std(combined, axis=0, ddof=1)
-    scale = np.where(scale < 1e-9, 1.0, scale)
-    normalized = combined / scale
-    plain_center = np.mean(normalized[: len(plain)], axis=0)
-    rounded_center = np.mean(normalized[len(plain) :], axis=0)
-    d_plain = np.linalg.norm(normalized - plain_center, axis=1)
-    d_rounded = np.linalg.norm(normalized - rounded_center, axis=1)
-    predicted = (d_rounded < d_plain).astype(np.int8)
-    return float(np.mean(predicted == labels))
+    correct = 0
+
+    for index in range(len(combined)):
+        train_mask = np.ones(len(combined), dtype=bool)
+        train_mask[index] = False
+        train = combined[train_mask]
+        train_labels = labels[train_mask]
+
+        scale = np.std(train, axis=0, ddof=1)
+        scale = np.where(scale < 1e-9, 1.0, scale)
+        train_norm = train / scale
+        test_norm = combined[index] / scale
+
+        plain_center = np.mean(train_norm[train_labels == 0], axis=0)
+        rounded_center = np.mean(train_norm[train_labels == 1], axis=0)
+        d_plain = np.linalg.norm(test_norm - plain_center)
+        d_rounded = np.linalg.norm(test_norm - rounded_center)
+        predicted = 1 if d_rounded < d_plain else 0
+        correct += int(predicted == labels[index])
+
+    return float(correct / len(combined))
+
+
+def _region_contrast(plain: np.ndarray, rounded: np.ndarray) -> RegionContrast:
+    return RegionContrast(
+        standardized_distance=_standardized_distance(plain, rounded),
+        loo_accuracy=_loo_accuracy(plain, rounded),
+        mean_plain=_means(plain),
+        mean_rounded=_means(rounded),
+    )
+
+
+def _summary(values: list[float]) -> tuple[float | None, float | None]:
+    if not values:
+        return None, None
+    array = np.asarray(values, dtype=np.float64)
+    mean = float(np.mean(array))
+    cv = float(np.std(array) / mean) if mean > 1e-9 else 0.0
+    return mean, cv
 
 
 def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAnalysis:
@@ -104,8 +159,11 @@ def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAna
         if context not in {"plain", "rounded"}:
             continue
         try:
-            segment = consonant_segment(observation.entry)
-            features = extract_fricative_features(segment)
+            whole = consonant_segment(observation.entry)
+            core_segment = slice_segment(whole, 0.20, 0.60)
+            late_segment = slice_segment(whole, 0.60, 0.92)
+            core_features = extract_fricative_features(core_segment)
+            late_features = extract_fricative_features(late_segment)
         except (AudioReadError, ValueError):
             skipped += 1
             continue
@@ -116,7 +174,8 @@ def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAna
             final=observation.final,
             alias=observation.entry.alias,
             wav_path=observation.entry.wav_path,
-            features=features,
+            core=core_features,
+            late=late_features,
         )
         grouped[sample.subbank][context].append(sample)
 
@@ -127,33 +186,31 @@ def analyze_fricative_contrast(root: Path, base_unit: str = "sh") -> ContrastAna
         if len(plain_samples) < 2 or len(rounded_samples) < 2:
             continue
 
-        plain = np.vstack([sample.features.vector() for sample in plain_samples])
-        rounded = np.vstack([sample.features.vector() for sample in rounded_samples])
+        plain_core = _matrix([sample.core for sample in plain_samples])
+        rounded_core = _matrix([sample.core for sample in rounded_samples])
+        plain_late = _matrix([sample.late for sample in plain_samples])
+        rounded_late = _matrix([sample.late for sample in rounded_samples])
+
         subbanks.append(
             SubbankContrast(
                 subbank=subbank,
                 plain_count=len(plain_samples),
                 rounded_count=len(rounded_samples),
-                standardized_distance=_standardized_distance(plain, rounded),
-                centroid_accuracy=_centroid_accuracy(plain, rounded),
-                mean_plain=_means(plain),
-                mean_rounded=_means(rounded),
+                core=_region_contrast(plain_core, rounded_core),
+                late=_region_contrast(plain_late, rounded_late),
             )
         )
 
-    distances = np.array([subbank.standardized_distance for subbank in subbanks], dtype=np.float64)
-    if len(distances):
-        mean_distance = float(np.mean(distances))
-        distance_cv = float(np.std(distances) / mean_distance) if mean_distance > 1e-9 else 0.0
-    else:
-        mean_distance = None
-        distance_cv = None
+    mean_core, core_cv = _summary([item.core.standardized_distance for item in subbanks])
+    mean_late, late_cv = _summary([item.late.standardized_distance for item in subbanks])
 
     return ContrastAnalysis(
         base_unit=base_unit,
         samples=sum(s.plain_count + s.rounded_count for s in subbanks),
         skipped=skipped,
         subbanks=subbanks,
-        mean_distance=mean_distance,
-        distance_cv=distance_cv,
+        mean_core_distance=mean_core,
+        core_distance_cv=core_cv,
+        mean_late_distance=mean_late,
+        late_distance_cv=late_cv,
     )
