@@ -1,0 +1,60 @@
+language: mandarin
+version: 1
+
+contrast_groups:
+  - id: retroflex_fricative_rounding
+    base_unit: sh
+    candidates: [sh, shw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: alveolar_fricative_rounding
+    base_unit: s
+    candidates: [s, sw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: alveolopalatal_fricative_rounding
+    base_unit: x
+    candidates: [x, xw]
+    contexts:
+      plain: [i, ia, ie, iao, iu, ian, in, iang, ing]
+      rounded: [u, ue, uan, un, v, ve, van, vn, ü]
+
+  - id: retroflex_affricate_rounding
+    base_unit: zh
+    candidates: [zh, zhw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: aspirated_retroflex_affricate_rounding
+    base_unit: ch
+    candidates: [ch, chw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: alveolar_affricate_rounding
+    base_unit: z
+    candidates: [z, zw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: aspirated_alveolar_affricate_rounding
+    base_unit: c
+    candidates: [c, cw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: rhotic_context
+    base_unit: r
+    candidates: [r, ry, rw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng]
+      front: [i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
