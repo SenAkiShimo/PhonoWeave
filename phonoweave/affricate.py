@@ -6,12 +6,13 @@ from pathlib import Path
 
 import numpy as np
 
-from .audio import AudioReadError, consonant_segment, slice_segment
+from .audio import AudioReadError
 from .contrast import balanced_accuracy, loo_balanced_accuracy, nearest_centroid_predict, permutation_p, standardized_distance, standardized_effects
 from .features import FricativeFeatures, extract_fricative_features
 from .mandarin import collect_observations, context_for
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
+from .segmentation import detect_affricate_frication
 
 
 _FEATURES = (
@@ -88,9 +89,8 @@ def _subbank_name(root: Path, entry: OtoEntry) -> str:
 
 
 def _extract_features(entry: OtoEntry) -> AffricateFeatures:
-    whole = consonant_segment(entry, edge_trim=0.04)
-    frication = slice_segment(whole, 0.28, 0.90)
-    spectral: FricativeFeatures = extract_fricative_features(frication)
+    segmentation = detect_affricate_frication(entry)
+    spectral: FricativeFeatures = extract_fricative_features(segmentation.frication)
     return AffricateFeatures(
         centroid_hz=spectral.centroid_hz,
         spread_hz=spectral.spread_hz,
@@ -98,7 +98,7 @@ def _extract_features(entry: OtoEntry) -> AffricateFeatures:
         kurtosis=spectral.kurtosis,
         slope=spectral.slope,
         high_band_ratio=spectral.high_band_ratio,
-        frication_duration_ms=frication.end_ms - frication.start_ms,
+        frication_duration_ms=segmentation.frication.end_ms - segmentation.frication.start_ms,
     )
 
 
