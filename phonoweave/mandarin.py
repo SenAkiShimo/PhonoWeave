@@ -13,7 +13,7 @@ _FINALS = (
     "a", "o", "e", "i", "u", "v", "ü",
 )
 
-_BASES = ("zh", "ch", "sh", "r")
+_BASES = ("zh", "ch", "sh", "r", "s")
 
 
 @dataclass(frozen=True)
@@ -101,7 +101,7 @@ def collect_observations(
 
 
 def context_for(base_unit: str, final: str) -> str | None:
-    if base_unit in {"sh", "zh", "ch"}:
+    if base_unit in {"sh", "zh", "ch", "s"}:
         if final.startswith("u"):
             return "rounded"
         return "plain"
