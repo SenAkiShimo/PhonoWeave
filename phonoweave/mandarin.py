@@ -13,7 +13,7 @@ _FINALS = (
     "ai", "ei", "ao", "ou", "an", "en", "a", "o", "e", "i", "u", "v", "ü",
 )
 
-_BASES = ("zh", "ch", "sh", "r", "s", "z", "c", "x")
+_BASES = ("zh", "ch", "sh", "r", "s", "z", "c", "j", "q", "x")
 
 
 @dataclass(frozen=True)
@@ -113,7 +113,7 @@ def context_for(base_unit: str, final: str) -> str | None:
             return "rounded"
         return "plain"
 
-    if base_unit == "x":
+    if base_unit in {"j", "q", "x"}:
         if final in {"u", "ue", "uan", "un", "v", "ve", "van", "vn", "ü"}:
             return "rounded"
         if final in {"i", "ia", "ie", "iao", "iu", "ian", "in", "iang", "ing"}:
