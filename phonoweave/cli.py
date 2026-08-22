@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     affricate_parser = subparsers.add_parser("analyze-affricate")
     affricate_parser.add_argument("voicebank", type=Path)
-    affricate_parser.add_argument("--base", required=True, choices=("zh", "ch"))
+    affricate_parser.add_argument("--base", required=True, choices=("zh", "ch", "z", "c"))
     affricate_parser.add_argument("--json", action="store_true")
 
     rhotic_parser = subparsers.add_parser("analyze-rhotic")
@@ -358,10 +358,7 @@ def main() -> int:
             for item in result.subbanks:
                 counts = ", ".join(f"{name}={count}" for name, count in item.counts.items())
                 print(f"{item.subbank}: {counts}, loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}")
-                for context in ("plain", "front", "rounded"):
-                    means = item.means.get(context)
-                    if means is None:
-                        continue
+                for context, means in item.means.items():
                     print(
                         f"  {context}: periodicity={means['periodicity']:.3f}, "
                         f"flatness={means['spectral_flatness']:.3f}, "
@@ -369,25 +366,25 @@ def main() -> int:
                         f"F2={means['f2_hz']:.1f}, F3={means['f3_hz']:.1f}, "
                         f"F3-F2={means['f3_minus_f2_hz']:.1f}"
                     )
-            print()
-            print("Pairwise:")
-            for pair in result.pairwise:
-                cross = (
-                    f"{pair.cross_subbank_balanced_accuracy:.3f}"
-                    if pair.cross_subbank_balanced_accuracy is not None
-                    else "n/a"
-                )
-                print(f"  {pair.left} vs {pair.right}: cross_subbank_balanced_accuracy={cross}")
-                if pair.cross_by_subbank:
-                    details = ", ".join(f"{name}={score:.3f}" for name, score in pair.cross_by_subbank.items())
-                    print(f"    held out: {details}")
-                for item in pair.subbanks:
-                    print(
-                        f"    {item.subbank}: {item.left_count}/{item.right_count}, "
-                        f"distance={item.distance:.3f}, "
-                        f"loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}, "
-                        f"permutation_p={item.permutation_p:.4f}"
-                    )
+            if result.pairwise:
+                print()
+                print("Pairwise:")
+                for pair in result.pairwise:
+                    score = pair.cross_subbank_balanced_accuracy
+                    print(f"  {pair.left} vs {pair.right}: cross_subbank_balanced_accuracy={score:.3f}")
+                    if pair.cross_by_subbank:
+                        details = ", ".join(
+                            f"{name}={value:.3f}"
+                            for name, value in pair.cross_by_subbank.items()
+                        )
+                        print(f"    held out: {details}")
+                    for item in pair.subbanks:
+                        print(
+                            f"    {item.subbank}: {item.left_count}/{item.right_count}, "
+                            f"distance={item.distance:.3f}, "
+                            f"loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}, "
+                            f"permutation_p={item.permutation_p:.4f}"
+                        )
         return 0
 
     if args.command == "splice-test":
@@ -414,22 +411,11 @@ def main() -> int:
         return 0
 
     if args.command == "render-ab":
-        if args.per_subbank < 1:
-            raise SystemExit("--per-subbank must be at least 1")
-        result = render_ab_pairs(
-            args.voicebank,
-            args.output,
-            base_unit=args.base,
-            per_subbank=args.per_subbank,
-        )
+        result = render_ab_pairs(args.voicebank, args.output, args.base, args.per_subbank)
         print(f"Output: {result.output_dir}")
-        print(f"Pairs: {len(result.pairs)}")
-        for pair in result.pairs:
-            print(f"{pair.subbank}: target={pair.target_alias}, delta={pair.delta:+.4f}")
-            print(f"  N: {pair.natural_path.name}")
-            print(f"  A: {pair.a_path.name}  donor={pair.rounded_donor_alias}")
-            print(f"  B: {pair.b_path.name}  donor={pair.plain_donor_alias}")
-        print(f"Manifest: {result.output_dir / 'manifest.csv'}")
+        print(f"Groups: {result.groups}")
+        print(f"Files: {result.files}")
+        print(f"Manifest: {result.manifest_path}")
         return 0
 
     return 1
