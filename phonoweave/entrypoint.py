@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .inventory import analyze_voicebank_inventory
 from .profile import write_speaker_profile
+from .synthesis_inventory import write_synthesis_inventory
 
 
 def _inventory_payload(result) -> dict[str, object]:
@@ -75,11 +76,33 @@ def _build_profile(argv: list[str]) -> int:
     return 0
 
 
+def _build_synthesis_inventory(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="phonoweave build-synthesis-inventory")
+    parser.add_argument("voicebank", type=Path)
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("synthesis_inventory.yaml"),
+    )
+    args = parser.parse_args(argv)
+
+    inventory = write_synthesis_inventory(args.voicebank, args.output)
+    output = args.output.expanduser().resolve()
+    print(f"Speaker: {inventory.speaker_id}")
+    print(f"Language: {inventory.language}")
+    print(f"Synthesis units: {len(inventory.units)}")
+    print(f"Output: {output}")
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-profile":
         return _build_profile(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
+        return _build_synthesis_inventory(sys.argv[2:])
 
     from .cli import main as legacy_main
 
