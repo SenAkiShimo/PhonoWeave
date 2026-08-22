@@ -75,7 +75,10 @@ def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
     if decision.decision == "split_recommended":
         if base == "x":
             return (
-                RealizationGroup(id="x_front_unrounded", contexts=("plain",)),
+                RealizationGroup(
+                    id="x_front_unrounded",
+                    contexts=("front_unrounded",),
+                ),
                 RealizationGroup(id="x_rounded", contexts=("rounded",)),
             )
         return (
