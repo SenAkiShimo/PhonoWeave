@@ -25,7 +25,7 @@ _FEATURES = (
     "frication_duration_ms",
 )
 
-_SUPPORTED_BASES = {"zh", "ch", "z", "c"}
+_SUPPORTED_BASES = {"zh", "ch", "z", "c", "j", "q"}
 
 
 @dataclass(frozen=True)
