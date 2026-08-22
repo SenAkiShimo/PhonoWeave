@@ -148,6 +148,26 @@ def _rhotic_payload(result) -> dict[str, object]:
             }
             for item in result.subbanks
         ],
+        "pairwise": [
+            {
+                "left": pair.left,
+                "right": pair.right,
+                "cross_subbank_balanced_accuracy": pair.cross_subbank_balanced_accuracy,
+                "cross_by_subbank": pair.cross_by_subbank,
+                "subbanks": [
+                    {
+                        "subbank": item.subbank,
+                        "left_count": item.left_count,
+                        "right_count": item.right_count,
+                        "distance": item.distance,
+                        "loo_balanced_accuracy": item.loo_balanced_accuracy,
+                        "permutation_p": item.permutation_p,
+                    }
+                    for item in pair.subbanks
+                ],
+            }
+            for pair in result.pairwise
+        ],
     }
 
 
@@ -248,15 +268,11 @@ def main() -> int:
                 print(f"Late distance CV: {result.late_distance_cv:.3f}")
             if result.cross_core_balanced_accuracy is not None:
                 print(f"Cross-subbank core balanced accuracy: {result.cross_core_balanced_accuracy:.3f}")
-                details = ", ".join(
-                    f"{name}={score:.3f}" for name, score in result.cross_core_by_subbank.items()
-                )
+                details = ", ".join(f"{name}={score:.3f}" for name, score in result.cross_core_by_subbank.items())
                 print(f"  held out: {details}")
             if result.cross_late_balanced_accuracy is not None:
                 print(f"Cross-subbank late balanced accuracy: {result.cross_late_balanced_accuracy:.3f}")
-                details = ", ".join(
-                    f"{name}={score:.3f}" for name, score in result.cross_late_by_subbank.items()
-                )
+                details = ", ".join(f"{name}={score:.3f}" for name, score in result.cross_late_by_subbank.items())
                 print(f"  held out: {details}")
             print()
             for item in result.subbanks:
@@ -298,9 +314,7 @@ def main() -> int:
                 print(f"Distance CV: {result.distance_cv:.3f}")
             if result.cross_subbank_balanced_accuracy is not None:
                 print(f"Cross-subbank balanced accuracy: {result.cross_subbank_balanced_accuracy:.3f}")
-                details = ", ".join(
-                    f"{name}={score:.3f}" for name, score in result.cross_by_subbank.items()
-                )
+                details = ", ".join(f"{name}={score:.3f}" for name, score in result.cross_by_subbank.items())
                 print(f"  held out: {details}")
             print()
             for item in result.subbanks:
@@ -338,9 +352,7 @@ def main() -> int:
             print(f"Skipped: {result.skipped}")
             if result.cross_subbank_balanced_accuracy is not None:
                 print(f"Cross-subbank balanced accuracy: {result.cross_subbank_balanced_accuracy:.3f}")
-                details = ", ".join(
-                    f"{name}={score:.3f}" for name, score in result.cross_by_subbank.items()
-                )
+                details = ", ".join(f"{name}={score:.3f}" for name, score in result.cross_by_subbank.items())
                 print(f"  held out: {details}")
             print()
             for item in result.subbanks:
@@ -356,6 +368,25 @@ def main() -> int:
                         f"centroid_hz={means['centroid_hz']:.1f}, "
                         f"F2={means['f2_hz']:.1f}, F3={means['f3_hz']:.1f}, "
                         f"F3-F2={means['f3_minus_f2_hz']:.1f}"
+                    )
+            print()
+            print("Pairwise:")
+            for pair in result.pairwise:
+                cross = (
+                    f"{pair.cross_subbank_balanced_accuracy:.3f}"
+                    if pair.cross_subbank_balanced_accuracy is not None
+                    else "n/a"
+                )
+                print(f"  {pair.left} vs {pair.right}: cross_subbank_balanced_accuracy={cross}")
+                if pair.cross_by_subbank:
+                    details = ", ".join(f"{name}={score:.3f}" for name, score in pair.cross_by_subbank.items())
+                    print(f"    held out: {details}")
+                for item in pair.subbanks:
+                    print(
+                        f"    {item.subbank}: {item.left_count}/{item.right_count}, "
+                        f"distance={item.distance:.3f}, "
+                        f"loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}, "
+                        f"permutation_p={item.permutation_p:.4f}"
                     )
         return 0
 
