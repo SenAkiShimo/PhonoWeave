@@ -18,6 +18,15 @@ def test_profile_uses_neutral_realization_ids() -> None:
                 notes=("splice_delta=0.15",),
             ),
             InventoryDecision(
+                base_unit="x",
+                class_name="fricative",
+                acoustic_evidence="strongly_supported",
+                synthesis_evidence="supported_under_proxy",
+                decision="split_recommended",
+                confidence="high",
+                notes=("splice_delta=0.35",),
+            ),
+            InventoryDecision(
                 base_unit="r",
                 class_name="rhotic",
                 acoustic_evidence="front_distinct_plain_rounded_weak",
@@ -34,6 +43,9 @@ def test_profile_uses_neutral_realization_ids() -> None:
 
     assert "id: sh_plain" in text
     assert "id: sh_rounded" in text
+    assert "id: x_front_unrounded" in text
+    assert "contexts: [front_unrounded]" in text
+    assert "id: x_rounded" in text
     assert "id: r_plain_rounded" in text
     assert "canonical_context: plain" in text
     assert "alias_mapping_applied: false" in text
