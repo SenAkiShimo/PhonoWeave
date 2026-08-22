@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     analyze_parser = subparsers.add_parser("analyze")
     analyze_parser.add_argument("voicebank", type=Path)
-    analyze_parser.add_argument("--base", default="sh", choices=("sh",))
+    analyze_parser.add_argument("--base", default="sh", choices=("sh", "s"))
     analyze_parser.add_argument("--json", action="store_true")
 
     affricate_parser = subparsers.add_parser("analyze-affricate")
