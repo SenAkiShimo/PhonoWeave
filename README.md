@@ -1,5 +1,7 @@
 # PhonoWeave
 
+[![tests](https://github.com/SenAkiShimo/PhonoWeave/actions/workflows/tests.yml/badge.svg)](https://github.com/SenAkiShimo/PhonoWeave/actions/workflows/tests.yml)
+
 Speaker-adaptive phonetic realization analysis and recording-scheme generation for concatenative singing synthesis.
 
 PhonoWeave analyzes how a specific speaker realizes context-dependent sounds, tests whether those differences are useful enough to justify separate synthesis units, and compiles the result into a speaker-specific synthesis inventory.
@@ -98,6 +100,27 @@ The v0.0.1 core supports the current contrast-analysis path for:
 
 The current synthesis-relevance proxy is exploratory and does not replace perceptual validation.
 
+## Status and limitations
+
+v0.0.1 is the first working core analysis milestone. Existing Mandarin voicebanks can be inspected, analyzed, converted to a neutral speaker profile, and compiled into a synthesis-unit inventory.
+
+Current decision rules and thresholds are provisional. They were developed during early validation and should not be interpreted as universal phonetic thresholds or as proof of perceptual equivalence. Results should be treated as research-oriented evidence for recording-scheme design rather than as definitive phonological classification.
+
+Not implemented yet:
+
+- final UTAU/OpenUtau alias compilation
+- adaptive `oto.ini` suggestions
+- supplementary reclist generation
+- broad cross-speaker validation
+- formal perceptual validation
+- general language-module support beyond the current Mandarin path
+
+## Data and privacy
+
+PhonoWeave analyzes local voicebank files supplied by the user. This repository does not include third-party voicebanks, test recordings, or bundled speech datasets. Users are responsible for ensuring they have permission to analyze and redistribute any external voicebank or recording material they use with the project.
+
+Generated profiles may contain the source voicebank path. Review generated artifacts before publishing them if the local path contains identifying information.
+
 ## Project structure
 
 ```text
@@ -108,6 +131,16 @@ docs/             design notes and architecture
 tests/            tests
 ```
 
-## Status
+## Development
 
-v0.0.1 is the first working core analysis milestone: existing Mandarin voicebanks can be inspected, analyzed, converted to a neutral speaker profile, and compiled into a synthesis-unit inventory. Alias compilation, adaptive OTO suggestions, and supplementary reclist generation are planned as later stages.
+Run the test suite with:
+
+```bash
+pytest -q
+```
+
+GitHub Actions runs the test suite on supported Python versions for pushes to `main` and for pull requests.
+
+## License
+
+PhonoWeave is released under the MIT License. See `LICENSE`.
