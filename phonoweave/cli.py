@@ -27,7 +27,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     affricate_parser = subparsers.add_parser("analyze-affricate")
     affricate_parser.add_argument("voicebank", type=Path)
-    affricate_parser.add_argument("--base", required=True, choices=("zh", "ch", "z", "c"))
+    affricate_parser.add_argument(
+        "--base",
+        required=True,
+        choices=("zh", "ch", "z", "c", "j", "q"),
+    )
     affricate_parser.add_argument("--json", action="store_true")
 
     rhotic_parser = subparsers.add_parser("analyze-rhotic")
