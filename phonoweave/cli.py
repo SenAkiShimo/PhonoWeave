@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     analyze_parser = subparsers.add_parser("analyze")
     analyze_parser.add_argument("voicebank", type=Path)
-    analyze_parser.add_argument("--base", default="sh", choices=("sh", "s"))
+    analyze_parser.add_argument("--base", default="sh", choices=("sh", "s", "x"))
     analyze_parser.add_argument("--json", action="store_true")
 
     affricate_parser = subparsers.add_parser("analyze-affricate")
@@ -370,12 +370,14 @@ def main() -> int:
                 print()
                 print("Pairwise:")
                 for pair in result.pairwise:
-                    score = pair.cross_subbank_balanced_accuracy
-                    print(f"  {pair.left} vs {pair.right}: cross_subbank_balanced_accuracy={score:.3f}")
+                    print(
+                        f"  {pair.left} vs {pair.right}: "
+                        f"cross_subbank_balanced_accuracy={pair.cross_subbank_balanced_accuracy:.3f}"
+                    )
                     if pair.cross_by_subbank:
                         details = ", ".join(
-                            f"{name}={value:.3f}"
-                            for name, value in pair.cross_by_subbank.items()
+                            f"{name}={score:.3f}"
+                            for name, score in pair.cross_by_subbank.items()
                         )
                         print(f"    held out: {details}")
                     for item in pair.subbanks:
@@ -411,14 +413,16 @@ def main() -> int:
         return 0
 
     if args.command == "render-ab":
-        result = render_ab_pairs(args.voicebank, args.output, args.base, args.per_subbank)
-        print(f"Output: {result.output_dir}")
-        print(f"Groups: {result.groups}")
-        print(f"Files: {result.files}")
-        print(f"Manifest: {result.manifest_path}")
+        output = render_ab_pairs(
+            args.voicebank,
+            args.output,
+            base_unit=args.base,
+            per_subbank=args.per_subbank,
+        )
+        print(f"Output: {output}")
         return 0
 
-    return 1
+    raise RuntimeError(f"unhandled command: {args.command}")
 
 
 if __name__ == "__main__":
