@@ -8,6 +8,7 @@ from .affricate import analyze_affricate_contrast
 from .analyze import analyze_fricative_contrast
 from .inspect import inspect_voicebank
 from .render_ab import render_ab_pairs
+from .rhotic import analyze_rhotic_contrast
 from .splice import splice_relevance_test
 
 
@@ -28,6 +29,10 @@ def build_parser() -> argparse.ArgumentParser:
     affricate_parser.add_argument("voicebank", type=Path)
     affricate_parser.add_argument("--base", required=True, choices=("zh", "ch"))
     affricate_parser.add_argument("--json", action="store_true")
+
+    rhotic_parser = subparsers.add_parser("analyze-rhotic")
+    rhotic_parser.add_argument("voicebank", type=Path)
+    rhotic_parser.add_argument("--json", action="store_true")
 
     splice_parser = subparsers.add_parser("splice-test")
     splice_parser.add_argument("voicebank", type=Path)
@@ -122,6 +127,24 @@ def _affricate_payload(result) -> dict[str, object]:
                 "mean_plain": item.mean_plain,
                 "mean_rounded": item.mean_rounded,
                 "effects": item.effects,
+            }
+            for item in result.subbanks
+        ],
+    }
+
+
+def _rhotic_payload(result) -> dict[str, object]:
+    return {
+        "samples": result.samples,
+        "skipped": result.skipped,
+        "cross_subbank_balanced_accuracy": result.cross_subbank_balanced_accuracy,
+        "cross_by_subbank": result.cross_by_subbank,
+        "subbanks": [
+            {
+                "subbank": item.subbank,
+                "counts": item.counts,
+                "loo_balanced_accuracy": item.loo_balanced_accuracy,
+                "means": item.means,
             }
             for item in result.subbanks
         ],
@@ -302,6 +325,38 @@ def main() -> int:
                     f"{item.mean_rounded['frication_duration_ms']:.1f} "
                     f"(effect={item.effects['frication_duration_ms']:+.3f})"
                 )
+        return 0
+
+    if args.command == "analyze-rhotic":
+        result = analyze_rhotic_contrast(args.voicebank)
+        payload = _rhotic_payload(result)
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print("Base unit: r")
+            print(f"Samples: {result.samples}")
+            print(f"Skipped: {result.skipped}")
+            if result.cross_subbank_balanced_accuracy is not None:
+                print(f"Cross-subbank balanced accuracy: {result.cross_subbank_balanced_accuracy:.3f}")
+                details = ", ".join(
+                    f"{name}={score:.3f}" for name, score in result.cross_by_subbank.items()
+                )
+                print(f"  held out: {details}")
+            print()
+            for item in result.subbanks:
+                counts = ", ".join(f"{name}={count}" for name, count in item.counts.items())
+                print(f"{item.subbank}: {counts}, loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}")
+                for context in ("plain", "front", "rounded"):
+                    means = item.means.get(context)
+                    if means is None:
+                        continue
+                    print(
+                        f"  {context}: periodicity={means['periodicity']:.3f}, "
+                        f"flatness={means['spectral_flatness']:.3f}, "
+                        f"centroid_hz={means['centroid_hz']:.1f}, "
+                        f"F2={means['f2_hz']:.1f}, F3={means['f3_hz']:.1f}, "
+                        f"F3-F2={means['f3_minus_f2_hz']:.1f}"
+                    )
         return 0
 
     if args.command == "splice-test":
