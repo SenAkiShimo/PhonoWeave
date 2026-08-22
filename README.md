@@ -2,33 +2,103 @@
 
 Speaker-adaptive phonetic realization analysis and recording-scheme generation for concatenative singing synthesis.
 
-PhonoWeave analyzes how a specific speaker realizes context-dependent sounds and uses that information to derive a recording inventory suited to that voice.
+PhonoWeave analyzes how a specific speaker realizes context-dependent sounds, tests whether those differences are useful enough to justify separate synthesis units, and compiles the result into a speaker-specific synthesis inventory.
 
-The project is language-independent at the core. Mandarin is the first supported language module.
+The core is intended to remain language-independent. Mandarin is the first supported language module.
 
-## Goals
+## Current pipeline
 
-- analyze existing voicebanks and their oto data
-- detect stable context-dependent phonetic differences
-- distinguish useful synthesis contrasts from ordinary coarticulation
-- generate speaker-specific recording schemes
-- suggest alias and oto changes for existing banks
-- generate supplementary recording lists when coverage is incomplete
-- support configurable reclist lengths and packing strategies
-
-## Current scope
-
-The first working path inspects existing Mandarin CVVC/CVVChinese-style voicebanks. It scans `oto.ini` files, checks referenced WAV files, and groups retroflex consonant observations by vowel context.
-
-```bash
-pip install -e .
-phonoweave inspect /path/to/voicebank
-phonoweave inspect /path/to/voicebank --json
+```text
+voicebank / recordings
+        |
+        v
+voicebank inspection and context analysis
+        |
+        v
+speaker realization decisions
+        |
+        v
+speaker_profile.yaml
+        |
+        v
+synthesis_inventory.yaml
 ```
 
-Acoustic split/merge decisions are not enabled yet. The current inspector is intended to establish reliable recording coverage before acoustic analysis is added.
+The analysis layer and the synthesis inventory are deliberately separate. Internal realization IDs such as `sh_rounded` or `x_front_unrounded` are neutral analysis/compiler identifiers; UTAU/OpenUtau alias spelling is a later compilation step.
 
-## Structure
+## Install
+
+PhonoWeave currently targets Python 3.11 or newer.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+## Main commands
+
+Inspect an existing voicebank:
+
+```bash
+phonoweave inspect /path/to/voicebank
+```
+
+Run the current speaker-adaptive inventory analysis:
+
+```bash
+phonoweave analyze-voicebank /path/to/voicebank
+```
+
+Build a neutral speaker realization profile:
+
+```bash
+phonoweave build-profile /path/to/voicebank -o speaker_profile.yaml
+```
+
+Compile the profile into synthesis units:
+
+```bash
+phonoweave build-synthesis-inventory /path/to/voicebank -o synthesis_inventory.yaml
+```
+
+Lower-level diagnostic commands remain available for supported Mandarin contrasts:
+
+```bash
+phonoweave analyze /path/to/voicebank --base sh
+phonoweave analyze /path/to/voicebank --base s
+phonoweave analyze /path/to/voicebank --base x
+
+phonoweave analyze-affricate /path/to/voicebank --base zh
+phonoweave analyze-affricate /path/to/voicebank --base ch
+phonoweave analyze-affricate /path/to/voicebank --base z
+phonoweave analyze-affricate /path/to/voicebank --base c
+phonoweave analyze-affricate /path/to/voicebank --base j
+phonoweave analyze-affricate /path/to/voicebank --base q
+
+phonoweave analyze-rhotic /path/to/voicebank
+phonoweave splice-test /path/to/voicebank --base sh
+```
+
+## Design principles
+
+- Acoustic difference alone does not imply a separate synthesis unit.
+- Split/merge decisions should be speaker-specific and context-aware.
+- Failure to find significant evidence is not treated as proof of acoustic equivalence.
+- Speaker profiles are neutral with respect to final alias conventions.
+- Existing voicebanks are analyzed non-destructively.
+
+## Current Mandarin coverage
+
+The v0.0.1 core supports the current contrast-analysis path for:
+
+- fricatives: `sh`, `s`, `x`
+- affricates: `zh`, `ch`, `z`, `c`, `j`, `q`
+- rhotic `r` with plain/front/rounded realization analysis
+
+The current synthesis-relevance proxy is exploratory and does not replace perceptual validation.
+
+## Project structure
 
 ```text
 phonoweave/       core analysis and compilation code
@@ -40,4 +110,4 @@ tests/            tests
 
 ## Status
 
-Early development. Mandarin is the first target, with the core kept independent of any one recording scheme.
+v0.0.1 is the first working core analysis milestone: existing Mandarin voicebanks can be inspected, analyzed, converted to a neutral speaker profile, and compiled into a synthesis-unit inventory. Alias compilation, adaptive OTO suggestions, and supplementary reclist generation are planned as later stages.
