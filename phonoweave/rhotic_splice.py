@@ -29,6 +29,7 @@ class RhoticMergeTarget:
     subbank: str
     context: str
     alias: str
+    natural_penalty: float
     same_control: float
     merge_substitution: float
     front_substitution: float
@@ -41,6 +42,7 @@ class RhoticMergeTarget:
 class RhoticFrontTarget:
     subbank: str
     alias: str
+    natural_penalty: float
     same_control: float
     merged_substitution: float
     delta: float
@@ -99,7 +101,13 @@ def rhotic_boundary_penalty(left: AudioSegment, right: AudioSegment) -> float:
     right_interp = np.interp(grid, right_freqs, right_power)
     left_norm = left_interp / (np.sum(left_interp) + 1e-18)
     right_norm = right_interp / (np.sum(right_interp) + 1e-18)
-    spectral = float(np.sqrt(np.mean((np.log10(left_norm + 1e-12) - np.log10(right_norm + 1e-12)) ** 2)))
+    spectral = float(
+        np.sqrt(
+            np.mean(
+                (np.log10(left_norm + 1e-12) - np.log10(right_norm + 1e-12)) ** 2
+            )
+        )
+    )
 
     energy_db = abs(20.0 * np.log10(left_rms / right_rms))
     periodicity_jump = abs(left_periodicity - right_periodicity)
@@ -191,6 +199,7 @@ def analyze_rhotic_splice(root: Path) -> tuple[list[RhoticMergeTarget], list[Rho
                 if not same_donors:
                     continue
                 try:
+                    natural = rhotic_boundary_penalty(target.core, target.late)
                     same = _median_penalty(same_donors, target)
                     merge = _median_penalty(partner, target)
                     front_penalty = _median_penalty(front, target)
@@ -201,6 +210,7 @@ def analyze_rhotic_splice(root: Path) -> tuple[list[RhoticMergeTarget], list[Rho
                         subbank=subbank,
                         context=context,
                         alias=target.alias,
+                        natural_penalty=natural,
                         same_control=same,
                         merge_substitution=merge,
                         front_substitution=front_penalty,
@@ -216,6 +226,7 @@ def analyze_rhotic_splice(root: Path) -> tuple[list[RhoticMergeTarget], list[Rho
             if not same_donors:
                 continue
             try:
+                natural = rhotic_boundary_penalty(target.core, target.late)
                 same = _median_penalty(same_donors, target)
                 substitution = _median_penalty(merged, target)
             except (AudioReadError, ValueError):
@@ -224,6 +235,7 @@ def analyze_rhotic_splice(root: Path) -> tuple[list[RhoticMergeTarget], list[Rho
                 RhoticFrontTarget(
                     subbank=subbank,
                     alias=target.alias,
+                    natural_penalty=natural,
                     same_control=same,
                     merged_substitution=substitution,
                     delta=substitution - same,
@@ -237,50 +249,77 @@ def _mean(rows, name: str) -> float:
     return float(np.mean([getattr(row, name) for row in rows]))
 
 
+def _print_merge_group(title: str, rows: list[RhoticMergeTarget]) -> None:
+    print(title)
+    print(f"  targets: {len(rows)}")
+    print(f"  natural boundary: {_mean(rows, 'natural_penalty'):.4f}")
+    print(f"  same-context control: {_mean(rows, 'same_control'):.4f}")
+    print(f"  cross plain/rounded: {_mean(rows, 'merge_substitution'):.4f}")
+    print(f"  front substitution: {_mean(rows, 'front_substitution'):.4f}")
+    print(f"  same excess over natural: {_mean(rows, 'same_control') - _mean(rows, 'natural_penalty'):+.4f}")
+    print(f"  cross excess over natural: {_mean(rows, 'merge_substitution') - _mean(rows, 'natural_penalty'):+.4f}")
+    print(f"  merge delta vs same: {_mean(rows, 'merge_delta'):+.4f}")
+    print(f"  front delta vs same: {_mean(rows, 'front_delta'):+.4f}")
+    print(f"  merge-harm permutation p: {_paired_p([row.merge_delta for row in rows], 8123):.4f}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="python -m phonoweave.rhotic_splice")
     parser.add_argument("voicebank", type=Path)
     args = parser.parse_args()
 
     merge_targets, front_targets = analyze_rhotic_splice(args.voicebank)
-    print("Rhotic splice relevance:")
+    print("Rhotic splice diagnostic:")
     print(f"  merge-context targets: {len(merge_targets)}")
     print(f"  front targets: {len(front_targets)}")
     print()
 
+    for context in ("plain", "rounded"):
+        rows = [row for row in merge_targets if row.context == context]
+        if rows:
+            _print_merge_group(f"{context.capitalize()} targets:", rows)
+            print()
+
     if merge_targets:
-        print("Plain/rounded merge candidate:")
+        print("Combined plain/rounded:")
+        print(f"  natural boundary: {_mean(merge_targets, 'natural_penalty'):.4f}")
         print(f"  same-context control: {_mean(merge_targets, 'same_control'):.4f}")
-        print(f"  cross plain/rounded substitution: {_mean(merge_targets, 'merge_substitution'):.4f}")
+        print(f"  cross plain/rounded: {_mean(merge_targets, 'merge_substitution'):.4f}")
         print(f"  front substitution: {_mean(merge_targets, 'front_substitution'):.4f}")
         print(f"  merge delta: {_mean(merge_targets, 'merge_delta'):+.4f}")
-        print(f"  front delta: {_mean(merge_targets, 'front_delta'):+.4f}")
         print(f"  front-vs-merge separation: {_mean(merge_targets, 'separation_delta'):+.4f}")
-        print(f"  merge-harm permutation p: {_paired_p([row.merge_delta for row in merge_targets], 8123):.4f}")
-        print(f"  front-vs-merge permutation p: {_paired_p([row.separation_delta for row in merge_targets], 8124):.4f}")
+        print(f"  merge-harm permutation p: {_paired_p([row.merge_delta for row in merge_targets], 8125):.4f}")
+        print(f"  front-vs-merge permutation p: {_paired_p([row.separation_delta for row in merge_targets], 8126):.4f}")
         print()
 
         for subbank in sorted({row.subbank for row in merge_targets}):
             rows = [row for row in merge_targets if row.subbank == subbank]
             print(
-                f"  {subbank}: merge_delta={_mean(rows, 'merge_delta'):+.4f}, "
-                f"front_delta={_mean(rows, 'front_delta'):+.4f}, "
-                f"front_vs_merge={_mean(rows, 'separation_delta'):+.4f}"
+                f"  {subbank}: natural={_mean(rows, 'natural_penalty'):.4f}, "
+                f"same={_mean(rows, 'same_control'):.4f}, "
+                f"cross={_mean(rows, 'merge_substitution'):.4f}, "
+                f"merge_delta={_mean(rows, 'merge_delta'):+.4f}"
             )
         print()
 
     if front_targets:
-        print("Front as distinct target:")
+        print("Front targets:")
+        print(f"  natural boundary: {_mean(front_targets, 'natural_penalty'):.4f}")
         print(f"  same-front control: {_mean(front_targets, 'same_control'):.4f}")
         print(f"  plain/rounded substitution: {_mean(front_targets, 'merged_substitution'):.4f}")
-        print(f"  delta: {_mean(front_targets, 'delta'):+.4f}")
+        print(f"  same excess over natural: {_mean(front_targets, 'same_control') - _mean(front_targets, 'natural_penalty'):+.4f}")
+        print(f"  cross excess over natural: {_mean(front_targets, 'merged_substitution') - _mean(front_targets, 'natural_penalty'):+.4f}")
+        print(f"  delta vs same: {_mean(front_targets, 'delta'):+.4f}")
         print(f"  permutation p: {_paired_p([row.delta for row in front_targets], 9107):.4f}")
         for subbank in sorted({row.subbank for row in front_targets}):
             rows = [row for row in front_targets if row.subbank == subbank]
-            print(f"  {subbank}: delta={_mean(rows, 'delta'):+.4f}")
+            print(
+                f"  {subbank}: natural={_mean(rows, 'natural_penalty'):.4f}, "
+                f"same={_mean(rows, 'same_control'):.4f}, "
+                f"cross={_mean(rows, 'merged_substitution'):.4f}, "
+                f"delta={_mean(rows, 'delta'):+.4f}"
+            )
 
-    print()
-    print("A non-significant merge-harm p-value is not an equivalence test.")
     return 0
 
 
