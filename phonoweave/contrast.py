@@ -28,8 +28,9 @@ def standardized_distance(
 
 
 def balanced_accuracy(labels: np.ndarray, predicted: np.ndarray) -> float:
+    classes = np.unique(labels)
     scores: list[float] = []
-    for label in (0, 1):
+    for label in classes:
         mask = labels == label
         if np.any(mask):
             scores.append(float(np.mean(predicted[mask] == label)))
@@ -41,15 +42,17 @@ def nearest_centroid_predict(
     train_labels: np.ndarray,
     test: np.ndarray,
 ) -> np.ndarray:
+    classes = np.unique(train_labels)
     scale = np.std(train, axis=0, ddof=1)
     scale = np.where(scale < 1e-9, 1.0, scale)
     train_norm = train / scale
     test_norm = test / scale
-    plain_center = np.mean(train_norm[train_labels == 0], axis=0)
-    rounded_center = np.mean(train_norm[train_labels == 1], axis=0)
-    d_plain = np.linalg.norm(test_norm - plain_center, axis=1)
-    d_rounded = np.linalg.norm(test_norm - rounded_center, axis=1)
-    return (d_rounded < d_plain).astype(np.int8)
+    centers = np.vstack([
+        np.mean(train_norm[train_labels == label], axis=0)
+        for label in classes
+    ])
+    distances = np.linalg.norm(test_norm[:, None, :] - centers[None, :, :], axis=2)
+    return classes[np.argmin(distances, axis=1)]
 
 
 def loo_balanced_accuracy(plain: np.ndarray, rounded: np.ndarray) -> float:
@@ -66,6 +69,22 @@ def loo_balanced_accuracy(plain: np.ndarray, rounded: np.ndarray) -> float:
             combined[index : index + 1],
         )[0]
 
+    return balanced_accuracy(labels, predicted)
+
+
+def loo_multiclass_balanced_accuracy(matrix: np.ndarray, labels: np.ndarray) -> float:
+    predicted = np.empty_like(labels)
+    for index in range(len(matrix)):
+        train_mask = np.ones(len(matrix), dtype=bool)
+        train_mask[index] = False
+        train_labels = labels[train_mask]
+        if len(np.unique(train_labels)) < len(np.unique(labels)):
+            return 0.0
+        predicted[index] = nearest_centroid_predict(
+            matrix[train_mask],
+            train_labels,
+            matrix[index : index + 1],
+        )[0]
     return balanced_accuracy(labels, predicted)
 
 
