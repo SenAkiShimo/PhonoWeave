@@ -22,6 +22,32 @@ class CanonicalTarget:
     delta: float
 
 
+@dataclass(frozen=True)
+class CanonicalSubbankResult:
+    subbank: str
+    targets: int
+    mean_delta: float
+    permutation_p: float
+
+
+@dataclass(frozen=True)
+class CanonicalDirectionResult:
+    target_context: str
+    donor_context: str
+    targets: int
+    mean_same_control: float
+    mean_donor_penalty: float
+    mean_delta: float
+    permutation_p: float
+    subbanks: list[CanonicalSubbankResult]
+
+
+@dataclass(frozen=True)
+class RhoticCanonicalAnalysis:
+    plain_to_rounded: CanonicalDirectionResult | None
+    rounded_to_plain: CanonicalDirectionResult | None
+
+
 def _paired_p(values: list[float], seed: int) -> float:
     deltas = np.asarray(values, dtype=np.float64)
     if len(deltas) == 0:
@@ -78,18 +104,73 @@ def _mean(rows: list[CanonicalTarget], field: str) -> float:
     return float(np.mean([getattr(row, field) for row in rows]))
 
 
-def _print_direction(title: str, rows: list[CanonicalTarget], seed: int) -> None:
-    print(title)
-    print(f"  targets: {len(rows)}")
-    print(f"  same-context control: {_mean(rows, 'same_control'):.4f}")
-    print(f"  canonical donor penalty: {_mean(rows, 'donor_penalty'):.4f}")
-    print(f"  delta vs same: {_mean(rows, 'delta'):+.4f}")
-    print(f"  permutation p: {_paired_p([row.delta for row in rows], seed):.4f}")
+def _summarize(
+    rows: list[CanonicalTarget],
+    target_context: str,
+    donor_context: str,
+    seed: int,
+) -> CanonicalDirectionResult | None:
+    if not rows:
+        return None
+
+    subbanks: list[CanonicalSubbankResult] = []
     for subbank in sorted({row.subbank for row in rows}):
         bank = [row for row in rows if row.subbank == subbank]
+        subbanks.append(
+            CanonicalSubbankResult(
+                subbank=subbank,
+                targets=len(bank),
+                mean_delta=_mean(bank, "delta"),
+                permutation_p=_paired_p(
+                    [row.delta for row in bank],
+                    seed + len(subbank),
+                ),
+            )
+        )
+
+    return CanonicalDirectionResult(
+        target_context=target_context,
+        donor_context=donor_context,
+        targets=len(rows),
+        mean_same_control=_mean(rows, "same_control"),
+        mean_donor_penalty=_mean(rows, "donor_penalty"),
+        mean_delta=_mean(rows, "delta"),
+        permutation_p=_paired_p([row.delta for row in rows], seed),
+        subbanks=subbanks,
+    )
+
+
+def analyze_rhotic_canonical(root: Path) -> RhoticCanonicalAnalysis:
+    grouped = _collect(root.expanduser().resolve())
+    plain_to_rounded_rows = _direction(grouped, "rounded", "plain")
+    rounded_to_plain_rows = _direction(grouped, "plain", "rounded")
+    return RhoticCanonicalAnalysis(
+        plain_to_rounded=_summarize(
+            plain_to_rounded_rows,
+            "rounded",
+            "plain",
+            11213,
+        ),
+        rounded_to_plain=_summarize(
+            rounded_to_plain_rows,
+            "plain",
+            "rounded",
+            11239,
+        ),
+    )
+
+
+def _print_direction(title: str, result: CanonicalDirectionResult) -> None:
+    print(title)
+    print(f"  targets: {result.targets}")
+    print(f"  same-context control: {result.mean_same_control:.4f}")
+    print(f"  canonical donor penalty: {result.mean_donor_penalty:.4f}")
+    print(f"  delta vs same: {result.mean_delta:+.4f}")
+    print(f"  permutation p: {result.permutation_p:.4f}")
+    for item in result.subbanks:
         print(
-            f"  {subbank}: delta={_mean(bank, 'delta'):+.4f}, "
-            f"p={_paired_p([row.delta for row in bank], seed + len(subbank)):.4f}"
+            f"  {item.subbank}: delta={item.mean_delta:+.4f}, "
+            f"p={item.permutation_p:.4f}"
         )
 
 
@@ -98,19 +179,23 @@ def main() -> int:
     parser.add_argument("voicebank", type=Path)
     args = parser.parse_args()
 
-    grouped = _collect(args.voicebank.expanduser().resolve())
-    plain_to_rounded = _direction(grouped, "rounded", "plain")
-    rounded_to_plain = _direction(grouped, "plain", "rounded")
+    result = analyze_rhotic_canonical(args.voicebank)
 
     print("Rhotic canonical-donor test")
     print("Tests one-way reuse for the plain/rounded merge candidate.")
     print()
 
-    if plain_to_rounded:
-        _print_direction("Canonical plain -> rounded targets:", plain_to_rounded, 11213)
+    if result.plain_to_rounded is not None:
+        _print_direction(
+            "Canonical plain -> rounded targets:",
+            result.plain_to_rounded,
+        )
         print()
-    if rounded_to_plain:
-        _print_direction("Canonical rounded -> plain targets:", rounded_to_plain, 11239)
+    if result.rounded_to_plain is not None:
+        _print_direction(
+            "Canonical rounded -> plain targets:",
+            result.rounded_to_plain,
+        )
 
     print()
     print("Interpretation: a small delta and weak evidence of harm support that donor direction.")
