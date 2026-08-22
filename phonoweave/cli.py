@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     splice_parser = subparsers.add_parser("splice-test")
     splice_parser.add_argument("voicebank", type=Path)
-    splice_parser.add_argument("--base", default="sh", choices=("sh",))
+    splice_parser.add_argument("--base", default="sh", choices=("sh", "s", "x"))
     splice_parser.add_argument("--json", action="store_true")
 
     render_parser = subparsers.add_parser("render-ab")
@@ -358,34 +358,14 @@ def main() -> int:
             for item in result.subbanks:
                 counts = ", ".join(f"{name}={count}" for name, count in item.counts.items())
                 print(f"{item.subbank}: {counts}, loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}")
-                for context, means in item.means.items():
-                    print(
-                        f"  {context}: periodicity={means['periodicity']:.3f}, "
-                        f"flatness={means['spectral_flatness']:.3f}, "
-                        f"centroid_hz={means['centroid_hz']:.1f}, "
-                        f"F2={means['f2_hz']:.1f}, F3={means['f3_hz']:.1f}, "
-                        f"F3-F2={means['f3_minus_f2_hz']:.1f}"
-                    )
             if result.pairwise:
                 print()
                 print("Pairwise:")
                 for pair in result.pairwise:
-                    print(
-                        f"  {pair.left} vs {pair.right}: "
-                        f"cross_subbank_balanced_accuracy={pair.cross_subbank_balanced_accuracy:.3f}"
-                    )
-                    if pair.cross_by_subbank:
-                        details = ", ".join(
-                            f"{name}={score:.3f}"
-                            for name, score in pair.cross_by_subbank.items()
-                        )
-                        print(f"    held out: {details}")
-                    for item in pair.subbanks:
+                    if pair.cross_subbank_balanced_accuracy is not None:
                         print(
-                            f"    {item.subbank}: {item.left_count}/{item.right_count}, "
-                            f"distance={item.distance:.3f}, "
-                            f"loo_balanced_accuracy={item.loo_balanced_accuracy:.3f}, "
-                            f"permutation_p={item.permutation_p:.4f}"
+                            f"  {pair.left} vs {pair.right}: "
+                            f"cross_subbank_balanced_accuracy={pair.cross_subbank_balanced_accuracy:.3f}"
                         )
         return 0
 
@@ -413,16 +393,14 @@ def main() -> int:
         return 0
 
     if args.command == "render-ab":
-        output = render_ab_pairs(
-            args.voicebank,
-            args.output,
-            base_unit=args.base,
-            per_subbank=args.per_subbank,
-        )
-        print(f"Output: {output}")
+        result = render_ab_pairs(args.voicebank, args.base, args.output, args.per_subbank)
+        print(f"Output: {result.output_dir}")
+        print(f"Groups: {result.groups}")
+        print(f"WAV files: {result.wav_files}")
+        print(f"Manifest: {result.manifest_path}")
         return 0
 
-    raise RuntimeError(f"unhandled command: {args.command}")
+    return 1
 
 
 if __name__ == "__main__":
