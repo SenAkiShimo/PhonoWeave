@@ -95,6 +95,23 @@ class RhoticPairResult:
 
 
 @dataclass(frozen=True)
+class RhoticPartitionSubbankResult:
+    subbank: str
+    left_count: int
+    right_count: int
+    loo_balanced_accuracy: float
+
+
+@dataclass(frozen=True)
+class RhoticPartitionResult:
+    left: tuple[str, ...]
+    right: tuple[str, ...]
+    cross_subbank_balanced_accuracy: float | None
+    cross_by_subbank: dict[str, float]
+    subbanks: list[RhoticPartitionSubbankResult]
+
+
+@dataclass(frozen=True)
 class RhoticAnalysis:
     samples: int
     skipped: int
@@ -102,6 +119,7 @@ class RhoticAnalysis:
     cross_subbank_balanced_accuracy: float | None
     cross_by_subbank: dict[str, float]
     pairwise: list[RhoticPairResult]
+    partitions: list[RhoticPartitionResult]
 
 
 def _subbank_name(root: Path, entry: OtoEntry) -> str:
@@ -303,6 +321,75 @@ def _pairwise(grouped: dict[str, list[RhoticSample]]) -> list[RhoticPairResult]:
     return results
 
 
+def _partition_labels(samples: list[RhoticSample], left: tuple[str, ...]) -> np.ndarray:
+    left_set = set(left)
+    return np.array([0 if sample.context in left_set else 1 for sample in samples], dtype=np.int8)
+
+
+def _partition_cross_subbank(
+    grouped: dict[str, list[RhoticSample]],
+    left: tuple[str, ...],
+) -> tuple[float | None, dict[str, float]]:
+    names = sorted(grouped)
+    scores: dict[str, float] = {}
+    for held_out in names:
+        train = [sample for name in names if name != held_out for sample in grouped[name]]
+        test = list(grouped[held_out])
+        if not train or not test:
+            continue
+        train_labels = _partition_labels(train, left)
+        test_labels = _partition_labels(test, left)
+        if len(np.unique(train_labels)) < 2 or len(np.unique(test_labels)) < 2:
+            continue
+        predicted = nearest_centroid_predict(_matrix(train), train_labels, _matrix(test))
+        scores[held_out] = balanced_accuracy(test_labels, predicted)
+
+    if not scores:
+        return None, scores
+    return float(np.mean(list(scores.values()))), scores
+
+
+def _partitions(grouped: dict[str, list[RhoticSample]]) -> list[RhoticPartitionResult]:
+    definitions = (
+        (("front",), ("plain", "rounded")),
+        (("rounded",), ("plain", "front")),
+        (("plain",), ("front", "rounded")),
+    )
+    results: list[RhoticPartitionResult] = []
+
+    for left, right in definitions:
+        subbanks: list[RhoticPartitionSubbankResult] = []
+        for subbank in sorted(grouped):
+            samples = grouped[subbank]
+            labels = _partition_labels(samples, left)
+            left_count = int(np.sum(labels == 0))
+            right_count = int(np.sum(labels == 1))
+            if left_count < 2 or right_count < 2:
+                continue
+            left_matrix = _matrix([sample for sample in samples if sample.context in set(left)])
+            right_matrix = _matrix([sample for sample in samples if sample.context in set(right)])
+            subbanks.append(
+                RhoticPartitionSubbankResult(
+                    subbank=subbank,
+                    left_count=left_count,
+                    right_count=right_count,
+                    loo_balanced_accuracy=loo_balanced_accuracy(left_matrix, right_matrix),
+                )
+            )
+
+        cross, cross_by_subbank = _partition_cross_subbank(grouped, left)
+        results.append(
+            RhoticPartitionResult(
+                left=left,
+                right=right,
+                cross_subbank_balanced_accuracy=cross,
+                cross_by_subbank=cross_by_subbank,
+                subbanks=subbanks,
+            )
+        )
+    return results
+
+
 def analyze_rhotic_contrast(root: Path) -> RhoticAnalysis:
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
@@ -357,4 +444,5 @@ def analyze_rhotic_contrast(root: Path) -> RhoticAnalysis:
         cross_subbank_balanced_accuracy=cross,
         cross_by_subbank=cross_by_subbank,
         pairwise=_pairwise(grouped),
+        partitions=_partitions(grouped),
     )
