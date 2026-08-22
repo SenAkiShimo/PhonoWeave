@@ -9,11 +9,11 @@ from .oto import OtoEntry
 
 _FINALS = (
     "uang", "iong", "iang", "uai", "uan", "iao", "ian", "ang", "eng", "ing", "ong",
-    "ua", "uo", "ui", "un", "ia", "ie", "iu", "in", "ai", "ei", "ao", "ou", "an", "en",
-    "a", "o", "e", "i", "u", "v", "ü",
+    "ua", "uo", "ui", "un", "ia", "ie", "iu", "in", "ve", "van", "vn", "ue",
+    "ai", "ei", "ao", "ou", "an", "en", "a", "o", "e", "i", "u", "v", "ü",
 )
 
-_BASES = ("zh", "ch", "sh", "r", "s", "z", "c")
+_BASES = ("zh", "ch", "sh", "r", "s", "z", "c", "x")
 
 
 @dataclass(frozen=True)
@@ -112,5 +112,11 @@ def context_for(base_unit: str, final: str) -> str | None:
         if final.startswith("u"):
             return "rounded"
         return "plain"
+
+    if base_unit == "x":
+        if final in {"u", "ue", "uan", "un", "v", "ve", "van", "vn", "ü"}:
+            return "rounded"
+        if final in {"i", "ia", "ie", "iao", "iu", "ian", "in", "iang", "ing"}:
+            return "front"
 
     return None
