@@ -31,26 +31,37 @@ class VoicebankInventoryAnalysis:
     decisions: list[InventoryDecision]
 
 
-def _strong_fricative(result) -> bool:
-    if result.cross_core_balanced_accuracy is None:
-        return False
+def _fricative_acoustic_level(result) -> str:
+    if result.cross_core_balanced_accuracy is None or result.mean_core_distance is None:
+        return "weak"
+
     significant = sum(item.core.permutation_p < 0.05 for item in result.subbanks)
-    return (
+    if (
         result.cross_core_balanced_accuracy >= 0.72
         and significant >= 2
-        and result.mean_core_distance is not None
         and result.mean_core_distance >= 0.65
-    )
+    ):
+        return "strong"
+
+    if (
+        result.cross_core_balanced_accuracy >= 0.68
+        and result.mean_core_distance >= 0.60
+    ):
+        return "candidate"
+
+    return "weak"
 
 
 def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
     result = analyze_fricative_contrast(root, base_unit)
+    acoustic_level = _fricative_acoustic_level(result)
     notes = [
         f"core_cross_subbank_ba={result.cross_core_balanced_accuracy}",
         f"core_mean_distance={result.mean_core_distance}",
+        f"acoustic_gate={acoustic_level}",
     ]
 
-    if not _strong_fricative(result):
+    if acoustic_level == "weak":
         return InventoryDecision(
             base_unit=base_unit,
             class_name="fricative",
@@ -70,6 +81,12 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
         ]
     )
 
+    acoustic_evidence = (
+        "strongly_supported"
+        if acoustic_level == "strong"
+        else "supported"
+    )
+
     if (
         splice.mean_delta is not None
         and splice.mean_delta > 0
@@ -87,7 +104,7 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
         return InventoryDecision(
             base_unit=base_unit,
             class_name="fricative",
-            acoustic_evidence="strongly_supported",
+            acoustic_evidence=acoustic_evidence,
             synthesis_evidence="supported_under_proxy",
             decision="split_recommended",
             confidence=confidence,
@@ -97,7 +114,7 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
     return InventoryDecision(
         base_unit=base_unit,
         class_name="fricative",
-        acoustic_evidence="strongly_supported",
+        acoustic_evidence=acoustic_evidence,
         synthesis_evidence="not_supported_under_proxy",
         decision="no_split_recommended",
         confidence="moderate",
