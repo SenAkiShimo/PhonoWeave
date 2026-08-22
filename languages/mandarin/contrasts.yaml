@@ -9,6 +9,13 @@ contrast_groups:
       plain: [a, ai, an, ang, e, en, eng, i]
       rounded: [u, ua, uai, uan, uang, ui, un, uo]
 
+  - id: alveolar_fricative_rounding
+    base_unit: s
+    candidates: [s, sw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
   - id: retroflex_affricate_rounding
     base_unit: zh
     candidates: [zh, zhw]
