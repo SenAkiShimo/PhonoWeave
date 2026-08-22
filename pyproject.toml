@@ -2,10 +2,16 @@
 name = "phonoweave"
 version = "0.0.1"
 description = "Speaker-adaptive phonetic realization analysis and recording-scheme generation"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
   "numpy>=2.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/SenAkiShimo/PhonoWeave"
+Issues = "https://github.com/SenAkiShimo/PhonoWeave/issues"
 
 [project.scripts]
 phonoweave = "phonoweave.entrypoint:main"
