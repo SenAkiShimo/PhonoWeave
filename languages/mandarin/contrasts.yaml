@@ -16,6 +16,13 @@ contrast_groups:
       plain: [a, ai, an, ang, e, en, eng, i]
       rounded: [u, ua, uai, uan, uang, ui, un, uo]
 
+  - id: alveolopalatal_fricative_rounding
+    base_unit: x
+    candidates: [x, xw]
+    contexts:
+      plain: [i, ia, ie, iao, iu, ian, in, iang, ing]
+      rounded: [u, ue, uan, un, v, ve, van, vn, ü]
+
   - id: retroflex_affricate_rounding
     base_unit: zh
     candidates: [zh, zhw]
