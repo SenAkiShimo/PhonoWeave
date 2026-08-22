@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from .inventory import analyze_voicebank_inventory
 
@@ -27,7 +28,7 @@ def _inventory_payload(result) -> dict[str, object]:
 
 def _analyze_voicebank(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="phonoweave analyze-voicebank")
-    parser.add_argument("voicebank")
+    parser.add_argument("voicebank", type=Path)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
