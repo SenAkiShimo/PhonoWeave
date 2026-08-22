@@ -7,7 +7,14 @@ from pathlib import Path
 import numpy as np
 
 from .audio import AudioReadError, consonant_segment, slice_segment
-from .contrast import balanced_accuracy, loo_multiclass_balanced_accuracy, nearest_centroid_predict
+from .contrast import (
+    balanced_accuracy,
+    loo_balanced_accuracy,
+    loo_multiclass_balanced_accuracy,
+    nearest_centroid_predict,
+    permutation_p,
+    standardized_distance,
+)
 from .mandarin import collect_observations, context_for
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
@@ -69,12 +76,32 @@ class RhoticSubbankResult:
 
 
 @dataclass(frozen=True)
+class RhoticPairSubbankResult:
+    subbank: str
+    left_count: int
+    right_count: int
+    distance: float
+    loo_balanced_accuracy: float
+    permutation_p: float
+
+
+@dataclass(frozen=True)
+class RhoticPairResult:
+    left: str
+    right: str
+    cross_subbank_balanced_accuracy: float | None
+    cross_by_subbank: dict[str, float]
+    subbanks: list[RhoticPairSubbankResult]
+
+
+@dataclass(frozen=True)
 class RhoticAnalysis:
     samples: int
     skipped: int
     subbanks: list[RhoticSubbankResult]
     cross_subbank_balanced_accuracy: float | None
     cross_by_subbank: dict[str, float]
+    pairwise: list[RhoticPairResult]
 
 
 def _subbank_name(root: Path, entry: OtoEntry) -> str:
@@ -199,6 +226,83 @@ def _cross_subbank(grouped: dict[str, list[RhoticSample]]) -> tuple[float | None
     return float(np.mean(list(scores.values()))), scores
 
 
+def _pair_samples(samples: list[RhoticSample], left: str, right: str) -> tuple[list[RhoticSample], list[RhoticSample]]:
+    return (
+        [sample for sample in samples if sample.context == left],
+        [sample for sample in samples if sample.context == right],
+    )
+
+
+def _pair_cross_subbank(
+    grouped: dict[str, list[RhoticSample]],
+    left: str,
+    right: str,
+) -> tuple[float | None, dict[str, float]]:
+    names = sorted(grouped)
+    scores: dict[str, float] = {}
+    for held_out in names:
+        train = [
+            sample
+            for name in names
+            if name != held_out
+            for sample in grouped[name]
+            if sample.context in {left, right}
+        ]
+        test = [sample for sample in grouped[held_out] if sample.context in {left, right}]
+        if not train or not test:
+            continue
+        train_labels = np.array([0 if sample.context == left else 1 for sample in train], dtype=np.int8)
+        test_labels = np.array([0 if sample.context == left else 1 for sample in test], dtype=np.int8)
+        if len(np.unique(train_labels)) < 2 or len(np.unique(test_labels)) < 2:
+            continue
+        predicted = nearest_centroid_predict(_matrix(train), train_labels, _matrix(test))
+        scores[held_out] = balanced_accuracy(test_labels, predicted)
+
+    if not scores:
+        return None, scores
+    return float(np.mean(list(scores.values()))), scores
+
+
+def _pairwise(grouped: dict[str, list[RhoticSample]]) -> list[RhoticPairResult]:
+    results: list[RhoticPairResult] = []
+    pairs = (("plain", "front"), ("plain", "rounded"), ("front", "rounded"))
+
+    for pair_index, (left, right) in enumerate(pairs):
+        subbanks: list[RhoticPairSubbankResult] = []
+        for subbank_index, subbank in enumerate(sorted(grouped)):
+            left_samples, right_samples = _pair_samples(grouped[subbank], left, right)
+            if len(left_samples) < 2 or len(right_samples) < 2:
+                continue
+            left_matrix = _matrix(left_samples)
+            right_matrix = _matrix(right_samples)
+            subbanks.append(
+                RhoticPairSubbankResult(
+                    subbank=subbank,
+                    left_count=len(left_samples),
+                    right_count=len(right_samples),
+                    distance=standardized_distance(left_matrix, right_matrix, _FEATURES),
+                    loo_balanced_accuracy=loo_balanced_accuracy(left_matrix, right_matrix),
+                    permutation_p=permutation_p(
+                        left_matrix,
+                        right_matrix,
+                        _FEATURES,
+                        seed=5101 + pair_index * 100 + subbank_index,
+                    ),
+                )
+            )
+        cross, cross_by_subbank = _pair_cross_subbank(grouped, left, right)
+        results.append(
+            RhoticPairResult(
+                left=left,
+                right=right,
+                cross_subbank_balanced_accuracy=cross,
+                cross_by_subbank=cross_by_subbank,
+                subbanks=subbanks,
+            )
+        )
+    return results
+
+
 def analyze_rhotic_contrast(root: Path) -> RhoticAnalysis:
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
@@ -252,4 +356,5 @@ def analyze_rhotic_contrast(root: Path) -> RhoticAnalysis:
         subbanks=subbanks,
         cross_subbank_balanced_accuracy=cross,
         cross_by_subbank=cross_by_subbank,
+        pairwise=_pairwise(grouped),
     )
