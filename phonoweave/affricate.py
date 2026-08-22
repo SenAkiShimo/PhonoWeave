@@ -25,6 +25,8 @@ _FEATURES = (
     "frication_duration_ms",
 )
 
+_SUPPORTED_BASES = {"zh", "ch", "z", "c"}
+
 
 @dataclass(frozen=True)
 class AffricateFeatures:
@@ -138,8 +140,9 @@ def _cross_subbank(grouped: dict[str, dict[str, list[AffricateSample]]]) -> tupl
 
 
 def analyze_affricate_contrast(root: Path, base_unit: str) -> AffricateAnalysis:
-    if base_unit not in {"zh", "ch"}:
-        raise ValueError("affricate analyzer supports zh and ch")
+    if base_unit not in _SUPPORTED_BASES:
+        supported = ", ".join(sorted(_SUPPORTED_BASES))
+        raise ValueError(f"affricate analyzer supports {supported}")
 
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
