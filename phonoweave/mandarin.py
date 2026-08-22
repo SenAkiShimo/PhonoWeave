@@ -117,6 +117,6 @@ def context_for(base_unit: str, final: str) -> str | None:
         if final in {"u", "ue", "uan", "un", "v", "ve", "van", "vn", "ü"}:
             return "rounded"
         if final in {"i", "ia", "ie", "iao", "iu", "ian", "in", "iang", "ing"}:
-            return "front"
+            return "plain"
 
     return None
