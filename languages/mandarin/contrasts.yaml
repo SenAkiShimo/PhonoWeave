@@ -30,6 +30,20 @@ contrast_groups:
       plain: [a, ai, an, ang, e, en, eng, i]
       rounded: [u, ua, uai, uan, uang, ui, un, uo]
 
+  - id: alveolar_affricate_rounding
+    base_unit: z
+    candidates: [z, zw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
+  - id: aspirated_alveolar_affricate_rounding
+    base_unit: c
+    candidates: [c, cw]
+    contexts:
+      plain: [a, ai, an, ang, e, en, eng, i]
+      rounded: [u, ua, uai, uan, uang, ui, un, uo]
+
   - id: rhotic_context
     base_unit: r
     candidates: [r, ry, rw]
