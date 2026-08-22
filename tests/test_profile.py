@@ -1,0 +1,41 @@
+from pathlib import Path
+
+from phonoweave.inventory import InventoryDecision, VoicebankInventoryAnalysis
+from phonoweave.profile import build_speaker_profile, profile_yaml
+
+
+def test_profile_uses_neutral_realization_ids() -> None:
+    analysis = VoicebankInventoryAnalysis(
+        voicebank=Path("/tmp/voicebank"),
+        decisions=[
+            InventoryDecision(
+                base_unit="sh",
+                class_name="fricative",
+                acoustic_evidence="supported",
+                synthesis_evidence="supported_under_proxy",
+                decision="split_recommended",
+                confidence="high",
+                notes=("splice_delta=0.15",),
+            ),
+            InventoryDecision(
+                base_unit="r",
+                class_name="rhotic",
+                acoustic_evidence="front_distinct_plain_rounded_weak",
+                synthesis_evidence="canonical_plain_supported_under_proxy",
+                decision="two_realizations_provisional",
+                confidence="moderate",
+                notes=("plain_to_rounded_delta=-0.01",),
+            ),
+        ],
+    )
+
+    profile = build_speaker_profile(Path("/tmp/voicebank"), analysis)
+    text = profile_yaml(profile)
+
+    assert "id: sh_plain" in text
+    assert "id: sh_rounded" in text
+    assert "id: r_plain_rounded" in text
+    assert "canonical_context: plain" in text
+    assert "alias_mapping_applied: false" in text
+    assert "id: shw" not in text
+    assert "id: ry" not in text
