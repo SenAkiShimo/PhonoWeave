@@ -1,21 +1,33 @@
-schema_version: 1
+schema_version: 2
 
 speaker:
   id: null
   language: null
 
+source:
+  voicebank: null
+
 realizations: []
 
 # realization item
 # - base_unit: sh
-#   variants:
-#     - id: sh
-#       contexts: [i, a, e]
-#     - id: shw
-#       contexts: [u, uo]
-#   confidence: 0.0
-#   decision: split
+#   class: fricative
+#   decision: split_recommended
+#   confidence: high
+#   groups:
+#     - id: sh_plain
+#       contexts: [plain]
+#     - id: sh_rounded
+#       contexts: [rounded]
+#   evidence:
+#     acoustic: supported
+#     synthesis: supported_under_proxy
+#     metrics: {}
+#
+# Internal group IDs are descriptive analysis identifiers, not UTAU aliases.
+# Alias names are assigned later by the scheme compiler.
 
 metadata:
-  source: null
-  created_at: null
+  generator: phonoweave
+  alias_mapping_applied: false
+  perceptual_validation: not_tested
