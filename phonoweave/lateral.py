@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import combinations
 from pathlib import Path
 
@@ -81,6 +81,12 @@ class LateralPairResult:
     cross_subbank_balanced_accuracy: float | None
     cross_by_subbank: dict[str, float]
     mean_distance: float | None
+    stratified_distance: float | None
+    stratified_permutation_p: float | None
+    stratified_p_holm: float | None
+    stratified_effects: dict[str, float]
+    effect_sign_agreement: dict[str, int]
+    stratified_subbanks: int
     subbanks: tuple[LateralPairSubbankResult, ...]
 
 
@@ -265,6 +271,97 @@ def _pair_cross_subbank(
     return float(np.mean(list(scores.values()))), scores
 
 
+def _stratum(
+    samples: list[LateralSample],
+    left: str,
+    right: str,
+) -> tuple[np.ndarray, int] | None:
+    left_samples = [sample for sample in samples if sample.family == left]
+    right_samples = [sample for sample in samples if sample.family == right]
+    if not left_samples or not right_samples:
+        return None
+
+    combined = left_samples + right_samples
+    matrix = _matrix(combined)
+    mean = np.mean(matrix, axis=0)
+    scale = np.std(matrix, axis=0, ddof=1)
+    scale = np.where(scale < 1e-9, 1.0, scale)
+    normalized = (matrix - mean) / scale
+    return normalized, len(left_samples)
+
+
+def _stratified_summary(
+    grouped: dict[str, list[LateralSample]],
+    left: str,
+    right: str,
+    seed: int,
+    permutations: int = 5000,
+) -> tuple[float | None, float | None, dict[str, float], dict[str, int], int]:
+    strata: list[tuple[np.ndarray, int]] = []
+    effects: list[np.ndarray] = []
+
+    for subbank in sorted(grouped):
+        stratum = _stratum(grouped[subbank], left, right)
+        if stratum is None:
+            continue
+        matrix, left_count = stratum
+        effect = np.mean(matrix[left_count:], axis=0) - np.mean(matrix[:left_count], axis=0)
+        strata.append(stratum)
+        effects.append(effect)
+
+    if len(strata) < 2:
+        return None, None, {}, {}, len(strata)
+
+    effect_matrix = np.vstack(effects)
+    pooled_effect = np.mean(effect_matrix, axis=0)
+    observed = float(np.linalg.norm(pooled_effect) / np.sqrt(len(_FEATURES)))
+
+    effect_map = {
+        name: float(value)
+        for name, value in zip(_FEATURES, pooled_effect, strict=True)
+    }
+    sign_agreement: dict[str, int] = {}
+    for index, name in enumerate(_FEATURES):
+        target = pooled_effect[index]
+        if abs(target) < 1e-12:
+            sign_agreement[name] = 0
+            continue
+        sign_agreement[name] = int(np.sum(np.sign(effect_matrix[:, index]) == np.sign(target)))
+
+    rng = np.random.default_rng(seed)
+    exceed = 0
+    for _ in range(permutations):
+        perm_effects: list[np.ndarray] = []
+        for matrix, left_count in strata:
+            order = rng.permutation(len(matrix))
+            left_rows = matrix[order[:left_count]]
+            right_rows = matrix[order[left_count:]]
+            perm_effects.append(np.mean(right_rows, axis=0) - np.mean(left_rows, axis=0))
+        perm_effect = np.mean(np.vstack(perm_effects), axis=0)
+        perm_distance = float(np.linalg.norm(perm_effect) / np.sqrt(len(_FEATURES)))
+        if perm_distance >= observed:
+            exceed += 1
+
+    p_value = float((exceed + 1) / (permutations + 1))
+    return observed, p_value, effect_map, sign_agreement, len(strata)
+
+
+def _holm_adjust(values: list[float | None]) -> list[float | None]:
+    valid = [(index, value) for index, value in enumerate(values) if value is not None]
+    if not valid:
+        return [None] * len(values)
+
+    ordered = sorted(valid, key=lambda item: item[1])
+    adjusted: dict[int, float] = {}
+    running = 0.0
+    total = len(ordered)
+    for rank, (index, value) in enumerate(ordered):
+        candidate = min(1.0, (total - rank) * value)
+        running = max(running, candidate)
+        adjusted[index] = running
+    return [adjusted.get(index) for index in range(len(values))]
+
+
 def _pairwise(
     grouped: dict[str, list[LateralSample]],
     seed_base: int,
@@ -300,6 +397,13 @@ def _pairwise(
         mean_distance = None
         if subbanks:
             mean_distance = float(np.mean([item.distance for item in subbanks]))
+
+        stratified_distance, stratified_p, effects, sign_agreement, strata_count = _stratified_summary(
+            grouped,
+            left,
+            right,
+            seed=seed_base + 5000 + pair_index,
+        )
         results.append(
             LateralPairResult(
                 left=left,
@@ -307,11 +411,21 @@ def _pairwise(
                 cross_subbank_balanced_accuracy=cross,
                 cross_by_subbank=cross_by,
                 mean_distance=mean_distance,
+                stratified_distance=stratified_distance,
+                stratified_permutation_p=stratified_p,
+                stratified_p_holm=None,
+                stratified_effects=effects,
+                effect_sign_agreement=sign_agreement,
+                stratified_subbanks=strata_count,
                 subbanks=tuple(subbanks),
             )
         )
 
-    return tuple(results)
+    adjusted = _holm_adjust([item.stratified_permutation_p for item in results])
+    return tuple(
+        replace(item, stratified_p_holm=adjusted[index])
+        for index, item in enumerate(results)
+    )
 
 
 def analyze_lateral(root: Path) -> LateralAnalysis:
