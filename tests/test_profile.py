@@ -56,3 +56,27 @@ def test_profile_uses_neutral_realization_ids() -> None:
     assert "alias_mapping_applied: false" in text
     assert "id: shw" not in text
     assert "id: ry" not in text
+
+
+def test_unresolved_profile_does_not_merge_contexts() -> None:
+    analysis = VoicebankInventoryAnalysis(
+        voicebank=Path("/tmp/voicebank"),
+        decisions=[
+            InventoryDecision(
+                base_unit="ch",
+                class_name="affricate",
+                acoustic_evidence="weak_or_inconsistent",
+                synthesis_evidence="not_tested",
+                decision="unresolved",
+                confidence="low",
+                notes=(),
+            ),
+        ],
+    )
+
+    profile = build_speaker_profile(Path("/tmp/voicebank"), analysis)
+    text = profile_yaml(profile)
+
+    assert "id: ch_plain_unresolved" in text
+    assert "id: ch_rounded_unresolved" in text
+    assert "id: ch_shared" not in text
