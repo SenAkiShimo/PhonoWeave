@@ -67,8 +67,8 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
             class_name="fricative",
             acoustic_evidence="weak_or_inconsistent",
             synthesis_evidence="not_tested",
-            decision="no_split_recommended",
-            confidence="moderate",
+            decision="unresolved",
+            confidence="low",
             notes=tuple(notes),
         )
 
@@ -111,8 +111,8 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
         base_unit=base_unit,
         class_name="fricative",
         acoustic_evidence=acoustic_evidence,
-        synthesis_evidence="not_supported_under_proxy",
-        decision="no_split_recommended",
+        synthesis_evidence="split_not_supported_under_proxy",
+        decision="unresolved",
         confidence="moderate",
         notes=tuple(notes),
     )
@@ -149,8 +149,8 @@ def _affricate_decision(root: Path, base_unit: str) -> InventoryDecision:
         class_name="affricate",
         acoustic_evidence="weak_or_inconsistent",
         synthesis_evidence="not_tested",
-        decision="no_split_recommended",
-        confidence="moderate",
+        decision="unresolved",
+        confidence="low",
         notes=notes,
     )
 
