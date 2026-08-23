@@ -13,7 +13,10 @@ class SynthesisUnit:
     contexts: tuple[str, ...]
     source_group: str
     canonical_context: str | None
+    decision: str
     confidence: str
+    acoustic_evidence: str
+    synthesis_evidence: str
 
 
 @dataclass(frozen=True)
@@ -42,7 +45,10 @@ def build_synthesis_inventory(
                     contexts=group.contexts,
                     source_group=group.id,
                     canonical_context=group.canonical_context,
+                    decision=entry.decision,
                     confidence=entry.confidence,
+                    acoustic_evidence=entry.acoustic_evidence,
+                    synthesis_evidence=entry.synthesis_evidence,
                 )
             )
 
@@ -66,7 +72,7 @@ def _scalar(value: object) -> str:
 
 def synthesis_inventory_yaml(inventory: SynthesisInventory) -> str:
     lines = [
-        "schema_version: 1",
+        "schema_version: 2",
         "speaker:",
         f"  id: {_scalar(inventory.speaker_id)}",
         f"  language: {_scalar(inventory.language)}",
@@ -83,7 +89,11 @@ def synthesis_inventory_yaml(inventory: SynthesisInventory) -> str:
                 f"    base_unit: {_scalar(unit.base_unit)}",
                 f"    contexts: [{contexts}]",
                 f"    source_group: {_scalar(unit.source_group)}",
+                f"    decision: {_scalar(unit.decision)}",
                 f"    confidence: {_scalar(unit.confidence)}",
+                "    evidence:",
+                f"      acoustic: {_scalar(unit.acoustic_evidence)}",
+                f"      synthesis: {_scalar(unit.synthesis_evidence)}",
             ]
         )
         if unit.canonical_context is not None:
