@@ -33,3 +33,17 @@ def test_classify_rhotic_contexts() -> None:
 
     assert ru is not None
     assert context_for(ru.base_unit, ru.final) == "rounded"
+
+
+def test_classify_unanalyzed_mandarin_onsets_for_coverage() -> None:
+    for alias, base, final in (
+        ("ba", "b", "a"),
+        ("- mao", "m", "ao"),
+        ("tian", "t", "ian"),
+        ("huang", "h", "uang"),
+        ("wo", "w", "o"),
+    ):
+        observation = classify_alias(_entry(alias))
+        assert observation is not None
+        assert observation.base_unit == base
+        assert observation.final == final
