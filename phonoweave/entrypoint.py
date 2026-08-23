@@ -34,6 +34,8 @@ def _coverage_payload(result) -> dict[str, object]:
     return {
         "voicebank": str(result.voicebank),
         "observations": result.observations,
+        "onset_observations": result.onset_observations,
+        "zero_onset_observations": result.zero_onset_observations,
         "items": [
             {
                 "base_unit": item.base_unit,
@@ -49,6 +51,7 @@ def _coverage_payload(result) -> dict[str, object]:
 def _context_audit_payload(result) -> dict[str, object]:
     return {
         "voicebank": str(result.voicebank),
+        "zero_onset_observations": result.zero_onset_observations,
         "items": [
             {
                 "base_unit": item.base_unit,
@@ -99,6 +102,8 @@ def _analyze_voicebank(argv: list[str]) -> int:
     analyzed = [item for item in coverage.items if item.status == "analyzed"]
     print("Coverage")
     print(f"  Mandarin observations recognized: {coverage.observations}")
+    print(f"  onset observations: {coverage.onset_observations}")
+    print(f"  zero-onset orthographic observations: {coverage.zero_onset_observations}")
     print(f"  onset types analyzed: {len(analyzed)}")
     print(f"  onset types not yet analyzed: {len(unsupported)}")
     if unsupported:
@@ -124,6 +129,8 @@ def _coverage(argv: list[str]) -> int:
 
     print(f"Voicebank: {payload['voicebank']}")
     print(f"Mandarin observations recognized: {result.observations}")
+    print(f"Onset observations: {result.onset_observations}")
+    print(f"Zero-onset orthographic observations: {result.zero_onset_observations}")
     print()
     for item in result.items:
         analyzer = item.analyzer or "not implemented"
@@ -153,6 +160,7 @@ def _context_audit(argv: list[str]) -> int:
         return 0
 
     print(f"Voicebank: {payload['voicebank']}")
+    print(f"Zero-onset orthographic observations: {result.zero_onset_observations}")
     print()
     for item in result.items:
         print(
