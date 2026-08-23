@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from .context_audit import audit_contexts
 from .coverage import analyze_coverage
 from .inventory import analyze_voicebank_inventory
 from .profile import write_speaker_profile
@@ -39,6 +40,28 @@ def _coverage_payload(result) -> dict[str, object]:
                 "observations": item.observations,
                 "status": item.status,
                 "analyzer": item.analyzer,
+            }
+            for item in result.items
+        ],
+    }
+
+
+def _context_audit_payload(result) -> dict[str, object]:
+    return {
+        "voicebank": str(result.voicebank),
+        "items": [
+            {
+                "base_unit": item.base_unit,
+                "status": item.status,
+                "observations": item.observations,
+                "finals": [
+                    {
+                        "final": final.final,
+                        "observations": final.observations,
+                        "subbanks": list(final.subbanks),
+                    }
+                    for final in item.finals
+                ],
             }
             for item in result.items
         ],
@@ -111,6 +134,40 @@ def _coverage(argv: list[str]) -> int:
     return 0
 
 
+def _context_audit(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="phonoweave context-audit")
+    parser.add_argument("voicebank", type=Path)
+    parser.add_argument("--base")
+    parser.add_argument("--unsupported-only", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    result = audit_contexts(
+        args.voicebank,
+        base_unit=args.base,
+        unsupported_only=args.unsupported_only,
+    )
+    payload = _context_audit_payload(result)
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"Voicebank: {payload['voicebank']}")
+    print()
+    for item in result.items:
+        print(
+            f"{item.base_unit}: observations={item.observations}, "
+            f"status={item.status}"
+        )
+        for final in item.finals:
+            layers = ",".join(final.subbanks)
+            print(
+                f"  {final.final}: observations={final.observations}, "
+                f"subbanks={layers}"
+            )
+    return 0
+
+
 def _build_profile(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="phonoweave build-profile")
     parser.add_argument("voicebank", type=Path)
@@ -156,6 +213,8 @@ def main() -> int:
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
         return _coverage(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "context-audit":
+        return _context_audit(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-profile":
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
