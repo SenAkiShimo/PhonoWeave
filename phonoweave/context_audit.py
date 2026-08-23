@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from .coverage import _ANALYZED
+from .coverage import coverage_status
 from .mandarin import collect_observations, structure_for
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
@@ -65,7 +65,7 @@ def audit_contexts(
             continue
         if base_unit is not None and base != base_unit:
             continue
-        if unsupported_only and base in _ANALYZED:
+        if unsupported_only and coverage_status(base) != "unsupported":
             continue
         counts[base][structure.final] += 1
         oto_sets[(base, structure.final)].add(
@@ -85,7 +85,7 @@ def audit_contexts(
         items.append(
             ContextAuditItem(
                 base_unit=base,
-                status="analyzed" if base in _ANALYZED else "unsupported",
+                status=coverage_status(base),
                 observations=sum(counts[base].values()),
                 finals=final_items,
             )
