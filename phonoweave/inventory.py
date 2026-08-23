@@ -6,7 +6,7 @@ from pathlib import Path
 from .affricate import analyze_affricate_contrast
 from .analyze import analyze_fricative_contrast
 from .rhotic import analyze_rhotic_contrast
-from .rhotic_canonical import analyze_rhotic_canonical
+from .rhotic_relevance import rhotic_relevance_test
 from .splice import splice_relevance_test
 
 
@@ -81,11 +81,7 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
         ]
     )
 
-    acoustic_evidence = (
-        "strongly_supported"
-        if acoustic_level == "strong"
-        else "supported"
-    )
+    acoustic_evidence = "strongly_supported" if acoustic_level == "strong" else "supported"
 
     if (
         splice.mean_delta is not None
@@ -159,19 +155,38 @@ def _affricate_decision(root: Path, base_unit: str) -> InventoryDecision:
     )
 
 
+def _comparison_key(target: str, substitute: str) -> tuple[str, str]:
+    return target, substitute
+
+
+def _relevance_supported(comparison) -> bool:
+    return (
+        comparison is not None
+        and comparison.targets > 0
+        and comparison.mean_body_spectral_delta is not None
+        and comparison.mean_body_spectral_delta > 0
+        and comparison.body_spectral_p is not None
+        and comparison.body_spectral_p < 0.05
+        and comparison.mean_boundary_delta is not None
+        and comparison.mean_boundary_delta > 0
+        and comparison.boundary_p is not None
+        and comparison.boundary_p < 0.05
+    )
+
+
 def _rhotic_decision(root: Path) -> InventoryDecision:
-    result = analyze_rhotic_contrast(root)
-    canonical = analyze_rhotic_canonical(root)
+    acoustic = analyze_rhotic_contrast(root)
+    relevance = rhotic_relevance_test(root)
 
     pairwise = {
         frozenset((pair.left, pair.right)): pair
-        for pair in result.pairwise
+        for pair in acoustic.pairwise
     }
     plain_front = pairwise.get(frozenset(("plain", "front")))
     plain_rounded = pairwise.get(frozenset(("plain", "rounded")))
     front_rounded = pairwise.get(frozenset(("front", "rounded")))
 
-    front_supported = (
+    front_acoustic_supported = (
         plain_front is not None
         and front_rounded is not None
         and plain_front.cross_subbank_balanced_accuracy is not None
@@ -180,48 +195,80 @@ def _rhotic_decision(root: Path) -> InventoryDecision:
         and front_rounded.cross_subbank_balanced_accuracy >= 0.75
     )
 
-    plain_rounded_weak = (
-        plain_rounded is not None
-        and plain_rounded.cross_subbank_balanced_accuracy is not None
-        and plain_rounded.cross_subbank_balanced_accuracy < 0.72
-    )
+    comparisons = {
+        _comparison_key(item.target_context, item.substitution_context): item
+        for item in relevance.comparisons
+    }
+    front_from_plain = comparisons.get(_comparison_key("front", "plain"))
+    front_from_rounded = comparisons.get(_comparison_key("front", "rounded"))
+    plain_from_rounded = comparisons.get(_comparison_key("plain", "rounded"))
+    rounded_from_plain = comparisons.get(_comparison_key("rounded", "plain"))
 
-    plain_to_rounded = canonical.plain_to_rounded
-    rounded_to_plain = canonical.rounded_to_plain
-    canonical_plain_supported = (
-        plain_to_rounded is not None
-        and plain_to_rounded.mean_delta <= 0.03
-        and (
-            plain_to_rounded.permutation_p >= 0.05
-            or plain_to_rounded.mean_delta <= 0
-        )
+    plain_rounded_split_supported = (
+        _relevance_supported(plain_from_rounded)
+        and _relevance_supported(rounded_from_plain)
     )
-    reverse_harm = (
-        rounded_to_plain is not None
-        and rounded_to_plain.mean_delta > 0
-        and rounded_to_plain.permutation_p < 0.05
+    front_coverage_complete = (
+        front_from_plain is not None
+        and front_from_plain.targets > 0
+        and front_from_rounded is not None
+        and front_from_rounded.targets > 0
+    )
+    front_synthesis_supported = (
+        front_coverage_complete
+        and _relevance_supported(front_from_plain)
+        and _relevance_supported(front_from_rounded)
     )
 
     notes = [
-        f"three_way_cross_subbank_ba={result.cross_subbank_balanced_accuracy}",
-        f"front_supported={front_supported}",
-        f"plain_rounded_weak={plain_rounded_weak}",
+        f"three_way_cross_subbank_ba={acoustic.cross_subbank_balanced_accuracy}",
+        f"front_acoustic_supported={front_acoustic_supported}",
+        f"plain_rounded_pair_ba={plain_rounded.cross_subbank_balanced_accuracy if plain_rounded else None}",
+        f"plain_rounded_split_supported={plain_rounded_split_supported}",
+        f"front_coverage_complete={front_coverage_complete}",
+        f"front_synthesis_supported={front_synthesis_supported}",
     ]
-    if plain_to_rounded is not None:
-        notes.append(f"plain_to_rounded_delta={plain_to_rounded.mean_delta}")
-        notes.append(f"plain_to_rounded_p={plain_to_rounded.permutation_p}")
-    if rounded_to_plain is not None:
-        notes.append(f"rounded_to_plain_delta={rounded_to_plain.mean_delta}")
-        notes.append(f"rounded_to_plain_p={rounded_to_plain.permutation_p}")
 
-    if front_supported and plain_rounded_weak and canonical_plain_supported:
-        notes.append(f"reverse_harm={reverse_harm}")
+    for name, comparison in (
+        ("front_from_plain", front_from_plain),
+        ("front_from_rounded", front_from_rounded),
+        ("plain_from_rounded", plain_from_rounded),
+        ("rounded_from_plain", rounded_from_plain),
+    ):
+        if comparison is None:
+            continue
+        notes.extend(
+            [
+                f"{name}_targets={comparison.targets}",
+                f"{name}_body_delta={comparison.mean_body_spectral_delta}",
+                f"{name}_body_p={comparison.body_spectral_p}",
+                f"{name}_boundary_delta={comparison.mean_boundary_delta}",
+                f"{name}_boundary_p={comparison.boundary_p}",
+            ]
+        )
+
+    if plain_rounded_split_supported and front_acoustic_supported and front_synthesis_supported:
         return InventoryDecision(
             base_unit="r",
             class_name="rhotic",
-            acoustic_evidence="front_distinct_plain_rounded_weak",
-            synthesis_evidence="canonical_plain_supported_under_proxy",
-            decision="two_realizations_provisional",
+            acoustic_evidence="front_distinct",
+            synthesis_evidence="three_way_split_supported_under_proxy",
+            decision="three_realizations_provisional",
+            confidence="moderate",
+            notes=tuple(notes),
+        )
+
+    if plain_rounded_split_supported:
+        return InventoryDecision(
+            base_unit="r",
+            class_name="rhotic",
+            acoustic_evidence=(
+                "front_distinct_plain_rounded_mixed"
+                if front_acoustic_supported
+                else "mixed"
+            ),
+            synthesis_evidence="plain_rounded_split_supported_front_unresolved",
+            decision="unresolved",
             confidence="moderate",
             notes=tuple(notes),
         )
