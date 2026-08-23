@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from .mandarin import collect_observations, normalize_alias
+from .mandarin import collect_observations, normalize_alias, structure_for
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 
@@ -62,19 +62,20 @@ def audit_sources(root: Path, base_units: tuple[str, ...]) -> SourceAudit:
 
     grouped: dict[str, list] = defaultdict(list)
     for observation in observations:
-        if observation.base_unit in requested:
-            grouped[observation.base_unit].append(observation)
+        structure = structure_for(observation)
+        if structure.onset in requested:
+            grouped[structure.onset].append((observation, structure.final))
 
     bases: list[SourceBaseAudit] = []
     for base in base_units:
         rows = grouped.get(base, [])
         role_counts = Counter(
-            _alias_role(row.entry.alias, affixes)
-            for row in rows
+            _alias_role(observation.entry.alias, affixes)
+            for observation, _ in rows
         )
         by_final: dict[str, list] = defaultdict(list)
-        for row in rows:
-            by_final[row.final].append(row)
+        for observation, final in rows:
+            by_final[final].append(observation)
 
         finals: list[SourceFinalAudit] = []
         for final in sorted(by_final):
@@ -95,12 +96,13 @@ def audit_sources(root: Path, base_units: tuple[str, ...]) -> SourceAudit:
                 )
             )
 
+        observations_for_base = [observation for observation, _ in rows]
         bases.append(
             SourceBaseAudit(
                 base_unit=base,
                 observations=len(rows),
-                unique_wavs=len({row.entry.wav_path for row in rows}),
-                unique_segments=len({_segment_key(row.entry) for row in rows}),
+                unique_wavs=len({row.entry.wav_path for row in observations_for_base}),
+                unique_segments=len({_segment_key(row.entry) for row in observations_for_base}),
                 roles=dict(sorted(role_counts.items())),
                 finals=tuple(finals),
             )
