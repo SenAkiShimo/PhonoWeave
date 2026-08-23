@@ -13,7 +13,11 @@ _FINALS = (
     "ai", "ei", "ao", "ou", "an", "en", "a", "o", "e", "i", "u", "v", "ü",
 )
 
-_BASES = ("zh", "ch", "sh", "r", "s", "z", "c", "j", "q", "x")
+_BASES = (
+    "zh", "ch", "sh",
+    "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h",
+    "j", "q", "x", "r", "z", "c", "s", "y", "w",
+)
 
 
 @dataclass(frozen=True)
