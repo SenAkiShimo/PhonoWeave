@@ -28,6 +28,7 @@ class RhoticSpliceSample:
     alias: str
     final: str
     wav_path: Path
+    body: AudioSegment
     core: AudioSegment
     late: AudioSegment
 
@@ -39,21 +40,33 @@ class RhoticTargetPenalty:
     substitution_context: str
     alias: str
     final: str
-    control_penalty: float
-    substitution_penalty: float
-    delta: float
-    relative_delta: float
+    control_body_spectral: float
+    substitution_body_spectral: float
+    body_spectral_delta: float
+    control_body_periodicity: float
+    substitution_body_periodicity: float
+    body_periodicity_delta: float
+    control_boundary: float
+    substitution_boundary: float
+    boundary_delta: float
 
 
 @dataclass(frozen=True)
 class RhoticComparisonSubbankResult:
     subbank: str
     targets: int
-    mean_control_penalty: float
-    mean_substitution_penalty: float
-    mean_delta: float
-    mean_relative_delta: float
-    permutation_p: float
+    mean_control_body_spectral: float
+    mean_substitution_body_spectral: float
+    mean_body_spectral_delta: float
+    body_spectral_p: float
+    mean_control_body_periodicity: float
+    mean_substitution_body_periodicity: float
+    mean_body_periodicity_delta: float
+    body_periodicity_p: float
+    mean_control_boundary: float
+    mean_substitution_boundary: float
+    mean_boundary_delta: float
+    boundary_p: float
 
 
 @dataclass(frozen=True)
@@ -61,9 +74,12 @@ class RhoticComparisonResult:
     target_context: str
     substitution_context: str
     targets: int
-    mean_delta: float | None
-    mean_relative_delta: float | None
-    permutation_p: float | None
+    mean_body_spectral_delta: float | None
+    body_spectral_p: float | None
+    mean_body_periodicity_delta: float | None
+    body_periodicity_p: float | None
+    mean_boundary_delta: float | None
+    boundary_p: float | None
     subbanks: list[RhoticComparisonSubbankResult]
     target_penalties: list[RhoticTargetPenalty]
 
@@ -80,6 +96,69 @@ def _subbank_name(root: Path, entry: OtoEntry) -> str:
     return "." if directory == root else str(directory.relative_to(root))
 
 
+def _periodicity(samples: np.ndarray, sample_rate: int) -> float:
+    samples = samples.astype(np.float64, copy=False)
+    samples = samples - np.mean(samples)
+    min_lag = max(1, int(sample_rate / 500.0))
+    max_lag = min(len(samples) - 2, int(sample_rate / 70.0))
+    if max_lag <= min_lag:
+        return 0.0
+
+    best = 0.0
+    for lag in range(min_lag, max_lag + 1):
+        left = samples[:-lag]
+        right = samples[lag:]
+        denom = float(np.sqrt(np.dot(left, left) * np.dot(right, right)))
+        if denom > 1e-12:
+            best = max(best, float(np.dot(left, right) / denom))
+    return max(0.0, min(best, 1.0))
+
+
+def _log_spectrum(samples: np.ndarray, sample_rate: int, grid: np.ndarray) -> np.ndarray:
+    samples = samples.astype(np.float64, copy=False)
+    samples = samples - np.mean(samples)
+    window = np.hanning(len(samples))
+    power = np.abs(np.fft.rfft(samples * window)) ** 2 + 1e-18
+    freqs = np.fft.rfftfreq(len(samples), d=1.0 / sample_rate)
+    interp = np.interp(grid, freqs, power)
+    interp = interp / (np.sum(interp) + 1e-18)
+    return np.log10(interp + 1e-12)
+
+
+def _body_windows(segment: AudioSegment, parts: int = 3) -> list[np.ndarray]:
+    samples = segment.samples
+    if len(samples) < parts * 64:
+        return [samples]
+    edges = np.linspace(0, len(samples), parts + 1, dtype=int)
+    return [samples[edges[index]:edges[index + 1]] for index in range(parts)]
+
+
+def rhotic_body_penalty(left: AudioSegment, right: AudioSegment) -> tuple[float, float]:
+    upper = min(5000.0, left.sample_rate * 0.45, right.sample_rate * 0.45)
+    if upper <= 500.0:
+        raise AudioReadError("sample rate is too low for rhotic body analysis")
+    grid = np.linspace(200.0, upper, 128)
+
+    left_windows = _body_windows(left)
+    right_windows = _body_windows(right)
+    parts = min(len(left_windows), len(right_windows))
+    if parts == 0:
+        raise AudioReadError("rhotic body is empty")
+
+    spectral_scores = []
+    for index in range(parts):
+        left_spectrum = _log_spectrum(left_windows[index], left.sample_rate, grid)
+        right_spectrum = _log_spectrum(right_windows[index], right.sample_rate, grid)
+        spectral_scores.append(float(np.sqrt(np.mean((left_spectrum - right_spectrum) ** 2))))
+
+    spectral = float(np.mean(spectral_scores))
+    periodicity = abs(
+        _periodicity(left.samples, left.sample_rate)
+        - _periodicity(right.samples, right.sample_rate)
+    )
+    return spectral, periodicity
+
+
 def _edge_features(segment: AudioSegment, side: str, window_ms: float = 25.0) -> tuple[np.ndarray, float, float]:
     count = max(64, int(round(segment.sample_rate * window_ms / 1000.0)))
     count = min(count, len(segment.samples))
@@ -91,27 +170,13 @@ def _edge_features(segment: AudioSegment, side: str, window_ms: float = 25.0) ->
     samples = samples - np.mean(samples)
     rms = float(np.sqrt(np.mean(samples ** 2)) + 1e-12)
 
-    window = np.hanning(len(samples))
-    power = np.abs(np.fft.rfft(samples * window)) ** 2 + 1e-18
-    freqs = np.fft.rfftfreq(len(samples), d=1.0 / segment.sample_rate)
     upper = min(5000.0, segment.sample_rate * 0.45)
     if upper <= 500.0:
         raise AudioReadError("sample rate is too low for rhotic boundary analysis")
     grid = np.linspace(200.0, upper, 128)
-    interp = np.interp(grid, freqs, power)
-    interp = interp / (np.sum(interp) + 1e-18)
-
-    min_lag = max(1, int(segment.sample_rate / 500.0))
-    max_lag = min(len(samples) - 2, int(segment.sample_rate / 70.0))
-    periodicity = 0.0
-    for lag in range(min_lag, max_lag + 1):
-        left = samples[:-lag]
-        right = samples[lag:]
-        denom = float(np.sqrt(np.dot(left, left) * np.dot(right, right)))
-        if denom > 1e-12:
-            periodicity = max(periodicity, float(np.dot(left, right) / denom))
-    periodicity = max(0.0, min(periodicity, 1.0))
-    return np.log10(interp + 1e-12), rms, periodicity
+    spectrum = _log_spectrum(samples, segment.sample_rate, grid)
+    periodicity = _periodicity(samples, segment.sample_rate)
+    return spectrum, rms, periodicity
 
 
 def rhotic_boundary_penalty(left: AudioSegment, right: AudioSegment) -> float:
@@ -154,6 +219,7 @@ def _build_samples(root: Path) -> tuple[dict[str, dict[str, list[RhoticSpliceSam
             continue
         try:
             whole = consonant_segment(observation.entry, edge_trim=0.04)
+            body = slice_segment(whole, 0.18, 0.82)
             core = slice_segment(whole, 0.25, 0.62)
             late = slice_segment(whole, 0.62, 0.94)
         except (AudioReadError, ValueError):
@@ -165,11 +231,57 @@ def _build_samples(root: Path) -> tuple[dict[str, dict[str, list[RhoticSpliceSam
             alias=observation.entry.alias,
             final=observation.final,
             wav_path=observation.entry.wav_path,
+            body=body,
             core=core,
             late=late,
         )
         grouped[sample.subbank][context].append(sample)
     return grouped, skipped
+
+
+def _median_scores(
+    donors: list[RhoticSpliceSample],
+    target: RhoticSpliceSample,
+) -> tuple[float, float, float]:
+    body_spectral = []
+    body_periodicity = []
+    boundary = []
+    for donor in donors:
+        spectral, periodicity = rhotic_body_penalty(donor.body, target.body)
+        body_spectral.append(spectral)
+        body_periodicity.append(periodicity)
+        boundary.append(rhotic_boundary_penalty(donor.core, target.late))
+    return (
+        float(np.median(body_spectral)),
+        float(np.median(body_periodicity)),
+        float(np.median(boundary)),
+    )
+
+
+def _summarize_subbank(
+    subbank: str,
+    penalties: list[RhoticTargetPenalty],
+    seed: int,
+) -> RhoticComparisonSubbankResult:
+    body_spectral_deltas = np.array([item.body_spectral_delta for item in penalties], dtype=np.float64)
+    body_periodicity_deltas = np.array([item.body_periodicity_delta for item in penalties], dtype=np.float64)
+    boundary_deltas = np.array([item.boundary_delta for item in penalties], dtype=np.float64)
+    return RhoticComparisonSubbankResult(
+        subbank=subbank,
+        targets=len(penalties),
+        mean_control_body_spectral=float(np.mean([item.control_body_spectral for item in penalties])),
+        mean_substitution_body_spectral=float(np.mean([item.substitution_body_spectral for item in penalties])),
+        mean_body_spectral_delta=float(np.mean(body_spectral_deltas)),
+        body_spectral_p=_paired_permutation_p(body_spectral_deltas, seed=seed),
+        mean_control_body_periodicity=float(np.mean([item.control_body_periodicity for item in penalties])),
+        mean_substitution_body_periodicity=float(np.mean([item.substitution_body_periodicity for item in penalties])),
+        mean_body_periodicity_delta=float(np.mean(body_periodicity_deltas)),
+        body_periodicity_p=_paired_permutation_p(body_periodicity_deltas, seed=seed + 100),
+        mean_control_boundary=float(np.mean([item.control_boundary for item in penalties])),
+        mean_substitution_boundary=float(np.mean([item.substitution_boundary for item in penalties])),
+        mean_boundary_delta=float(np.mean(boundary_deltas)),
+        boundary_p=_paired_permutation_p(boundary_deltas, seed=seed + 200),
+    )
 
 
 def _comparison(
@@ -197,64 +309,70 @@ def _comparison(
             if not controls:
                 continue
             try:
-                control_scores = np.array(
-                    [rhotic_boundary_penalty(donor.core, target.late) for donor in controls],
-                    dtype=np.float64,
-                )
-                substitution_scores = np.array(
-                    [rhotic_boundary_penalty(donor.core, target.late) for donor in substitutes],
-                    dtype=np.float64,
+                control_body_spectral, control_body_periodicity, control_boundary = _median_scores(controls, target)
+                substitution_body_spectral, substitution_body_periodicity, substitution_boundary = _median_scores(
+                    substitutes,
+                    target,
                 )
             except (AudioReadError, ValueError):
                 continue
-            control = float(np.median(control_scores))
-            substitution = float(np.median(substitution_scores))
-            delta = substitution - control
+
             item = RhoticTargetPenalty(
                 subbank=subbank,
                 target_context=target_context,
                 substitution_context=substitution_context,
                 alias=target.alias,
                 final=target.final,
-                control_penalty=control,
-                substitution_penalty=substitution,
-                delta=delta,
-                relative_delta=delta / max(control, 1e-9),
+                control_body_spectral=control_body_spectral,
+                substitution_body_spectral=substitution_body_spectral,
+                body_spectral_delta=substitution_body_spectral - control_body_spectral,
+                control_body_periodicity=control_body_periodicity,
+                substitution_body_periodicity=substitution_body_periodicity,
+                body_periodicity_delta=substitution_body_periodicity - control_body_periodicity,
+                control_boundary=control_boundary,
+                substitution_boundary=substitution_boundary,
+                boundary_delta=substitution_boundary - control_boundary,
             )
             bank_penalties.append(item)
             penalties.append(item)
 
         if bank_penalties:
-            deltas = np.array([item.delta for item in bank_penalties], dtype=np.float64)
             subbanks.append(
-                RhoticComparisonSubbankResult(
-                    subbank=subbank,
-                    targets=len(bank_penalties),
-                    mean_control_penalty=float(np.mean([item.control_penalty for item in bank_penalties])),
-                    mean_substitution_penalty=float(np.mean([item.substitution_penalty for item in bank_penalties])),
-                    mean_delta=float(np.mean(deltas)),
-                    mean_relative_delta=float(np.mean([item.relative_delta for item in bank_penalties])),
-                    permutation_p=_paired_permutation_p(deltas, seed=seed + subbank_index),
+                _summarize_subbank(
+                    subbank,
+                    bank_penalties,
+                    seed=seed + subbank_index * 1000,
                 )
             )
 
     if penalties:
-        deltas = np.array([item.delta for item in penalties], dtype=np.float64)
-        mean_delta = float(np.mean(deltas))
-        mean_relative_delta = float(np.mean([item.relative_delta for item in penalties]))
-        permutation_p = _paired_permutation_p(deltas, seed=seed + 100)
+        body_spectral_deltas = np.array([item.body_spectral_delta for item in penalties], dtype=np.float64)
+        body_periodicity_deltas = np.array([item.body_periodicity_delta for item in penalties], dtype=np.float64)
+        boundary_deltas = np.array([item.boundary_delta for item in penalties], dtype=np.float64)
+        mean_body_spectral_delta = float(np.mean(body_spectral_deltas))
+        body_spectral_p = _paired_permutation_p(body_spectral_deltas, seed=seed + 10000)
+        mean_body_periodicity_delta = float(np.mean(body_periodicity_deltas))
+        body_periodicity_p = _paired_permutation_p(body_periodicity_deltas, seed=seed + 10100)
+        mean_boundary_delta = float(np.mean(boundary_deltas))
+        boundary_p = _paired_permutation_p(boundary_deltas, seed=seed + 10200)
     else:
-        mean_delta = None
-        mean_relative_delta = None
-        permutation_p = None
+        mean_body_spectral_delta = None
+        body_spectral_p = None
+        mean_body_periodicity_delta = None
+        body_periodicity_p = None
+        mean_boundary_delta = None
+        boundary_p = None
 
     return RhoticComparisonResult(
         target_context=target_context,
         substitution_context=substitution_context,
         targets=len(penalties),
-        mean_delta=mean_delta,
-        mean_relative_delta=mean_relative_delta,
-        permutation_p=permutation_p,
+        mean_body_spectral_delta=mean_body_spectral_delta,
+        body_spectral_p=body_spectral_p,
+        mean_body_periodicity_delta=mean_body_periodicity_delta,
+        body_periodicity_p=body_periodicity_p,
+        mean_boundary_delta=mean_boundary_delta,
+        boundary_p=boundary_p,
         subbanks=subbanks,
         target_penalties=penalties,
     )
@@ -264,7 +382,7 @@ def rhotic_relevance_test(root: Path) -> RhoticRelevanceResult:
     root = root.expanduser().resolve()
     grouped, skipped = _build_samples(root)
     comparisons = [
-        _comparison(grouped, target, substitute, 9917 + index * 1000)
+        _comparison(grouped, target, substitute, 9917 + index * 20000)
         for index, (target, substitute) in enumerate(_COMPARISONS)
     ]
     samples = sum(len(rows) for bank in grouped.values() for rows in bank.values())
