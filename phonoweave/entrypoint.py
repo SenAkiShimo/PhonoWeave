@@ -230,6 +230,12 @@ def _analyze_lateral(argv: list[str]) -> int:
                         "cross_subbank_balanced_accuracy": pair.cross_subbank_balanced_accuracy,
                         "cross_by_subbank": pair.cross_by_subbank,
                         "mean_distance": pair.mean_distance,
+                        "stratified_distance": pair.stratified_distance,
+                        "stratified_permutation_p": pair.stratified_permutation_p,
+                        "stratified_p_holm": pair.stratified_p_holm,
+                        "stratified_effects": pair.stratified_effects,
+                        "effect_sign_agreement": pair.effect_sign_agreement,
+                        "stratified_subbanks": pair.stratified_subbanks,
                         "subbanks": [
                             {
                                 "subbank": item.subbank,
@@ -284,6 +290,28 @@ def _analyze_lateral(argv: list[str]) -> int:
                     f"{name}={score:.3f}" for name, score in pair.cross_by_subbank.items()
                 )
                 print(f"      held out: {held}")
+            if pair.stratified_distance is not None:
+                raw_p = pair.stratified_permutation_p
+                holm_p = pair.stratified_p_holm
+                raw_text = f"{raw_p:.4f}" if raw_p is not None else "n/a"
+                holm_text = f"{holm_p:.4f}" if holm_p is not None else "n/a"
+                print(
+                    f"      stratified: distance={pair.stratified_distance:.3f}, "
+                    f"p={raw_text}, holm_p={holm_text}, "
+                    f"layers={pair.stratified_subbanks}"
+                )
+                ranked = sorted(
+                    pair.stratified_effects.items(),
+                    key=lambda item: abs(item[1]),
+                    reverse=True,
+                )[:4]
+                if ranked:
+                    effects = ", ".join(
+                        f"{name}={value:+.3f} "
+                        f"({pair.effect_sign_agreement.get(name, 0)}/{pair.stratified_subbanks})"
+                        for name, value in ranked
+                    )
+                    print(f"      effects: {effects}")
             for item in pair.subbanks:
                 print(
                     f"      {item.subbank}: n={item.left_count}/{item.right_count}, "
