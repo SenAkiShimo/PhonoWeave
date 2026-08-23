@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from .coverage import analyze_coverage
 from .inventory import analyze_voicebank_inventory
 from .profile import write_speaker_profile
 from .synthesis_inventory import write_synthesis_inventory
@@ -24,6 +25,22 @@ def _inventory_payload(result) -> dict[str, object]:
                 "notes": list(item.notes),
             }
             for item in result.decisions
+        ],
+    }
+
+
+def _coverage_payload(result) -> dict[str, object]:
+    return {
+        "voicebank": str(result.voicebank),
+        "observations": result.observations,
+        "items": [
+            {
+                "base_unit": item.base_unit,
+                "observations": item.observations,
+                "status": item.status,
+                "analyzer": item.analyzer,
+            }
+            for item in result.items
         ],
     }
 
@@ -53,6 +70,44 @@ def _analyze_voicebank(argv: list[str]) -> int:
         for note in item.notes:
             print(f"  {note}")
         print()
+
+    coverage = analyze_coverage(args.voicebank)
+    unsupported = [item for item in coverage.items if item.status == "unsupported"]
+    analyzed = [item for item in coverage.items if item.status == "analyzed"]
+    print("Coverage")
+    print(f"  Mandarin observations recognized: {coverage.observations}")
+    print(f"  onset types analyzed: {len(analyzed)}")
+    print(f"  onset types not yet analyzed: {len(unsupported)}")
+    if unsupported:
+        details = ", ".join(
+            f"{item.base_unit}({item.observations})"
+            for item in unsupported
+        )
+        print(f"  unsupported: {details}")
+    return 0
+
+
+def _coverage(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="phonoweave coverage")
+    parser.add_argument("voicebank", type=Path)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    result = analyze_coverage(args.voicebank)
+    payload = _coverage_payload(result)
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"Voicebank: {payload['voicebank']}")
+    print(f"Mandarin observations recognized: {result.observations}")
+    print()
+    for item in result.items:
+        analyzer = item.analyzer or "not implemented"
+        print(
+            f"{item.base_unit}: observations={item.observations}, "
+            f"status={item.status}, analyzer={analyzer}"
+        )
     return 0
 
 
@@ -99,6 +154,8 @@ def _build_synthesis_inventory(argv: list[str]) -> int:
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "coverage":
+        return _coverage(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-profile":
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
