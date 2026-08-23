@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from phonoweave.inventory import InventoryDecision, VoicebankInventoryAnalysis
 from phonoweave.profile import build_speaker_profile, profile_yaml
 
@@ -80,3 +82,43 @@ def test_unresolved_profile_does_not_merge_contexts() -> None:
     assert "id: ch_plain_unresolved" in text
     assert "id: ch_rounded_unresolved" in text
     assert "id: ch_shared" not in text
+
+
+def test_shared_group_requires_explicit_merge_support() -> None:
+    analysis = VoicebankInventoryAnalysis(
+        voicebank=Path("/tmp/voicebank"),
+        decisions=[
+            InventoryDecision(
+                base_unit="s",
+                class_name="fricative",
+                acoustic_evidence="supported",
+                synthesis_evidence="merge_supported_under_proxy",
+                decision="merge_supported",
+                confidence="moderate",
+                notes=(),
+            ),
+        ],
+    )
+
+    profile = build_speaker_profile(Path("/tmp/voicebank"), analysis)
+    assert profile.realizations[0].groups[0].id == "s_shared"
+
+
+def test_unknown_decision_is_not_silently_merged() -> None:
+    analysis = VoicebankInventoryAnalysis(
+        voicebank=Path("/tmp/voicebank"),
+        decisions=[
+            InventoryDecision(
+                base_unit="s",
+                class_name="fricative",
+                acoustic_evidence="unknown",
+                synthesis_evidence="unknown",
+                decision="unexpected_state",
+                confidence="low",
+                notes=(),
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="unsupported inventory decision"):
+        build_speaker_profile(Path("/tmp/voicebank"), analysis)
