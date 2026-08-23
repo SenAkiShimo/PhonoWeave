@@ -19,6 +19,42 @@ _BASES = (
     "j", "q", "x", "r", "z", "c", "s", "y", "w",
 )
 
+_Y_ZERO_FINALS = {
+    "a": "ia",
+    "an": "ian",
+    "ang": "iang",
+    "ao": "iao",
+    "e": "ie",
+    "i": "i",
+    "in": "in",
+    "ing": "ing",
+    "ong": "iong",
+    "ou": "iu",
+    "u": "v",
+    "uan": "van",
+    "ue": "ve",
+    "un": "vn",
+}
+
+_W_ZERO_FINALS = {
+    "a": "ua",
+    "ai": "uai",
+    "an": "uan",
+    "ang": "uang",
+    "ei": "ui",
+    "en": "un",
+    "eng": "ueng",
+    "o": "uo",
+    "u": "u",
+}
+
+_PALATAL_U_FINALS = {
+    "u": "v",
+    "ue": "ve",
+    "uan": "van",
+    "un": "vn",
+}
+
 
 @dataclass(frozen=True)
 class MandarinObservation:
@@ -26,6 +62,13 @@ class MandarinObservation:
     base_unit: str
     final: str
     alias_token: str
+
+
+@dataclass(frozen=True)
+class MandarinSyllableStructure:
+    onset: str | None
+    final: str
+    orthographic_initial: str | None = None
 
 
 def _tokens(alias: str) -> list[str]:
@@ -102,6 +145,30 @@ def collect_observations(
         if observation is not None:
             observations.append(observation)
     return observations
+
+
+def structure_for(observation: MandarinObservation) -> MandarinSyllableStructure:
+    base = observation.base_unit
+    final = observation.final
+
+    if base == "y" and final in _Y_ZERO_FINALS:
+        return MandarinSyllableStructure(
+            onset=None,
+            final=_Y_ZERO_FINALS[final],
+            orthographic_initial="y",
+        )
+
+    if base == "w" and final in _W_ZERO_FINALS:
+        return MandarinSyllableStructure(
+            onset=None,
+            final=_W_ZERO_FINALS[final],
+            orthographic_initial="w",
+        )
+
+    if base in {"j", "q", "x"} and final in _PALATAL_U_FINALS:
+        final = _PALATAL_U_FINALS[final]
+
+    return MandarinSyllableStructure(onset=base, final=final)
 
 
 def context_for(base_unit: str, final: str) -> str | None:
