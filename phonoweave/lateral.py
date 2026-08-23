@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
 
 from .audio import AudioReadError, consonant_segment, slice_segment
-from .contrast import balanced_accuracy, nearest_centroid_predict
+from .contrast import (
+    balanced_accuracy,
+    loo_balanced_accuracy,
+    nearest_centroid_predict,
+    permutation_p,
+    standardized_distance,
+)
 from .mandarin import collect_observations, normalize_alias, structure_for
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
@@ -58,11 +65,32 @@ class LateralSample:
 
 
 @dataclass(frozen=True)
+class LateralPairSubbankResult:
+    subbank: str
+    left_count: int
+    right_count: int
+    distance: float
+    loo_balanced_accuracy: float
+    permutation_p: float
+
+
+@dataclass(frozen=True)
+class LateralPairResult:
+    left: str
+    right: str
+    cross_subbank_balanced_accuracy: float | None
+    cross_by_subbank: dict[str, float]
+    mean_distance: float | None
+    subbanks: tuple[LateralPairSubbankResult, ...]
+
+
+@dataclass(frozen=True)
 class LateralRoleResult:
     role: str
     counts: dict[str, int]
     cross_subbank_balanced_accuracy: float | None
     cross_by_subbank: dict[str, float]
+    pairwise: tuple[LateralPairResult, ...]
 
 
 @dataclass(frozen=True)
@@ -202,6 +230,90 @@ def _cross_subbank(grouped: dict[str, list[LateralSample]]) -> tuple[float | Non
     return float(np.mean(list(scores.values()))), scores
 
 
+def _pair_cross_subbank(
+    grouped: dict[str, list[LateralSample]],
+    left: str,
+    right: str,
+) -> tuple[float | None, dict[str, float]]:
+    scores: dict[str, float] = {}
+    names = sorted(grouped)
+
+    for held_out in names:
+        train = [
+            sample
+            for name in names
+            if name != held_out
+            for sample in grouped[name]
+            if sample.family in {left, right}
+        ]
+        test = [
+            sample
+            for sample in grouped[held_out]
+            if sample.family in {left, right}
+        ]
+        if not train or not test:
+            continue
+        train_labels = np.array([0 if sample.family == left else 1 for sample in train], dtype=np.int8)
+        test_labels = np.array([0 if sample.family == left else 1 for sample in test], dtype=np.int8)
+        if len(np.unique(train_labels)) < 2 or len(np.unique(test_labels)) < 2:
+            continue
+        predicted = nearest_centroid_predict(_matrix(train), train_labels, _matrix(test))
+        scores[held_out] = balanced_accuracy(test_labels, predicted)
+
+    if not scores:
+        return None, scores
+    return float(np.mean(list(scores.values()))), scores
+
+
+def _pairwise(
+    grouped: dict[str, list[LateralSample]],
+    seed_base: int,
+) -> tuple[LateralPairResult, ...]:
+    results: list[LateralPairResult] = []
+
+    for pair_index, (left, right) in enumerate(combinations(_FAMILIES, 2)):
+        subbanks: list[LateralPairSubbankResult] = []
+        for subbank_index, subbank in enumerate(sorted(grouped)):
+            left_samples = [sample for sample in grouped[subbank] if sample.family == left]
+            right_samples = [sample for sample in grouped[subbank] if sample.family == right]
+            if len(left_samples) < 2 or len(right_samples) < 2:
+                continue
+            left_matrix = _matrix(left_samples)
+            right_matrix = _matrix(right_samples)
+            subbanks.append(
+                LateralPairSubbankResult(
+                    subbank=subbank,
+                    left_count=len(left_samples),
+                    right_count=len(right_samples),
+                    distance=standardized_distance(left_matrix, right_matrix, _FEATURES),
+                    loo_balanced_accuracy=loo_balanced_accuracy(left_matrix, right_matrix),
+                    permutation_p=permutation_p(
+                        left_matrix,
+                        right_matrix,
+                        _FEATURES,
+                        seed=seed_base + pair_index * 100 + subbank_index,
+                    ),
+                )
+            )
+
+        cross, cross_by = _pair_cross_subbank(grouped, left, right)
+        mean_distance = None
+        if subbanks:
+            mean_distance = float(np.mean([item.distance for item in subbanks]))
+        results.append(
+            LateralPairResult(
+                left=left,
+                right=right,
+                cross_subbank_balanced_accuracy=cross,
+                cross_by_subbank=cross_by,
+                mean_distance=mean_distance,
+                subbanks=tuple(subbanks),
+            )
+        )
+
+    return tuple(results)
+
+
 def analyze_lateral(root: Path) -> LateralAnalysis:
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
@@ -240,7 +352,7 @@ def analyze_lateral(root: Path) -> LateralAnalysis:
         grouped[sample.role][sample.subbank].append(sample)
 
     roles: list[LateralRoleResult] = []
-    for role in sorted(grouped):
+    for role_index, role in enumerate(sorted(grouped)):
         samples = [sample for rows in grouped[role].values() for sample in rows]
         counts = {family: sum(sample.family == family for sample in samples) for family in _FAMILIES}
         cross, cross_by = _cross_subbank(grouped[role])
@@ -250,6 +362,7 @@ def analyze_lateral(root: Path) -> LateralAnalysis:
                 counts=counts,
                 cross_subbank_balanced_accuracy=cross,
                 cross_by_subbank=cross_by,
+                pairwise=_pairwise(grouped[role], seed_base=7301 + role_index * 1000),
             )
         )
 
