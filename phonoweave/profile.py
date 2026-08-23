@@ -96,11 +96,16 @@ def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
             RealizationGroup(id=f"{base}_rounded_unresolved", contexts=("rounded",)),
         )
 
-    return (
-        RealizationGroup(
-            id=f"{base}_shared",
-            contexts=("plain", "rounded"),
-        ),
+    if decision.decision == "merge_supported":
+        return (
+            RealizationGroup(
+                id=f"{base}_shared",
+                contexts=("plain", "rounded"),
+            ),
+        )
+
+    raise ValueError(
+        f"unsupported inventory decision for profile generation: {decision.decision}"
     )
 
 
