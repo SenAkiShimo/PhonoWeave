@@ -15,7 +15,7 @@ class SourceFinalAudit:
     observations: int
     unique_segments: int
     roles: dict[str, int]
-    subbanks: tuple[str, ...]
+    oto_sets: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class SourceAudit:
     bases: tuple[SourceBaseAudit, ...]
 
 
-def _subbank_name(root: Path, entry: OtoEntry) -> str:
+def _oto_set_name(root: Path, entry: OtoEntry) -> str:
     directory = entry.oto_path.parent
     return "." if directory == root else str(directory.relative_to(root))
 
@@ -88,8 +88,8 @@ def audit_sources(root: Path, base_units: tuple[str, ...]) -> SourceAudit:
                         _alias_role(row.entry.alias, affixes)
                         for row in final_rows
                     ).items())),
-                    subbanks=tuple(sorted({
-                        _subbank_name(root, row.entry)
+                    oto_sets=tuple(sorted({
+                        _oto_set_name(root, row.entry)
                         for row in final_rows
                     })),
                 )
