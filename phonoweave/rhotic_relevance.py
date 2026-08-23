@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from .audio import AudioReadError, AudioSegment, consonant_segment, slice_segment
-from .mandarin import collect_observations, context_for
+from .mandarin import collect_observations, context_for, normalize_alias
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 
@@ -25,6 +25,7 @@ _COMPARISONS = (
 class RhoticSpliceSample:
     subbank: str
     context: str
+    role: str
     alias: str
     final: str
     wav_path: Path
@@ -38,6 +39,7 @@ class RhoticTargetPenalty:
     subbank: str
     target_context: str
     substitution_context: str
+    role: str
     alias: str
     final: str
     control_body_spectral: float
@@ -94,6 +96,11 @@ class RhoticRelevanceResult:
 def _subbank_name(root: Path, entry: OtoEntry) -> str:
     directory = entry.oto_path.parent
     return "." if directory == root else str(directory.relative_to(root))
+
+
+def _alias_role(alias: str, affixes: set[tuple[str, str]]) -> str:
+    normalized = normalize_alias(alias, affixes).strip()
+    return "initial" if normalized.startswith("-") else "internal"
 
 
 def _periodicity(samples: np.ndarray, sample_rate: int) -> float:
@@ -228,6 +235,7 @@ def _build_samples(root: Path) -> tuple[dict[str, dict[str, list[RhoticSpliceSam
         sample = RhoticSpliceSample(
             subbank=_subbank_name(root, observation.entry),
             context=context,
+            role=_alias_role(observation.entry.alias, affixes),
             alias=observation.entry.alias,
             final=observation.final,
             wav_path=observation.entry.wav_path,
@@ -304,14 +312,20 @@ def _comparison(
             controls = [
                 donor
                 for donor in targets
-                if donor.wav_path != target.wav_path or donor.alias != target.alias
+                if donor.role == target.role
+                and (donor.wav_path != target.wav_path or donor.alias != target.alias)
             ]
-            if not controls:
+            matched_substitutes = [
+                donor
+                for donor in substitutes
+                if donor.role == target.role
+            ]
+            if not controls or not matched_substitutes:
                 continue
             try:
                 control_body_spectral, control_body_periodicity, control_boundary = _median_scores(controls, target)
                 substitution_body_spectral, substitution_body_periodicity, substitution_boundary = _median_scores(
-                    substitutes,
+                    matched_substitutes,
                     target,
                 )
             except (AudioReadError, ValueError):
@@ -321,6 +335,7 @@ def _comparison(
                 subbank=subbank,
                 target_context=target_context,
                 substitution_context=substitution_context,
+                role=target.role,
                 alias=target.alias,
                 final=target.final,
                 control_body_spectral=control_body_spectral,
