@@ -8,6 +8,7 @@ from pathlib import Path
 from .context_audit import audit_contexts
 from .coverage import analyze_coverage
 from .inventory import analyze_voicebank_inventory
+from .lateral import analyze_lateral
 from .profile import write_speaker_profile
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
@@ -187,24 +188,64 @@ def _source_audit(argv: list[str]) -> int:
     result = audit_sources(args.voicebank, bases)
     print(f"Voicebank: {result.voicebank}")
     print()
-    for item in result.bases:
-        roles = ", ".join(f"{key}={value}" for key, value in item.roles.items()) or "-"
+    for base in result.bases:
+        roles = ", ".join(f"{name}={count}" for name, count in base.roles.items())
         print(
-            f"{item.base_unit}: observations={item.observations}, "
-            f"unique_wavs={item.unique_wavs}, "
-            f"unique_segments={item.unique_segments}, roles={roles}"
+            f"{base.base_unit}: observations={base.observations}, "
+            f"unique_wavs={base.unique_wavs}, unique_segments={base.unique_segments}, "
+            f"roles={roles}"
         )
-        for final in item.finals:
-            final_roles = ", ".join(
-                f"{key}={value}" for key, value in final.roles.items()
-            ) or "-"
+        for final in base.finals:
+            final_roles = ", ".join(f"{name}={count}" for name, count in final.roles.items())
             layers = ",".join(final.subbanks)
             print(
                 f"  {final.final}: observations={final.observations}, "
-                f"unique_segments={final.unique_segments}, "
-                f"roles={final_roles}, subbanks={layers}"
+                f"unique_segments={final.unique_segments}, roles={final_roles}, "
+                f"subbanks={layers}"
             )
-        print()
+    return 0
+
+
+def _analyze_lateral(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="phonoweave analyze-lateral")
+    parser.add_argument("voicebank", type=Path)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    result = analyze_lateral(args.voicebank)
+    payload = {
+        "samples": result.samples,
+        "skipped": result.skipped,
+        "duplicate_segments": result.duplicate_segments,
+        "roles": [
+            {
+                "role": role.role,
+                "counts": role.counts,
+                "cross_subbank_balanced_accuracy": role.cross_subbank_balanced_accuracy,
+                "cross_by_subbank": role.cross_by_subbank,
+            }
+            for role in result.roles
+        ],
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    print("Base unit: l")
+    print(f"Samples: {result.samples}")
+    print(f"Skipped: {result.skipped}")
+    print(f"Duplicate segments removed: {result.duplicate_segments}")
+    print("Experimental acoustic evidence only; no inventory decision is produced.")
+    print()
+    for role in result.roles:
+        counts = ", ".join(f"{name}={count}" for name, count in role.counts.items())
+        print(f"{role.role}: {counts}")
+        if role.cross_subbank_balanced_accuracy is not None:
+            print(f"  cross-subbank balanced accuracy: {role.cross_subbank_balanced_accuracy:.3f}")
+            held = ", ".join(f"{name}={score:.3f}" for name, score in role.cross_by_subbank.items())
+            print(f"  held out: {held}")
+        else:
+            print("  cross-subbank balanced accuracy: n/a")
     return 0
 
 
@@ -257,6 +298,8 @@ def main() -> int:
         return _context_audit(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "source-audit":
         return _source_audit(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "analyze-lateral":
+        return _analyze_lateral(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-profile":
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
