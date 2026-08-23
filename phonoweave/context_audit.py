@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .coverage import _ANALYZED
-from .mandarin import collect_observations
+from .mandarin import collect_observations, structure_for
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 
@@ -29,6 +29,7 @@ class ContextAuditItem:
 class ContextAudit:
     voicebank: Path
     items: tuple[ContextAuditItem, ...]
+    zero_onset_observations: int
 
 
 def _subbank_name(root: Path, oto_path: Path) -> str:
@@ -54,15 +55,20 @@ def audit_contexts(
 
     counts: dict[str, Counter[str]] = defaultdict(Counter)
     subbanks: dict[tuple[str, str], set[str]] = defaultdict(set)
+    zero_onset = 0
 
     for observation in observations:
-        base = observation.base_unit
+        structure = structure_for(observation)
+        base = structure.onset
+        if base is None:
+            zero_onset += 1
+            continue
         if base_unit is not None and base != base_unit:
             continue
         if unsupported_only and base in _ANALYZED:
             continue
-        counts[base][observation.final] += 1
-        subbanks[(base, observation.final)].add(
+        counts[base][structure.final] += 1
+        subbanks[(base, structure.final)].add(
             _subbank_name(root, observation.entry.oto_path)
         )
 
@@ -85,4 +91,8 @@ def audit_contexts(
             )
         )
 
-    return ContextAudit(voicebank=root, items=tuple(items))
+    return ContextAudit(
+        voicebank=root,
+        items=tuple(items),
+        zero_onset_observations=zero_onset,
+    )
