@@ -223,6 +223,27 @@ def _analyze_lateral(argv: list[str]) -> int:
                 "counts": role.counts,
                 "cross_subbank_balanced_accuracy": role.cross_subbank_balanced_accuracy,
                 "cross_by_subbank": role.cross_by_subbank,
+                "pairwise": [
+                    {
+                        "left": pair.left,
+                        "right": pair.right,
+                        "cross_subbank_balanced_accuracy": pair.cross_subbank_balanced_accuracy,
+                        "cross_by_subbank": pair.cross_by_subbank,
+                        "mean_distance": pair.mean_distance,
+                        "subbanks": [
+                            {
+                                "subbank": item.subbank,
+                                "left_count": item.left_count,
+                                "right_count": item.right_count,
+                                "distance": item.distance,
+                                "loo_balanced_accuracy": item.loo_balanced_accuracy,
+                                "permutation_p": item.permutation_p,
+                            }
+                            for item in pair.subbanks
+                        ],
+                    }
+                    for pair in role.pairwise
+                ],
             }
             for role in result.roles
         ],
@@ -246,6 +267,30 @@ def _analyze_lateral(argv: list[str]) -> int:
             print(f"  held out: {held}")
         else:
             print("  cross-subbank balanced accuracy: n/a")
+        print("  pairwise:")
+        for pair in role.pairwise:
+            cross = (
+                f"{pair.cross_subbank_balanced_accuracy:.3f}"
+                if pair.cross_subbank_balanced_accuracy is not None
+                else "n/a"
+            )
+            distance = f"{pair.mean_distance:.3f}" if pair.mean_distance is not None else "n/a"
+            print(
+                f"    {pair.left} vs {pair.right}: "
+                f"cross_ba={cross}, mean_distance={distance}"
+            )
+            if pair.cross_by_subbank:
+                held = ", ".join(
+                    f"{name}={score:.3f}" for name, score in pair.cross_by_subbank.items()
+                )
+                print(f"      held out: {held}")
+            for item in pair.subbanks:
+                print(
+                    f"      {item.subbank}: n={item.left_count}/{item.right_count}, "
+                    f"distance={item.distance:.3f}, "
+                    f"loo_ba={item.loo_balanced_accuracy:.3f}, "
+                    f"p={item.permutation_p:.4f}"
+                )
     return 0
 
 
