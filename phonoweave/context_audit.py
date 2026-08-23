@@ -14,7 +14,7 @@ from .prefixmap import affix_pairs, load_prefix_maps
 class FinalCoverage:
     final: str
     observations: int
-    subbanks: tuple[str, ...]
+    oto_sets: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class ContextAudit:
     zero_onset_observations: int
 
 
-def _subbank_name(root: Path, oto_path: Path) -> str:
+def _oto_set_name(root: Path, oto_path: Path) -> str:
     directory = oto_path.parent
     if directory == root:
         return "."
@@ -54,7 +54,7 @@ def audit_contexts(
     observations = collect_observations(valid_entries, affixes)
 
     counts: dict[str, Counter[str]] = defaultdict(Counter)
-    subbanks: dict[tuple[str, str], set[str]] = defaultdict(set)
+    oto_sets: dict[tuple[str, str], set[str]] = defaultdict(set)
     zero_onset = 0
 
     for observation in observations:
@@ -68,8 +68,8 @@ def audit_contexts(
         if unsupported_only and base in _ANALYZED:
             continue
         counts[base][structure.final] += 1
-        subbanks[(base, structure.final)].add(
-            _subbank_name(root, observation.entry.oto_path)
+        oto_sets[(base, structure.final)].add(
+            _oto_set_name(root, observation.entry.oto_path)
         )
 
     items: list[ContextAuditItem] = []
@@ -78,7 +78,7 @@ def audit_contexts(
             FinalCoverage(
                 final=final,
                 observations=count,
-                subbanks=tuple(sorted(subbanks[(base, final)])),
+                oto_sets=tuple(sorted(oto_sets[(base, final)])),
             )
             for final, count in sorted(counts[base].items())
         )
