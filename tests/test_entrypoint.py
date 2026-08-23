@@ -57,7 +57,7 @@ def test_build_synthesis_inventory_entrypoint(monkeypatch, tmp_path, capsys) -> 
     def fake_write(voicebank, target):
         called["voicebank"] = voicebank
         called["target"] = target
-        target.write_text("schema_version: 1\n", encoding="utf-8")
+        target.write_text("schema_version: 2\n", encoding="utf-8")
         return SimpleNamespace(
             speaker_id="TestSinger",
             language="mandarin",
