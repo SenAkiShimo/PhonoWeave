@@ -168,6 +168,9 @@ def structure_for(observation: MandarinObservation) -> MandarinSyllableStructure
     if base in {"j", "q", "x"} and final in _PALATAL_U_FINALS:
         final = _PALATAL_U_FINALS[final]
 
+    if base in {"n", "l"} and final == "ue":
+        final = "ve"
+
     return MandarinSyllableStructure(onset=base, final=final)
 
 
