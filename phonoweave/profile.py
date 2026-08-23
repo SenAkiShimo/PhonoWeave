@@ -90,6 +90,12 @@ def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
             RealizationGroup(id=f"{base}_rounded", contexts=("rounded",)),
         )
 
+    if decision.decision == "unresolved":
+        return (
+            RealizationGroup(id=f"{base}_plain_unresolved", contexts=("plain",)),
+            RealizationGroup(id=f"{base}_rounded_unresolved", contexts=("rounded",)),
+        )
+
     return (
         RealizationGroup(
             id=f"{base}_shared",
