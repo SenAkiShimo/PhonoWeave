@@ -76,3 +76,12 @@ def test_structure_normalizes_palatal_u_to_umlaut_series() -> None:
         structure = structure_for(observation)
         assert structure.onset in {"j", "q", "x"}
         assert structure.final == final
+
+
+def test_structure_normalizes_n_l_ue_to_umlaut_series() -> None:
+    for alias in ("nue", "lue"):
+        observation = classify_alias(_entry(alias))
+        assert observation is not None
+        structure = structure_for(observation)
+        assert structure.onset in {"n", "l"}
+        assert structure.final == "ve"
