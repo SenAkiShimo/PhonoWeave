@@ -62,15 +62,19 @@ def _metrics(decision: InventoryDecision) -> dict[str, Any]:
 def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
     base = decision.base_unit
 
-    if base == "r" and decision.decision == "two_realizations_provisional":
-        return (
-            RealizationGroup(
-                id="r_plain_rounded",
-                contexts=("plain", "rounded"),
-                canonical_context="plain",
-            ),
-            RealizationGroup(id="r_front", contexts=("front",)),
-        )
+    if base == "r":
+        if decision.decision == "three_realizations_provisional":
+            return (
+                RealizationGroup(id="r_plain", contexts=("plain",)),
+                RealizationGroup(id="r_front", contexts=("front",)),
+                RealizationGroup(id="r_rounded", contexts=("rounded",)),
+            )
+        if decision.decision == "unresolved":
+            return (
+                RealizationGroup(id="r_plain", contexts=("plain",)),
+                RealizationGroup(id="r_front_unresolved", contexts=("front",)),
+                RealizationGroup(id="r_rounded", contexts=("rounded",)),
+            )
 
     if decision.decision == "split_recommended":
         if base == "x":
