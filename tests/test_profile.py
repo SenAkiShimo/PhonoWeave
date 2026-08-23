@@ -29,11 +29,11 @@ def test_profile_uses_neutral_realization_ids() -> None:
             InventoryDecision(
                 base_unit="r",
                 class_name="rhotic",
-                acoustic_evidence="front_distinct_plain_rounded_weak",
-                synthesis_evidence="canonical_plain_supported_under_proxy",
-                decision="two_realizations_provisional",
+                acoustic_evidence="front_distinct_plain_rounded_mixed",
+                synthesis_evidence="plain_rounded_split_supported_front_unresolved",
+                decision="unresolved",
                 confidence="moderate",
-                notes=("plain_to_rounded_delta=-0.01",),
+                notes=("plain_rounded_split_supported=True",),
             ),
         ],
     )
@@ -46,8 +46,13 @@ def test_profile_uses_neutral_realization_ids() -> None:
     assert "id: x_front_unrounded" in text
     assert "contexts: [front_unrounded]" in text
     assert "id: x_rounded" in text
-    assert "id: r_plain_rounded" in text
-    assert "canonical_context: plain" in text
+    assert "id: r_plain" in text
+    assert "contexts: [plain]" in text
+    assert "id: r_front_unresolved" in text
+    assert "contexts: [front]" in text
+    assert "id: r_rounded" in text
+    assert "contexts: [rounded]" in text
+    assert "id: r_plain_rounded" not in text
     assert "alias_mapping_applied: false" in text
     assert "id: shw" not in text
     assert "id: ry" not in text
