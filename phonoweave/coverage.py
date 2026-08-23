@@ -22,6 +22,22 @@ _ANALYZED = {
     "r": "rhotic",
 }
 
+_EXPERIMENTAL = {
+    "l": "lateral",
+}
+
+
+def analyzer_for(base_unit: str) -> str | None:
+    return _ANALYZED.get(base_unit) or _EXPERIMENTAL.get(base_unit)
+
+
+def coverage_status(base_unit: str) -> str:
+    if base_unit in _ANALYZED:
+        return "analyzed"
+    if base_unit in _EXPERIMENTAL:
+        return "experimental"
+    return "unsupported"
+
 
 @dataclass(frozen=True)
 class CoverageItem:
@@ -60,8 +76,8 @@ def analyze_coverage(root: Path) -> VoicebankCoverage:
         CoverageItem(
             base_unit=base,
             observations=count,
-            status="analyzed" if base in _ANALYZED else "unsupported",
-            analyzer=_ANALYZED.get(base),
+            status=coverage_status(base),
+            analyzer=analyzer_for(base),
         )
         for base, count in sorted(counts.items())
     )
