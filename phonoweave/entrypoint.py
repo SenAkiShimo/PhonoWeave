@@ -63,7 +63,7 @@ def _context_audit_payload(result) -> dict[str, object]:
                     {
                         "final": final.final,
                         "observations": final.observations,
-                        "subbanks": list(final.subbanks),
+                        "oto_sets": list(final.oto_sets),
                     }
                     for final in item.finals
                 ],
@@ -80,7 +80,9 @@ def _analyze_voicebank(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     result = analyze_voicebank_inventory(args.voicebank)
+    coverage = analyze_coverage(args.voicebank)
     payload = _inventory_payload(result)
+    payload["coverage"] = _coverage_payload(coverage)
 
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -99,7 +101,6 @@ def _analyze_voicebank(argv: list[str]) -> int:
             print(f"  {note}")
         print()
 
-    coverage = analyze_coverage(args.voicebank)
     unsupported = [item for item in coverage.items if item.status == "unsupported"]
     analyzed = [item for item in coverage.items if item.status == "analyzed"]
     print("Coverage")
@@ -170,10 +171,10 @@ def _context_audit(argv: list[str]) -> int:
             f"status={item.status}"
         )
         for final in item.finals:
-            layers = ",".join(final.subbanks)
+            oto_sets = ",".join(final.oto_sets)
             print(
                 f"  {final.final}: observations={final.observations}, "
-                f"subbanks={layers}"
+                f"oto_sets={oto_sets}"
             )
     return 0
 
@@ -197,11 +198,11 @@ def _source_audit(argv: list[str]) -> int:
         )
         for final in base.finals:
             final_roles = ", ".join(f"{name}={count}" for name, count in final.roles.items())
-            layers = ",".join(final.subbanks)
+            oto_sets = ",".join(final.oto_sets)
             print(
                 f"  {final.final}: observations={final.observations}, "
                 f"unique_segments={final.unique_segments}, roles={final_roles}, "
-                f"subbanks={layers}"
+                f"oto_sets={oto_sets}"
             )
     return 0
 
