@@ -9,6 +9,10 @@ from .context_audit import audit_contexts
 from .coverage import analyze_coverage
 from .inventory import analyze_voicebank_inventory
 from .lateral import analyze_lateral
+from .lateral_relevance_cli import main as lateral_relevance_main
+from .lateral_timecourse_cli import main as lateral_timecourse_main
+from .nasal_cli import main as nasal_main
+from .nasal_relevance_cli import main as nasal_relevance_main
 from .profile import write_speaker_profile
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
@@ -374,6 +378,14 @@ def main() -> int:
         return _source_audit(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-lateral":
         return _analyze_lateral(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "analyze-lateral-timecourse":
+        return lateral_timecourse_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "analyze-lateral-relevance":
+        return lateral_relevance_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "analyze-nasal":
+        return nasal_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "analyze-nasal-relevance":
+        return nasal_relevance_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-profile":
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
