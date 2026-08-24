@@ -6,11 +6,11 @@ from pathlib import Path
 from .nasal import analyze_nasal
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m phonoweave.nasal_cli")
     parser.add_argument("voicebank", type=Path)
     parser.add_argument("--base", choices=("m", "n"), default="m")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     result = analyze_nasal(args.voicebank, args.base)
     print(f"Base unit: {result.base_unit}")
