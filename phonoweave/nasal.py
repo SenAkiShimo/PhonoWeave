@@ -267,7 +267,7 @@ def _stratum(
 ) -> tuple[np.ndarray, int] | None:
     left_samples = [sample for sample in samples if sample.family == left]
     right_samples = [sample for sample in samples if sample.family == right]
-    if not left_samples or not right_samples:
+    if len(left_samples) < 2 or len(right_samples) < 2:
         return None
 
     combined = left_samples + right_samples
@@ -377,7 +377,7 @@ def _window_result(
             name,
             seed=seed_base + pair_index,
         )
-        if oto_sets == 0:
+        if oto_sets == 0 and cross is None:
             continue
         results.append(
             NasalPairResult(
