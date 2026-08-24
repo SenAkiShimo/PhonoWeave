@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from .nasal import analyze_nasal
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="python -m phonoweave.nasal_cli")
-    parser.add_argument("voicebank")
+    parser.add_argument("voicebank", type=Path)
     parser.add_argument("--base", choices=("m", "n"), default="m")
     args = parser.parse_args()
 
