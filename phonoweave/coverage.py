@@ -24,6 +24,8 @@ _ANALYZED = {
 
 _EXPERIMENTAL = {
     "l": "lateral",
+    "m": "nasal",
+    "n": "nasal",
 }
 
 
