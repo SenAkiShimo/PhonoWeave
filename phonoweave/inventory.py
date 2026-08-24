@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 
 from .affricate import analyze_affricate_contrast
 from .analyze import analyze_fricative_contrast
+from .lateral import analyze_lateral
+from .lateral_relevance import lateral_relevance_test
+from .nasal import analyze_nasal
+from .nasal_relevance import nasal_relevance_test
 from .rhotic import analyze_rhotic_contrast
 from .rhotic_relevance import rhotic_relevance_test
 from .splice import splice_relevance_test
@@ -12,6 +17,8 @@ from .splice import splice_relevance_test
 
 _FRICATIVES = ("sh", "s", "x")
 _AFFRICATES = ("zh", "ch", "z", "c", "j", "q")
+_NASALS = ("m", "n")
+_SONORANT_FAMILIES = ("i_series", "u_series", "other")
 
 
 @dataclass(frozen=True)
@@ -284,11 +291,211 @@ def _rhotic_decision(root: Path) -> InventoryDecision:
     )
 
 
+def _lateral_acoustic_supported(acoustic) -> tuple[bool, list[str]]:
+    significant: list[str] = []
+    for role in acoustic.roles:
+        for pair in role.pairwise:
+            if pair.stratified_p_holm is not None and pair.stratified_p_holm < 0.05:
+                significant.append(
+                    f"{role.role}:{pair.left}_vs_{pair.right}={pair.stratified_p_holm:.4f}"
+                )
+    return len(significant) >= 1, significant
+
+
+def _lateral_split_pairs(relevance) -> list[str]:
+    supported: list[str] = []
+    for role in relevance.roles:
+        lookup = {
+            (item.target_family, item.substitution_family): item
+            for item in role.comparisons
+        }
+        for left, right in combinations(_SONORANT_FAMILIES, 2):
+            forward = lookup.get((left, right))
+            reverse = lookup.get((right, left))
+            if forward is None or reverse is None:
+                continue
+            if not (
+                forward.targets > 0
+                and reverse.targets > 0
+                and forward.mean_boundary_spectral_delta is not None
+                and reverse.mean_boundary_spectral_delta is not None
+                and forward.mean_boundary_spectral_delta > 0
+                and reverse.mean_boundary_spectral_delta > 0
+                and forward.boundary_spectral_p_holm is not None
+                and reverse.boundary_spectral_p_holm is not None
+                and forward.boundary_spectral_p_holm < 0.05
+                and reverse.boundary_spectral_p_holm < 0.05
+                and forward.mean_body_spectral_delta is not None
+                and reverse.mean_body_spectral_delta is not None
+                and forward.mean_body_spectral_delta > 0
+                and reverse.mean_body_spectral_delta > 0
+            ):
+                continue
+            oto_sets = (*forward.oto_sets, *reverse.oto_sets)
+            if not oto_sets or not all(
+                item.mean_boundary_spectral_delta > 0
+                for item in oto_sets
+            ):
+                continue
+            supported.append(f"{role.role}:{left}<->{right}")
+    return supported
+
+
+def _lateral_decision(root: Path) -> InventoryDecision:
+    acoustic = analyze_lateral(root)
+    acoustic_supported, significant = _lateral_acoustic_supported(acoustic)
+    notes = [
+        f"samples={acoustic.samples}",
+        f"acoustic_holm_pairs={','.join(significant) if significant else 'none'}",
+    ]
+
+    if not acoustic_supported:
+        return InventoryDecision(
+            base_unit="l",
+            class_name="lateral",
+            acoustic_evidence="weak_or_inconsistent",
+            synthesis_evidence="not_tested",
+            decision="unresolved",
+            confidence="low",
+            notes=tuple(notes),
+        )
+
+    relevance = lateral_relevance_test(root)
+    split_pairs = _lateral_split_pairs(relevance)
+    notes.extend(
+        [
+            f"relevance_samples={relevance.samples}",
+            f"bidirectional_split_pairs={','.join(split_pairs) if split_pairs else 'none'}",
+        ]
+    )
+    if split_pairs:
+        return InventoryDecision(
+            base_unit="l",
+            class_name="lateral",
+            acoustic_evidence="supported",
+            synthesis_evidence="supported_under_proxy",
+            decision="split_recommended",
+            confidence="moderate",
+            notes=tuple(notes),
+        )
+
+    return InventoryDecision(
+        base_unit="l",
+        class_name="lateral",
+        acoustic_evidence="supported",
+        synthesis_evidence="split_not_supported_under_proxy",
+        decision="unresolved",
+        confidence="moderate",
+        notes=tuple(notes),
+    )
+
+
+def _nasal_acoustic_level(acoustic) -> tuple[str, set[tuple[str, str]], set[tuple[str, str]]]:
+    internal = next((role for role in acoustic.roles if role.role == "internal"), None)
+    if internal is None:
+        return "weak", set(), set()
+
+    eligible: set[tuple[str, str]] = set()
+    significant: set[tuple[str, str]] = set()
+    for window in internal.windows:
+        for pair in window.pairwise:
+            key = tuple(sorted((pair.left, pair.right)))
+            if pair.stratified_permutation_p is not None:
+                eligible.add(key)
+            if pair.stratified_p_holm is not None and pair.stratified_p_holm < 0.05:
+                significant.add(key)
+
+    if len(eligible) >= 3 and len(significant) >= 3:
+        return "strong", eligible, significant
+    if significant:
+        return "partial", eligible, significant
+    return "weak", eligible, significant
+
+
+def _nasal_split_pairs(relevance) -> list[str]:
+    supported: list[str] = []
+    for pair in relevance.pairs:
+        if (
+            pair.both_transition_positive
+            and pair.both_transition_holm_significant
+            and pair.both_body_positive
+            and pair.all_oto_sets_transition_positive
+        ):
+            supported.append(f"{pair.left}<->{pair.right}")
+    return supported
+
+
+def _nasal_decision(root: Path, base_unit: str) -> InventoryDecision:
+    acoustic = analyze_nasal(root, base_unit)
+    level, eligible, significant = _nasal_acoustic_level(acoustic)
+    notes = [
+        f"samples={acoustic.samples}",
+        f"duplicate_observations_removed={acoustic.duplicate_observations_removed}",
+        f"ambiguous_segments_removed={acoustic.ambiguous_segments_removed}",
+        f"eligible_internal_pairs={len(eligible)}",
+        f"significant_internal_pairs={len(significant)}",
+    ]
+
+    if level == "weak":
+        return InventoryDecision(
+            base_unit=base_unit,
+            class_name="nasal",
+            acoustic_evidence="weak_or_inconsistent",
+            synthesis_evidence="not_tested",
+            decision="unresolved",
+            confidence="low",
+            notes=tuple(notes),
+        )
+
+    if level == "partial":
+        return InventoryDecision(
+            base_unit=base_unit,
+            class_name="nasal",
+            acoustic_evidence="partial_coverage_limited",
+            synthesis_evidence="not_tested",
+            decision="unresolved",
+            confidence="low",
+            notes=tuple(notes),
+        )
+
+    relevance = nasal_relevance_test(root, base_unit)
+    split_pairs = _nasal_split_pairs(relevance)
+    notes.extend(
+        [
+            f"relevance_samples={relevance.samples}",
+            f"relevance_ambiguous_segments_removed={relevance.ambiguous_segments_removed}",
+            f"bidirectional_split_pairs={','.join(split_pairs) if split_pairs else 'none'}",
+        ]
+    )
+    if split_pairs:
+        return InventoryDecision(
+            base_unit=base_unit,
+            class_name="nasal",
+            acoustic_evidence="strongly_supported",
+            synthesis_evidence="supported_under_proxy",
+            decision="split_recommended",
+            confidence="moderate",
+            notes=tuple(notes),
+        )
+
+    return InventoryDecision(
+        base_unit=base_unit,
+        class_name="nasal",
+        acoustic_evidence="strongly_supported",
+        synthesis_evidence="split_not_supported_under_proxy",
+        decision="unresolved",
+        confidence="moderate",
+        notes=tuple(notes),
+    )
+
+
 def analyze_voicebank_inventory(root: Path) -> VoicebankInventoryAnalysis:
     root = root.expanduser().resolve()
     decisions = [
         *(_fricative_decision(root, base) for base in _FRICATIVES),
         *(_affricate_decision(root, base) for base in _AFFRICATES),
         _rhotic_decision(root),
+        _lateral_decision(root),
+        *(_nasal_decision(root, base) for base in _NASALS),
     ]
     return VoicebankInventoryAnalysis(voicebank=root, decisions=decisions)
