@@ -12,10 +12,10 @@ def _value(value: float | None, digits: int = 4) -> str:
     return f"{value:.{digits}f}"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m phonoweave.lateral_relevance_cli")
     parser.add_argument("voicebank", type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     result = lateral_relevance_test(args.voicebank)
     print("Base unit: l")
