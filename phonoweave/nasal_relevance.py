@@ -144,6 +144,11 @@ def _family(final: str) -> str | None:
     return "other"
 
 
+def _identity_family(final: str) -> str:
+    family = _family(final)
+    return family if family is not None else "v_series"
+
+
 def _resolve_candidates(
     candidates: list[_Candidate],
 ) -> tuple[list[_Candidate], int, int]:
@@ -315,17 +320,11 @@ def _build_samples(
         structure = structure_for(observation)
         if structure.onset != base_unit:
             continue
-        family = _family(structure.final)
-        if family is None:
-            continue
-        role = _alias_role(observation.entry.alias, affixes)
-        if role != "internal":
-            continue
         candidates.append(
             _Candidate(
                 oto_set=_oto_set_name(root, observation.entry),
-                role=role,
-                family=family,
+                role=_alias_role(observation.entry.alias, affixes),
+                family=_identity_family(structure.final),
                 final=structure.final,
                 alias=observation.entry.alias,
                 entry=observation.entry,
@@ -338,6 +337,8 @@ def _build_samples(
     )
     skipped = 0
     for candidate in resolved:
+        if candidate.role != "internal" or candidate.family not in _FAMILIES:
+            continue
         try:
             whole = consonant_segment(candidate.entry, edge_trim=0.04)
             body = slice_segment(whole, 0.18, 0.82)
