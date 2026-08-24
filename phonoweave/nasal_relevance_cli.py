@@ -12,11 +12,11 @@ def _value(value: float | None, digits: int = 4) -> str:
     return f"{value:.{digits}f}"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m phonoweave.nasal_relevance_cli")
     parser.add_argument("voicebank", type=Path)
     parser.add_argument("--base", choices=("m", "n"), default="n")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     result = nasal_relevance_test(args.voicebank, args.base)
     print(f"Base unit: {result.base_unit}")
