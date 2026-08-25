@@ -29,9 +29,29 @@ class SourceBaseAudit:
 
 
 @dataclass(frozen=True)
+class SourceIdentityLabel:
+    base_unit: str
+    final: str
+    role: str
+    alias: str
+    oto_set: str
+
+
+@dataclass(frozen=True)
+class SourceSharedSegment:
+    wav_path: Path
+    start_ms: float
+    end_ms: float
+    observations: int
+    status: str
+    labels: tuple[SourceIdentityLabel, ...]
+
+
+@dataclass(frozen=True)
 class SourceAudit:
     voicebank: Path
     bases: tuple[SourceBaseAudit, ...]
+    shared_segments: tuple[SourceSharedSegment, ...]
 
 
 def _oto_set_name(root: Path, entry: OtoEntry) -> str:
@@ -52,6 +72,14 @@ def _alias_role(alias: str, affixes: set[tuple[str, str]]) -> str:
     return "initial" if normalized.startswith("-") else "internal"
 
 
+def _identity_status(labels: tuple[SourceIdentityLabel, ...]) -> str:
+    identities = {
+        (label.base_unit, label.final, label.role)
+        for label in labels
+    }
+    return "duplicate" if len(identities) == 1 else "ambiguous"
+
+
 def audit_sources(root: Path, base_units: tuple[str, ...]) -> SourceAudit:
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
@@ -61,10 +89,22 @@ def audit_sources(root: Path, base_units: tuple[str, ...]) -> SourceAudit:
     requested = set(base_units)
 
     grouped: dict[str, list] = defaultdict(list)
+    shared: dict[tuple[Path, float, float], list[SourceIdentityLabel]] = defaultdict(list)
     for observation in observations:
         structure = structure_for(observation)
-        if structure.onset in requested:
-            grouped[structure.onset].append((observation, structure.final))
+        if structure.onset not in requested:
+            continue
+        role = _alias_role(observation.entry.alias, affixes)
+        grouped[structure.onset].append((observation, structure.final))
+        shared[_segment_key(observation.entry)].append(
+            SourceIdentityLabel(
+                base_unit=structure.onset,
+                final=structure.final,
+                role=role,
+                alias=observation.entry.alias,
+                oto_set=_oto_set_name(root, observation.entry),
+            )
+        )
 
     bases: list[SourceBaseAudit] = []
     for base in base_units:
@@ -108,4 +148,36 @@ def audit_sources(root: Path, base_units: tuple[str, ...]) -> SourceAudit:
             )
         )
 
-    return SourceAudit(voicebank=root, bases=tuple(bases))
+    shared_segments: list[SourceSharedSegment] = []
+    for (wav_path, start_ms, end_ms), labels_list in shared.items():
+        if len(labels_list) < 2:
+            continue
+        labels = tuple(sorted(
+            labels_list,
+            key=lambda item: (
+                item.base_unit,
+                item.final,
+                item.role,
+                item.alias,
+                item.oto_set,
+            ),
+        ))
+        shared_segments.append(
+            SourceSharedSegment(
+                wav_path=wav_path,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                observations=len(labels),
+                status=_identity_status(labels),
+                labels=labels,
+            )
+        )
+
+    shared_segments.sort(
+        key=lambda item: (str(item.wav_path), item.start_ms, item.end_ms)
+    )
+    return SourceAudit(
+        voicebank=root,
+        bases=tuple(bases),
+        shared_segments=tuple(shared_segments),
+    )
