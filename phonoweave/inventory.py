@@ -490,6 +490,8 @@ def _nasal_decision(root: Path, base_unit: str) -> InventoryDecision:
 
 
 def analyze_voicebank_inventory(root: Path) -> VoicebankInventoryAnalysis:
+    from .stop_inventory import stop_decisions
+
     root = root.expanduser().resolve()
     decisions = [
         *(_fricative_decision(root, base) for base in _FRICATIVES),
@@ -497,5 +499,6 @@ def analyze_voicebank_inventory(root: Path) -> VoicebankInventoryAnalysis:
         _rhotic_decision(root),
         _lateral_decision(root),
         *(_nasal_decision(root, base) for base in _NASALS),
+        *stop_decisions(root),
     ]
     return VoicebankInventoryAnalysis(voicebank=root, decisions=decisions)
