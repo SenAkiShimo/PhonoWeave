@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from .inventory_base import InventoryDecision
 from .stop_context import analyze_stop_context
 from .stop_relevance import stop_relevance_test
+
+if TYPE_CHECKING:
+    from .inventory import InventoryDecision
 
 
 _STOPS = ("b", "p", "d", "t", "g", "k")
@@ -15,6 +18,8 @@ def _pair_name(left: str, right: str) -> str:
 
 
 def _stop_decision(root: Path, base_unit: str) -> InventoryDecision:
+    from .inventory import InventoryDecision
+
     acoustic = analyze_stop_context(root, base_unit)
     eligible = [
         pair
