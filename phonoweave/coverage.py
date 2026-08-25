@@ -26,6 +26,12 @@ _EXPERIMENTAL = {
     "l": "lateral",
     "m": "nasal",
     "n": "nasal",
+    "b": "stop",
+    "p": "stop",
+    "d": "stop",
+    "t": "stop",
+    "g": "stop",
+    "k": "stop",
 }
 
 
