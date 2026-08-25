@@ -59,8 +59,51 @@ def _metrics(decision: InventoryDecision) -> dict[str, Any]:
     return output
 
 
+def _note_value(decision: InventoryDecision, key: str) -> str | None:
+    prefix = f"{key}="
+    for note in decision.notes:
+        if note.startswith(prefix):
+            return note[len(prefix):]
+    return None
+
+
+def _stop_groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
+    role = _note_value(decision, "role_scope") or "internal"
+    family_text = _note_value(decision, "context_families") or ""
+    families = tuple(item for item in family_text.split(",") if item)
+    if not families:
+        families = ("unspecified",)
+
+    unresolved = decision.decision == "unresolved"
+    return tuple(
+        RealizationGroup(
+            id=(
+                f"{decision.base_unit}_{role}_{family}_unresolved"
+                if unresolved
+                else f"{decision.base_unit}_{role}_{family}"
+            ),
+            contexts=(f"{role}:{family}",),
+        )
+        for family in families
+    )
+
+
 def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
     base = decision.base_unit
+
+    if decision.class_name == "stop":
+        if decision.decision in {"split_recommended", "unresolved"}:
+            return _stop_groups(decision)
+        if decision.decision == "merge_supported":
+            role = _note_value(decision, "role_scope") or "internal"
+            family_text = _note_value(decision, "context_families") or ""
+            families = tuple(item for item in family_text.split(",") if item)
+            return (
+                RealizationGroup(
+                    id=f"{base}_{role}_shared",
+                    contexts=tuple(f"{role}:{family}" for family in families),
+                ),
+            )
 
     if base == "r":
         if decision.decision == "three_realizations_provisional":
