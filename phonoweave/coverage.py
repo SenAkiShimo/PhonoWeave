@@ -32,6 +32,8 @@ _EXPERIMENTAL = {
     "t": "stop",
     "g": "stop",
     "k": "stop",
+    "f": "fricative",
+    "h": "fricative",
 }
 
 
