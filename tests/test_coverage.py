@@ -13,6 +13,7 @@ def test_stop_analyzers_are_experimental_coverage() -> None:
         assert analyzer_for(base) == "stop"
 
 
-def test_unimplemented_onsets_remain_unsupported() -> None:
-    assert coverage_status("f") == "unsupported"
-    assert analyzer_for("f") is None
+def test_fh_fricatives_are_experimental_coverage() -> None:
+    for base in ("f", "h"):
+        assert coverage_status(base) == "experimental"
+        assert analyzer_for(base) == "fricative"
