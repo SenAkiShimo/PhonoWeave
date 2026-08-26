@@ -113,4 +113,8 @@ def _stop_decision(root: Path, base_unit: str) -> InventoryDecision:
 
 
 def stop_decisions(root: Path) -> list[InventoryDecision]:
-    return [_stop_decision(root, base_unit) for base_unit in _STOPS]
+    from .fh_fricative_inventory import fh_fricative_decisions
+
+    decisions = [_stop_decision(root, base_unit) for base_unit in _STOPS]
+    decisions.extend(fh_fricative_decisions(root))
+    return decisions
