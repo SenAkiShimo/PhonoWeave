@@ -67,7 +67,7 @@ def _note_value(decision: InventoryDecision, key: str) -> str | None:
     return None
 
 
-def _stop_groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
+def _role_scoped_groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
     role = _note_value(decision, "role_scope") or "internal"
     family_text = _note_value(decision, "context_families") or ""
     families = tuple(item for item in family_text.split(",") if item)
@@ -93,7 +93,7 @@ def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
 
     if decision.class_name == "stop":
         if decision.decision in {"split_recommended", "unresolved"}:
-            return _stop_groups(decision)
+            return _role_scoped_groups(decision)
         if decision.decision == "merge_supported":
             role = _note_value(decision, "role_scope") or "internal"
             family_text = _note_value(decision, "context_families") or ""
@@ -104,6 +104,10 @@ def _groups(decision: InventoryDecision) -> tuple[RealizationGroup, ...]:
                     contexts=tuple(f"{role}:{family}" for family in families),
                 ),
             )
+
+    if decision.class_name == "fricative" and base in {"f", "h"}:
+        if decision.decision in {"split_recommended", "unresolved"}:
+            return _role_scoped_groups(decision)
 
     if base == "r":
         if decision.decision == "three_realizations_provisional":
