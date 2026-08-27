@@ -15,6 +15,7 @@ Issues = "https://github.com/SenAkiShimo/PhonoWeave/issues"
 
 [project.scripts]
 phonoweave = "phonoweave.entrypoint:main"
+phonoweave-gui = "phonoweave.gui:main"
 
 [build-system]
 requires = ["setuptools>=68"]
