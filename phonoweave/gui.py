@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .gui_model import GuiAnalysisSnapshot, analyze_for_gui
-from .gui_page import HTML
+from .gui_page_remake import HTML
 from .profile import profile_yaml
 from .synthesis_inventory import synthesis_inventory_yaml
 
@@ -78,7 +78,7 @@ def _pick_folder(language: str = "en") -> str:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "PhonoWeaveGui/0.1"
+    server_version = "PhonoWeaveGuiRemake/0.1"
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -197,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     server = ThreadingHTTPServer(("127.0.0.1", args.port), _Handler)
     port = server.server_address[1]
     url = f"http://127.0.0.1:{port}/"
-    print(f"PhonoWeave GUI: {url}")
+    print(f"PhonoWeave GUI remake: {url}")
     print("Press Ctrl-C to stop.")
     if not args.no_browser:
         threading.Timer(0.2, lambda: webbrowser.open(url)).start()
