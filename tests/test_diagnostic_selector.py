@@ -38,3 +38,21 @@ def test_selector_prefers_less_observed_legal_syllables() -> None:
     candidates = _candidates(request, counts, "rounded")
     assert candidates[0].syllable == "fo"
     assert candidates[0].existing_observations == 1
+
+
+def test_jq_rounded_counts_use_orthographic_finals() -> None:
+    j_request = _request("j", "rounded", 1)
+    q_request = _request("q", "rounded", 1)
+    counts = Counter({("j", "u"): 4, ("q", "u"): 5})
+    j_candidates = _candidates(j_request, counts, "rounded")
+    q_candidates = _candidates(q_request, counts, "rounded")
+    ju = next(item for item in j_candidates if item.syllable == "ju")
+    qu = next(item for item in q_candidates if item.syllable == "qu")
+    assert ju.existing_observations == 4
+    assert qu.existing_observations == 5
+
+
+def test_illegal_tiu_is_not_a_candidate() -> None:
+    request = _request("t", "i_series", 10, "internal")
+    candidates = _candidates(request, Counter(), "i_series")
+    assert "tiu" not in {item.syllable for item in candidates}
