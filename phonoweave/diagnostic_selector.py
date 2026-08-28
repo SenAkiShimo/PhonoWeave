@@ -4,7 +4,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from .mandarin import collect_observations, context_for, structure_for
+from .mandarin import collect_observations, context_for
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 from .supplement_plan import SupplementPlan, SupplementRequest
@@ -67,10 +67,7 @@ def _observed_counts(root: Path) -> Counter[tuple[str, str]]:
     affixes = affix_pairs(load_prefix_maps(root))
     counts: Counter[tuple[str, str]] = Counter()
     for observation in collect_observations(entries, affixes):
-        structure = structure_for(observation)
-        if structure.onset is None:
-            continue
-        counts[(structure.onset, structure.final)] += 1
+        counts[(observation.base_unit, observation.final)] += 1
     return counts
 
 
