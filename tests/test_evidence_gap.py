@@ -63,6 +63,22 @@ def test_coverage_gap_routes_to_supplemental_recording() -> None:
     assert "eligible_internal_pairs=2" in result.rationale
 
 
+def test_rhotic_front_coverage_gap_precedes_synthesis_gap() -> None:
+    decision = InventoryDecision(
+        base_unit="r",
+        class_name="rhotic",
+        acoustic_evidence="front_distinct_plain_rounded_mixed",
+        synthesis_evidence="plain_rounded_split_supported_front_unresolved",
+        decision="unresolved",
+        confidence="moderate",
+        notes=("front_coverage_complete=False",),
+    )
+    result = diagnose_evidence_gap(decision)
+    assert result is not None
+    assert result.gap_type == "coverage_limited"
+    assert result.recommended_action == "supplemental_recording"
+
+
 def test_weak_acoustic_evidence_is_not_merge_evidence() -> None:
     result = diagnose_evidence_gap(
         _decision(
