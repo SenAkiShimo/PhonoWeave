@@ -48,10 +48,10 @@ _DEFAULT_FAMILIES = {
 def _target_families(gap: EvidenceGap) -> tuple[str, ...]:
     if gap.base_unit == "r" and gap.gap_type == "coverage_limited":
         return ("front",)
-    if gap.base_unit == "m":
-        return ("i_series", "u_series", "other")
     if gap.context_families:
         return gap.context_families
+    if gap.base_unit == "m":
+        return ("i_series", "u_series", "other")
     return _DEFAULT_FAMILIES.get(gap.class_name, ())
 
 
