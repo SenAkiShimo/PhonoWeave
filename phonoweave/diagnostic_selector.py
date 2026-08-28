@@ -18,6 +18,7 @@ class DiagnosticItem:
     context_family: str
     role_scope: str | None
     existing_observations: int
+    replicate: int
 
 
 @dataclass(frozen=True)
@@ -83,11 +84,34 @@ def _candidates(request: SupplementRequest, counts: Counter[tuple[str, str]], fa
             context_family=family,
             role_scope=request.role_scope,
             existing_observations=counts[(request.base_unit, final)],
+            replicate=1,
         )
         for final in finals
         if _family(request.base_unit, final) == family
     ]
     return sorted(rows, key=lambda item: (item.existing_observations, item.final))
+
+
+def _take_with_replicates(candidates: list[DiagnosticItem], count: int) -> list[DiagnosticItem]:
+    if not candidates or count <= 0:
+        return []
+    selected: list[DiagnosticItem] = []
+    replicate_counts: Counter[str] = Counter()
+    for index in range(count):
+        candidate = candidates[index % len(candidates)]
+        replicate_counts[candidate.syllable] += 1
+        selected.append(
+            DiagnosticItem(
+                base_unit=candidate.base_unit,
+                final=candidate.final,
+                syllable=candidate.syllable,
+                context_family=candidate.context_family,
+                role_scope=candidate.role_scope,
+                existing_observations=candidate.existing_observations,
+                replicate=replicate_counts[candidate.syllable],
+            )
+        )
+    return selected
 
 
 def select_diagnostic_items(root: Path, plan: SupplementPlan) -> DiagnosticSelection:
@@ -99,10 +123,11 @@ def select_diagnostic_items(root: Path, plan: SupplementPlan) -> DiagnosticSelec
     for request in plan.requests:
         for target in request.targets:
             candidates = _candidates(request, counts, target.context_family)
-            if len(candidates) < target.diagnostic_items:
+            if not candidates:
                 unfilled.append(
-                    f"{request.base_unit}:{target.context_family}:requested={target.diagnostic_items}:available={len(candidates)}"
+                    f"{request.base_unit}:{target.context_family}:requested={target.diagnostic_items}:available=0"
                 )
-            selected.extend(candidates[: target.diagnostic_items])
+                continue
+            selected.extend(_take_with_replicates(candidates, target.diagnostic_items))
 
     return DiagnosticSelection(items=tuple(selected), unfilled=tuple(unfilled))
