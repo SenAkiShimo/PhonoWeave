@@ -67,7 +67,7 @@ def _synthesis_gap(decision: InventoryDecision, notes: dict[str, str]) -> Eviden
 def _coverage_gap(decision: InventoryDecision, notes: dict[str, str]) -> EvidenceGap:
     rationale = [
         f"acoustic_evidence={decision.acoustic_evidence}",
-        "coverage_is_insufficient_for_a_stable_acoustic_decision",
+        "coverage_is_insufficient_for_a_stable_decision",
     ]
     for key in (
         "eligible_internal_pairs",
@@ -124,6 +124,12 @@ def diagnose_evidence_gap(decision: InventoryDecision) -> EvidenceGap | None:
 
     notes = _note_map(decision)
 
+    if decision.acoustic_evidence == "partial_coverage_limited":
+        return _coverage_gap(decision, notes)
+
+    if notes.get("front_coverage_complete") == "False":
+        return _coverage_gap(decision, notes)
+
     if decision.synthesis_evidence in {
         "split_not_supported_under_proxy",
         "plain_rounded_split_supported_front_unresolved",
@@ -133,12 +139,6 @@ def diagnose_evidence_gap(decision: InventoryDecision) -> EvidenceGap | None:
         "partial_coverage_limited",
     }:
         return _synthesis_gap(decision, notes)
-
-    if decision.acoustic_evidence == "partial_coverage_limited":
-        return _coverage_gap(decision, notes)
-
-    if notes.get("front_coverage_complete") == "False":
-        return _coverage_gap(decision, notes)
 
     return _acoustic_gap(decision, notes)
 
