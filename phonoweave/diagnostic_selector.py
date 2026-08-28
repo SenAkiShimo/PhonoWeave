@@ -27,19 +27,19 @@ class DiagnosticSelection:
     unfilled: tuple[str, ...]
 
 
-_LEGAL_FINALS: dict[str, tuple[str, ...]] = {
-    "b": ("a", "o", "ai", "ei", "ao", "an", "en", "ang", "eng", "i", "ie", "iao", "ian", "in", "ing", "u"),
-    "p": ("a", "o", "ai", "ei", "ao", "ou", "an", "en", "ang", "eng", "i", "ie", "iao", "ian", "in", "ing", "u"),
-    "m": ("a", "o", "e", "ai", "ei", "ao", "ou", "an", "en", "ang", "eng", "i", "ie", "iao", "iu", "ian", "in", "ing", "u"),
-    "f": ("a", "o", "ei", "ou", "an", "en", "ang", "eng", "u"),
-    "t": ("a", "e", "ai", "ao", "ou", "an", "ang", "eng", "i", "ie", "iao", "iu", "ian", "ing", "u", "ui", "uan", "un", "uo"),
-    "r": ("a", "e", "ao", "ou", "an", "en", "ang", "eng", "ong", "i", "u", "ua", "uo", "ui", "uan", "un"),
-    "zh": ("a", "e", "i", "ai", "ei", "ao", "ou", "an", "en", "ang", "eng", "ong", "u", "ua", "uo", "uai", "ui", "uan", "un", "uang"),
-    "ch": ("a", "e", "i", "ai", "ao", "ou", "an", "en", "ang", "eng", "ong", "u", "ua", "uo", "uai", "ui", "uan", "un", "uang"),
-    "z": ("a", "e", "i", "ai", "ei", "ao", "ou", "an", "en", "ang", "eng", "ong", "u", "uo", "ui", "uan", "un"),
-    "c": ("a", "e", "i", "ai", "ao", "ou", "an", "en", "ang", "eng", "ong", "u", "uo", "ui", "uan", "un"),
-    "j": ("i", "ia", "ie", "iao", "iu", "ian", "in", "iang", "ing", "u", "ue", "uan", "un"),
-    "q": ("i", "ia", "ie", "iao", "iu", "ian", "in", "iang", "ing", "u", "ue", "uan", "un"),
+_LEGAL_SYLLABLES: dict[str, tuple[str, ...]] = {
+    "b": ("ba", "bai", "ban", "bang", "bao", "bei", "ben", "beng", "bi", "bian", "biao", "bie", "bin", "bing", "bo", "bu"),
+    "p": ("pa", "pai", "pan", "pang", "pao", "pei", "pen", "peng", "pi", "pian", "piao", "pie", "pin", "ping", "po", "pou", "pu"),
+    "m": ("ma", "mai", "man", "mang", "mao", "me", "mei", "men", "meng", "mi", "mian", "miao", "mie", "min", "ming", "miu", "mo", "mou", "mu"),
+    "f": ("fa", "fan", "fang", "fei", "fen", "feng", "fo", "fou", "fu"),
+    "t": ("ta", "tai", "tan", "tang", "tao", "te", "teng", "ti", "tian", "tiao", "tie", "ting", "tong", "tou", "tu", "tuan", "tui", "tun", "tuo"),
+    "r": ("ran", "rang", "rao", "re", "ren", "reng", "ri", "rong", "rou", "ru", "ruan", "rui", "run", "ruo"),
+    "zh": ("zha", "zhai", "zhan", "zhang", "zhao", "zhe", "zhen", "zheng", "zhi", "zhong", "zhou", "zhu", "zhua", "zhuai", "zhuan", "zhuang", "zhui", "zhun", "zhuo"),
+    "ch": ("cha", "chai", "chan", "chang", "chao", "che", "chen", "cheng", "chi", "chong", "chou", "chu", "chua", "chuai", "chuan", "chuang", "chui", "chun", "chuo"),
+    "z": ("za", "zai", "zan", "zang", "zao", "ze", "zei", "zen", "zeng", "zi", "zong", "zou", "zu", "zuan", "zui", "zun", "zuo"),
+    "c": ("ca", "cai", "can", "cang", "cao", "ce", "cen", "ceng", "ci", "cong", "cou", "cu", "cuan", "cui", "cun", "cuo"),
+    "j": ("ji", "jia", "jian", "jiang", "jiao", "jie", "jin", "jing", "jiong", "jiu", "ju", "juan", "jue", "jun"),
+    "q": ("qi", "qia", "qian", "qiang", "qiao", "qie", "qin", "qing", "qiong", "qiu", "qu", "quan", "que", "qun"),
 }
 
 
@@ -74,25 +74,34 @@ def _observed_counts(root: Path) -> Counter[tuple[str, str]]:
     return counts
 
 
-def _candidates(request: SupplementRequest, counts: Counter[tuple[str, str]], family: str) -> list[DiagnosticItem]:
-    finals = _LEGAL_FINALS.get(request.base_unit, ())
-    rows = [
-        DiagnosticItem(
-            base_unit=request.base_unit,
-            final=final,
-            syllable=f"{request.base_unit}{final}",
-            context_family=family,
-            role_scope=request.role_scope,
-            existing_observations=counts[(request.base_unit, final)],
-            replicate=1,
+def _candidates(
+    request: SupplementRequest,
+    counts: Counter[tuple[str, str]],
+    family: str,
+) -> list[DiagnosticItem]:
+    rows: list[DiagnosticItem] = []
+    for syllable in _LEGAL_SYLLABLES.get(request.base_unit, ()):
+        final = syllable[len(request.base_unit):]
+        if _family(request.base_unit, final) != family:
+            continue
+        rows.append(
+            DiagnosticItem(
+                base_unit=request.base_unit,
+                final=final,
+                syllable=syllable,
+                context_family=family,
+                role_scope=request.role_scope,
+                existing_observations=counts[(request.base_unit, final)],
+                replicate=1,
+            )
         )
-        for final in finals
-        if _family(request.base_unit, final) == family
-    ]
-    return sorted(rows, key=lambda item: (item.existing_observations, item.final))
+    return sorted(rows, key=lambda item: (item.existing_observations, item.syllable))
 
 
-def _take_with_replicates(candidates: list[DiagnosticItem], count: int) -> list[DiagnosticItem]:
+def _take_with_replicates(
+    candidates: list[DiagnosticItem],
+    count: int,
+) -> list[DiagnosticItem]:
     if not candidates or count <= 0:
         return []
     selected: list[DiagnosticItem] = []
