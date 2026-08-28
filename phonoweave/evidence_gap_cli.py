@@ -4,12 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
+from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .inventory import analyze_voicebank_inventory
 from .supplement_plan import build_supplement_plan
 
 
-def _payload(plan, supplement) -> dict[str, object]:
+def _payload(plan, supplement, selection) -> dict[str, object]:
     return {
         "gaps": [
             {
@@ -46,6 +47,19 @@ def _payload(plan, supplement) -> dict[str, object]:
                 }
                 for request in supplement.requests
             ],
+            "selection": [
+                {
+                    "base_unit": item.base_unit,
+                    "final": item.final,
+                    "syllable": item.syllable,
+                    "context_family": item.context_family,
+                    "role_scope": item.role_scope,
+                    "existing_observations": item.existing_observations,
+                    "replicate": item.replicate,
+                }
+                for item in selection.items
+            ],
+            "unfilled": list(selection.unfilled),
         },
     }
 
@@ -59,9 +73,10 @@ def main(argv: list[str] | None = None) -> int:
     analysis = analyze_voicebank_inventory(args.voicebank)
     plan = build_evidence_completion_plan(analysis)
     supplement = build_supplement_plan(plan)
+    selection = select_diagnostic_items(args.voicebank, supplement)
 
     if args.json:
-        print(json.dumps(_payload(plan, supplement), ensure_ascii=False, indent=2))
+        print(json.dumps(_payload(plan, supplement, selection), ensure_ascii=False, indent=2))
         return 0
 
     print(f"Voicebank: {analysis.voicebank}")
@@ -69,8 +84,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Supplemental recording: {len(plan.supplemental_recording)}")
     print(f"Perceptual validation: {len(plan.perceptual_validation)}")
     print(f"Supplement diagnostic items: {supplement.diagnostic_items}")
+    print(f"Selected diagnostic items: {len(selection.items)}")
+    print(f"Unfilled diagnostic targets: {len(selection.unfilled)}")
     print()
     request_by_base = {request.base_unit: request for request in supplement.requests}
+    selected_by_base: dict[str, list[object]] = {}
+    for item in selection.items:
+        selected_by_base.setdefault(item.base_unit, []).append(item)
+
     for gap in plan.gaps:
         print(f"{gap.base_unit} [{gap.class_name}]")
         print(f"  gap: {gap.gap_type}")
@@ -88,12 +109,23 @@ def main(argv: list[str] | None = None) -> int:
                     f"  supplement_target: {target.context_family} "
                     f"x{target.diagnostic_items} diagnostic item(s)"
                 )
+            for item in selected_by_base.get(gap.base_unit, []):
+                print(
+                    f"  selected_item: {item.syllable} "
+                    f"[{item.context_family}] replicate={item.replicate} "
+                    f"existing_observations={item.existing_observations}"
+                )
             print(f"  pitch_policy: {request.pitch_policy}")
             print(f"  automatic_round_limit: {request.automatic_round_limit}")
             print(f"  stop_rule: {request.stop_rule}")
         for item in gap.rationale:
             print(f"  {item}")
         print()
+
+    if selection.unfilled:
+        print("Unfilled diagnostic targets")
+        for item in selection.unfilled:
+            print(f"  {item}")
     return 0
 
 
