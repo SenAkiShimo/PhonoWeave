@@ -8,9 +8,10 @@ from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .inventory import analyze_voicebank_inventory
 from .supplement_plan import build_supplement_plan
+from .supplement_reclist import build_supplement_reclist
 
 
-def _payload(plan, supplement, selection) -> dict[str, object]:
+def _payload(plan, supplement, selection, reclist) -> dict[str, object]:
     return {
         "gaps": [
             {
@@ -60,6 +61,7 @@ def _payload(plan, supplement, selection) -> dict[str, object]:
                 for item in selection.items
             ],
             "unfilled": list(selection.unfilled),
+            "reclist": [line.text for line in reclist.lines],
         },
     }
 
@@ -68,15 +70,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="phonoweave evidence-gaps")
     parser.add_argument("voicebank", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--write-reclist", type=Path)
     args = parser.parse_args(argv)
 
     analysis = analyze_voicebank_inventory(args.voicebank)
     plan = build_evidence_completion_plan(analysis)
     supplement = build_supplement_plan(plan)
     selection = select_diagnostic_items(args.voicebank, supplement)
+    reclist = build_supplement_reclist(selection)
+
+    if args.write_reclist is not None:
+        output = args.write_reclist.expanduser().resolve()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(reclist.text(), encoding="utf-8")
 
     if args.json:
-        print(json.dumps(_payload(plan, supplement, selection), ensure_ascii=False, indent=2))
+        print(json.dumps(_payload(plan, supplement, selection, reclist), ensure_ascii=False, indent=2))
         return 0
 
     print(f"Voicebank: {analysis.voicebank}")
@@ -86,7 +95,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Supplement diagnostic items: {supplement.diagnostic_items}")
     print(f"Selected diagnostic items: {len(selection.items)}")
     print(f"Unfilled diagnostic targets: {len(selection.unfilled)}")
+    print(f"Supplement reclist lines: {len(reclist.lines)}")
     print()
+
     request_by_base = {request.base_unit: request for request in supplement.requests}
     selected_by_base: dict[str, list[object]] = {}
     for item in selection.items:
@@ -122,10 +133,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {item}")
         print()
 
+    print("Supplement reclist")
+    for line in reclist.lines:
+        print(f"  {line.text}")
+
     if selection.unfilled:
+        print()
         print("Unfilled diagnostic targets")
         for item in selection.unfilled:
             print(f"  {item}")
+    if args.write_reclist is not None:
+        print()
+        print(f"Reclist written: {args.write_reclist.expanduser().resolve()}")
     return 0
 
 
