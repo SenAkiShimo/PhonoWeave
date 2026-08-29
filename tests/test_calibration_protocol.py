@@ -21,15 +21,25 @@ def test_live_calibration_protocol_covers_supported_and_unresolved_targets() -> 
     assert ("r", "front") in keys
 
 
-def test_internal_prompts_place_target_between_fixed_carriers() -> None:
+def test_internal_prompts_use_one_take_with_two_target_occurrences() -> None:
     protocol = live_calibration_protocol()
-    prompt = next(item for item in protocol.prompts if item.base_unit == "f" and item.context_family == "rounded")
-    assert prompt.spoken_pattern == "a fo a"
-    assert prompt.repeats == 3
+    prompt = next(
+        item
+        for item in protocol.prompts
+        if item.base_unit == "f" and item.context_family == "rounded"
+    )
+    assert prompt.spoken_pattern == "a fo a fo a"
+    assert prompt.repeats == 1
+    assert prompt.target_occurrences == 2
 
 
-def test_all_role_prompts_repeat_target_in_one_pattern() -> None:
+def test_all_role_prompts_use_one_take_with_two_target_occurrences() -> None:
     protocol = live_calibration_protocol()
-    prompt = next(item for item in protocol.prompts if item.base_unit == "zh" and item.context_family == "plain")
+    prompt = next(
+        item
+        for item in protocol.prompts
+        if item.base_unit == "zh" and item.context_family == "plain"
+    )
     assert prompt.spoken_pattern == "zha a zha a"
-    assert prompt.repeats == 3
+    assert prompt.repeats == 1
+    assert prompt.target_occurrences == 2
