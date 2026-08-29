@@ -35,6 +35,17 @@ _STATE = _GuiState()
 _STATE_LOCK = threading.Lock()
 
 
+def _main_page_html() -> str:
+    marker = '<button class="toolbtn primary" id="analyze"></button>'
+    calibration = (
+        marker
+        + '<a class="toolbtn" href="/calibration" '
+        + 'title="Record a live speaker calibration">'
+        + 'Live Calibration / 现场校准</a>'
+    )
+    return HTML.replace(marker, calibration, 1)
+
+
 def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
     split_supported = [row.base_unit for row in snapshot.rows if row.decision == "split_recommended"]
     return {
@@ -145,7 +156,7 @@ class _Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/":
-            self._send_bytes(HTML.encode("utf-8"), "text/html; charset=utf-8")
+            self._send_bytes(_main_page_html().encode("utf-8"), "text/html; charset=utf-8")
             return
         if path == "/calibration":
             self._send_bytes(CALIBRATION_HTML.encode("utf-8"), "text/html; charset=utf-8")
