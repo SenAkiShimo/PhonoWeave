@@ -31,6 +31,7 @@ def test_protocol_payload_exposes_tokens_and_frozen_metadata() -> None:
     first = payload["prompts"][0]
     assert first["spoken_pattern"] == "zha a zha a"
     assert first["tokens"] == ["zha", "a", "zha", "a"]
+    assert first["repeats"] == 1
 
 
 def test_create_session_writes_protocol_and_recordings_dir(tmp_path: Path) -> None:
@@ -62,7 +63,8 @@ def test_save_recording_writes_wav_and_metadata(tmp_path: Path) -> None:
     metadata = json.loads(output.with_suffix(".json").read_text(encoding="utf-8"))
     assert metadata["base_unit"] == "zh"
     assert metadata["context_family"] == "plain"
-    assert metadata["repetitions"] == 3
+    assert metadata["repetitions"] == 1
+    assert metadata["spoken_pattern"] == "zha a zha a"
 
 
 def test_save_recording_rejects_non_wav(tmp_path: Path) -> None:
