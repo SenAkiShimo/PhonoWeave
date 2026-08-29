@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .calibration_io import create_calibration_session, protocol_payload, save_calibration_recording
+from .calibration_page import HTML as CALIBRATION_HTML
 from .calibration_protocol import live_calibration_protocol
 from .gui_model import GuiAnalysisSnapshot, analyze_for_gui
 from .gui_page_remake import HTML
@@ -146,6 +147,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/":
             self._send_bytes(HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
+        if path == "/calibration":
+            self._send_bytes(CALIBRATION_HTML.encode("utf-8"), "text/html; charset=utf-8")
+            return
         if path == "/api/calibration/protocol":
             self._json(protocol_payload(live_calibration_protocol()))
             return
@@ -266,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
     port = server.server_address[1]
     url = f"http://127.0.0.1:{port}/"
     print(f"PhonoWeave GUI remake: {url}")
+    print(f"Live calibration: {url}calibration")
     print("Press Ctrl-C to stop.")
     if not args.no_browser:
         threading.Timer(0.2, lambda: webbrowser.open(url)).start()
