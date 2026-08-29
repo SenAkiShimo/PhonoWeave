@@ -55,7 +55,10 @@ def test_save_recording_writes_wav_and_metadata(tmp_path: Path) -> None:
         tmp_path, session_id, 0, protocol.prompts[0], _wav(), 48000
     )
     assert output.name == "001_zh_plain.wav"
-    assert output.read_bytes()[:12] == b"RIFF$\x00\x00\x00WAVE"
+    wav = output.read_bytes()
+    assert wav[:4] == b"RIFF"
+    assert wav[8:12] == b"WAVE"
+    assert struct.unpack("<I", wav[4:8])[0] == len(wav) - 8
     metadata = json.loads(output.with_suffix(".json").read_text(encoding="utf-8"))
     assert metadata["base_unit"] == "zh"
     assert metadata["context_family"] == "plain"
