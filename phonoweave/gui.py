@@ -13,8 +13,10 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
+from .calibration_io import create_calibration_session, protocol_payload, save_calibration_recording
+from .calibration_protocol import live_calibration_protocol
 from .gui_model import GuiAnalysisSnapshot, analyze_for_gui
 from .gui_page_remake import HTML
 from .profile import profile_yaml
@@ -24,6 +26,8 @@ from .synthesis_inventory import synthesis_inventory_yaml
 @dataclass
 class _GuiState:
     snapshot: GuiAnalysisSnapshot | None = None
+    calibration_root: Path = Path.home() / "Downloads" / "PhonoWeaveCalibration"
+    calibration_session_id: str | None = None
 
 
 _STATE = _GuiState()
@@ -31,9 +35,7 @@ _STATE_LOCK = threading.Lock()
 
 
 def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
-    split_supported = [
-        row.base_unit for row in snapshot.rows if row.decision == "split_recommended"
-    ]
+    split_supported = [row.base_unit for row in snapshot.rows if row.decision == "split_recommended"]
     return {
         "voicebank": str(snapshot.root),
         "summary": {
@@ -45,11 +47,7 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
             "unresolved": sum(row.decision == "unresolved" for row in snapshot.rows),
             "split_supported": len(split_supported),
             "split_supported_units": split_supported,
-            "supplement_items": sum(
-                len(row.evidence_gap.diagnostic_items)
-                for row in snapshot.rows
-                if row.evidence_gap is not None
-            ),
+            "supplement_items": sum(len(row.evidence_gap.diagnostic_items) for row in snapshot.rows if row.evidence_gap is not None),
         },
         "rows": [
             {
@@ -59,14 +57,9 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
                 "synthesis_evidence": row.synthesis_evidence,
                 "decision": row.decision,
                 "confidence": row.confidence,
-                "groups": [
-                    {"id": group.id, "contexts": list(group.contexts)}
-                    for group in row.groups
-                ],
+                "groups": [{"id": group.id, "contexts": list(group.contexts)} for group in row.groups],
                 "notes": list(row.notes),
-                "evidence_gap": None
-                if row.evidence_gap is None
-                else {
+                "evidence_gap": None if row.evidence_gap is None else {
                     "gap_type": row.evidence_gap.gap_type,
                     "priority": row.evidence_gap.priority,
                     "recommended_action": row.evidence_gap.recommended_action,
@@ -93,45 +86,13 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
 def _diagnostic_manifest_csv(snapshot: GuiAnalysisSnapshot) -> str:
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(
-        (
-            "base_unit",
-            "class_name",
-            "current_decision",
-            "gap_type",
-            "priority",
-            "recommended_action",
-            "role_scope",
-            "target_context",
-            "syllable",
-            "replicate",
-            "existing_observations",
-            "reclist_line",
-            "purpose",
-        )
-    )
+    writer.writerow(("base_unit", "class_name", "current_decision", "gap_type", "priority", "recommended_action", "role_scope", "target_context", "syllable", "replicate", "existing_observations", "reclist_line", "purpose"))
     for row in snapshot.rows:
         gap = row.evidence_gap
         if gap is None:
             continue
         for item in gap.diagnostic_items:
-            writer.writerow(
-                (
-                    row.base_unit,
-                    row.class_name,
-                    row.decision,
-                    gap.gap_type,
-                    gap.priority,
-                    gap.recommended_action,
-                    gap.role_scope or "all",
-                    item.context_family,
-                    item.syllable,
-                    item.replicate,
-                    item.existing_observations,
-                    item.reclist_line,
-                    "diagnostic_evidence_only",
-                )
-            )
+            writer.writerow((row.base_unit, row.class_name, row.decision, gap.gap_type, gap.priority, gap.recommended_action, gap.role_scope or "all", item.context_family, item.syllable, item.replicate, item.existing_observations, item.reclist_line, "diagnostic_evidence_only"))
     return output.getvalue()
 
 
@@ -139,16 +100,8 @@ def _pick_folder(language: str = "en") -> str:
     if platform.system() != "Darwin":
         raise RuntimeError("Folder picker is currently available on macOS only.")
     prompt = "选择 OpenUtau 声库" if language == "zh" else "Choose OpenUtau voicebank"
-    script = (
-        f'set chosenFolder to choose folder with prompt "{prompt}"\n'
-        'return POSIX path of chosenFolder'
-    )
-    completed = subprocess.run(
-        ["osascript", "-e", script],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    script = (f'set chosenFolder to choose folder with prompt "{prompt}"\n' 'return POSIX path of chosenFolder')
+    completed = subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         message = completed.stderr.strip()
         if "User canceled" in message or "-128" in message:
@@ -158,18 +111,12 @@ def _pick_folder(language: str = "en") -> str:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "PhonoWeaveGuiRemake/0.2"
+    server_version = "PhonoWeaveGuiRemake/0.3"
 
     def log_message(self, format: str, *args: object) -> None:
         return
 
-    def _send_bytes(
-        self,
-        body: bytes,
-        content_type: str,
-        status: HTTPStatus = HTTPStatus.OK,
-        headers: dict[str, str] | None = None,
-    ) -> None:
+    def _send_bytes(self, body: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK, headers: dict[str, str] | None = None) -> None:
         self.send_response(status.value)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -180,16 +127,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _json(
-        self,
-        payload: dict[str, Any],
-        status: HTTPStatus = HTTPStatus.OK,
-    ) -> None:
-        self._send_bytes(
-            json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            "application/json; charset=utf-8",
-            status,
-        )
+    def _json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
+        self._send_bytes(json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", status)
 
     def _read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -202,9 +141,13 @@ class _Handler(BaseHTTPRequestHandler):
         return parsed
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/":
             self._send_bytes(HTML.encode("utf-8"), "text/html; charset=utf-8")
+            return
+        if path == "/api/calibration/protocol":
+            self._json(protocol_payload(live_calibration_protocol()))
             return
         if path == "/api/export/profile":
             with _STATE_LOCK:
@@ -212,11 +155,7 @@ class _Handler(BaseHTTPRequestHandler):
             if snapshot is None:
                 self._json({"error": "No completed analysis is available."}, HTTPStatus.CONFLICT)
                 return
-            self._send_bytes(
-                profile_yaml(snapshot.profile).encode("utf-8"),
-                "application/yaml; charset=utf-8",
-                headers={"Content-Disposition": 'attachment; filename="speaker_profile.yaml"'},
-            )
+            self._send_bytes(profile_yaml(snapshot.profile).encode("utf-8"), "application/yaml; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="speaker_profile.yaml"'})
             return
         if path == "/api/export/inventory":
             with _STATE_LOCK:
@@ -224,11 +163,7 @@ class _Handler(BaseHTTPRequestHandler):
             if snapshot is None:
                 self._json({"error": "No completed analysis is available."}, HTTPStatus.CONFLICT)
                 return
-            self._send_bytes(
-                synthesis_inventory_yaml(snapshot.synthesis_inventory).encode("utf-8"),
-                "application/yaml; charset=utf-8",
-                headers={"Content-Disposition": 'attachment; filename="current_synthesis_inventory.yaml"'},
-            )
+            self._send_bytes(synthesis_inventory_yaml(snapshot.synthesis_inventory).encode("utf-8"), "application/yaml; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="current_synthesis_inventory.yaml"'})
             return
         if path == "/api/export/supplement-reclist":
             with _STATE_LOCK:
@@ -236,11 +171,7 @@ class _Handler(BaseHTTPRequestHandler):
             if snapshot is None:
                 self._json({"error": "No completed analysis is available."}, HTTPStatus.CONFLICT)
                 return
-            self._send_bytes(
-                snapshot.supplement_reclist.encode("utf-8"),
-                "text/plain; charset=utf-8",
-                headers={"Content-Disposition": 'attachment; filename="diagnostic_supplement_reclist.txt"'},
-            )
+            self._send_bytes(snapshot.supplement_reclist.encode("utf-8"), "text/plain; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="diagnostic_supplement_reclist.txt"'})
             return
         if path == "/api/export/diagnostic-manifest":
             with _STATE_LOCK:
@@ -248,16 +179,13 @@ class _Handler(BaseHTTPRequestHandler):
             if snapshot is None:
                 self._json({"error": "No completed analysis is available."}, HTTPStatus.CONFLICT)
                 return
-            self._send_bytes(
-                _diagnostic_manifest_csv(snapshot).encode("utf-8"),
-                "text/csv; charset=utf-8",
-                headers={"Content-Disposition": 'attachment; filename="diagnostic_supplement_manifest.csv"'},
-            )
+            self._send_bytes(_diagnostic_manifest_csv(snapshot).encode("utf-8"), "text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="diagnostic_supplement_manifest.csv"'})
             return
         self._json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/pick-folder":
             try:
                 payload = self._read_json()
@@ -281,6 +209,42 @@ class _Handler(BaseHTTPRequestHandler):
                 with _STATE_LOCK:
                     _STATE.snapshot = snapshot
                 self._json(_snapshot_payload(snapshot))
+            except ValueError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/calibration/start":
+            try:
+                protocol = live_calibration_protocol()
+                with _STATE_LOCK:
+                    session_id, session_dir = create_calibration_session(protocol, _STATE.calibration_root)
+                    _STATE.calibration_session_id = session_id
+                self._json({"session_id": session_id, "session_dir": str(session_dir), "protocol": protocol_payload(protocol)})
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/calibration/recording":
+            try:
+                query = parse_qs(parsed.query)
+                index = int(query.get("index", ["-1"])[0])
+                sample_rate = int(query.get("sample_rate", ["0"])[0])
+                protocol = live_calibration_protocol()
+                if index < 0 or index >= len(protocol.prompts):
+                    raise ValueError("invalid calibration prompt index")
+                if sample_rate <= 0:
+                    raise ValueError("invalid sample rate")
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 64 * 1024 * 1024:
+                    raise ValueError("invalid recording size")
+                wav_bytes = self.rfile.read(length)
+                with _STATE_LOCK:
+                    session_id = _STATE.calibration_session_id
+                    root = _STATE.calibration_root
+                if session_id is None:
+                    raise ValueError("no active calibration session")
+                output = save_calibration_recording(root, session_id, index, protocol.prompts[index], wav_bytes, sample_rate)
+                self._json({"saved": str(output), "index": index})
             except ValueError as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             except Exception as exc:
