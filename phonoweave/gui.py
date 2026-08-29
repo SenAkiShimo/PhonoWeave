@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import platform
 import subprocess
@@ -29,6 +31,9 @@ _STATE_LOCK = threading.Lock()
 
 
 def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
+    split_supported = [
+        row.base_unit for row in snapshot.rows if row.decision == "split_recommended"
+    ]
     return {
         "voicebank": str(snapshot.root),
         "summary": {
@@ -38,6 +43,8 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
             "experimental": snapshot.experimental_count,
             "unsupported": snapshot.unsupported_count,
             "unresolved": sum(row.decision == "unresolved" for row in snapshot.rows),
+            "split_supported": len(split_supported),
+            "split_supported_units": split_supported,
             "supplement_items": sum(
                 len(row.evidence_gap.diagnostic_items)
                 for row in snapshot.rows
@@ -81,6 +88,51 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
             for row in snapshot.rows
         ],
     }
+
+
+def _diagnostic_manifest_csv(snapshot: GuiAnalysisSnapshot) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(
+        (
+            "base_unit",
+            "class_name",
+            "current_decision",
+            "gap_type",
+            "priority",
+            "recommended_action",
+            "role_scope",
+            "target_context",
+            "syllable",
+            "replicate",
+            "existing_observations",
+            "reclist_line",
+            "purpose",
+        )
+    )
+    for row in snapshot.rows:
+        gap = row.evidence_gap
+        if gap is None:
+            continue
+        for item in gap.diagnostic_items:
+            writer.writerow(
+                (
+                    row.base_unit,
+                    row.class_name,
+                    row.decision,
+                    gap.gap_type,
+                    gap.priority,
+                    gap.recommended_action,
+                    gap.role_scope or "all",
+                    item.context_family,
+                    item.syllable,
+                    item.replicate,
+                    item.existing_observations,
+                    item.reclist_line,
+                    "diagnostic_evidence_only",
+                )
+            )
+    return output.getvalue()
 
 
 def _pick_folder(language: str = "en") -> str:
@@ -175,7 +227,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_bytes(
                 synthesis_inventory_yaml(snapshot.synthesis_inventory).encode("utf-8"),
                 "application/yaml; charset=utf-8",
-                headers={"Content-Disposition": 'attachment; filename="synthesis_inventory.yaml"'},
+                headers={"Content-Disposition": 'attachment; filename="current_synthesis_inventory.yaml"'},
             )
             return
         if path == "/api/export/supplement-reclist":
@@ -187,7 +239,19 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_bytes(
                 snapshot.supplement_reclist.encode("utf-8"),
                 "text/plain; charset=utf-8",
-                headers={"Content-Disposition": 'attachment; filename="supplement_reclist.txt"'},
+                headers={"Content-Disposition": 'attachment; filename="diagnostic_supplement_reclist.txt"'},
+            )
+            return
+        if path == "/api/export/diagnostic-manifest":
+            with _STATE_LOCK:
+                snapshot = _STATE.snapshot
+            if snapshot is None:
+                self._json({"error": "No completed analysis is available."}, HTTPStatus.CONFLICT)
+                return
+            self._send_bytes(
+                _diagnostic_manifest_csv(snapshot).encode("utf-8"),
+                "text/csv; charset=utf-8",
+                headers={"Content-Disposition": 'attachment; filename="diagnostic_supplement_manifest.csv"'},
             )
             return
         self._json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
