@@ -37,6 +37,12 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
             "analyzed": snapshot.analyzed_count,
             "experimental": snapshot.experimental_count,
             "unsupported": snapshot.unsupported_count,
+            "unresolved": sum(row.decision == "unresolved" for row in snapshot.rows),
+            "supplement_items": sum(
+                len(row.evidence_gap.diagnostic_items)
+                for row in snapshot.rows
+                if row.evidence_gap is not None
+            ),
         },
         "rows": [
             {
@@ -46,9 +52,31 @@ def _snapshot_payload(snapshot: GuiAnalysisSnapshot) -> dict[str, Any]:
                 "synthesis_evidence": row.synthesis_evidence,
                 "decision": row.decision,
                 "confidence": row.confidence,
-                "groups": list(row.groups),
-                "contexts": list(row.contexts),
+                "groups": [
+                    {"id": group.id, "contexts": list(group.contexts)}
+                    for group in row.groups
+                ],
                 "notes": list(row.notes),
+                "evidence_gap": None
+                if row.evidence_gap is None
+                else {
+                    "gap_type": row.evidence_gap.gap_type,
+                    "priority": row.evidence_gap.priority,
+                    "recommended_action": row.evidence_gap.recommended_action,
+                    "role_scope": row.evidence_gap.role_scope,
+                    "context_families": list(row.evidence_gap.context_families),
+                    "rationale": list(row.evidence_gap.rationale),
+                    "diagnostic_items": [
+                        {
+                            "syllable": item.syllable,
+                            "context_family": item.context_family,
+                            "replicate": item.replicate,
+                            "existing_observations": item.existing_observations,
+                            "reclist_line": item.reclist_line,
+                        }
+                        for item in row.evidence_gap.diagnostic_items
+                    ],
+                },
             }
             for row in snapshot.rows
         ],
@@ -78,7 +106,7 @@ def _pick_folder(language: str = "en") -> str:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "PhonoWeaveGuiRemake/0.1"
+    server_version = "PhonoWeaveGuiRemake/0.2"
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -148,6 +176,18 @@ class _Handler(BaseHTTPRequestHandler):
                 synthesis_inventory_yaml(snapshot.synthesis_inventory).encode("utf-8"),
                 "application/yaml; charset=utf-8",
                 headers={"Content-Disposition": 'attachment; filename="synthesis_inventory.yaml"'},
+            )
+            return
+        if path == "/api/export/supplement-reclist":
+            with _STATE_LOCK:
+                snapshot = _STATE.snapshot
+            if snapshot is None:
+                self._json({"error": "No completed analysis is available."}, HTTPStatus.CONFLICT)
+                return
+            self._send_bytes(
+                snapshot.supplement_reclist.encode("utf-8"),
+                "text/plain; charset=utf-8",
+                headers={"Content-Disposition": 'attachment; filename="supplement_reclist.txt"'},
             )
             return
         self._json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
