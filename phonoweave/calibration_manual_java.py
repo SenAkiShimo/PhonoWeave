@@ -54,12 +54,12 @@ def main(argv: list[str] | None = None) -> int:
     labels = analysis_dir / "calibration_manual_anchor_labels_v0.2.tsv"
     _write_manifest(session_dir, manifest)
 
-    source = Path(__file__).resolve().parent.parent / "tools" / "ManualAnchorLabeler.java"
+    source = Path(__file__).resolve().parent.parent / "tools" / "ManualAnchorWeb.java"
     if not source.is_file():
-        raise SystemExit(f"Java labeler source is missing: {source}")
+        raise SystemExit(f"Java web labeler source is missing: {source}")
 
     completed = subprocess.run(
-        [java, str(source), str(manifest), str(labels)],
+        [java, "--add-modules", "jdk.httpserver", str(source), str(manifest), str(labels)],
         check=False,
     )
     return int(completed.returncode)
