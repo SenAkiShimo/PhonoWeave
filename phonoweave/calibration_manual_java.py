@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from .calibration_manual_labels import resolve_dev_selection
@@ -54,12 +55,22 @@ def main(argv: list[str] | None = None) -> int:
     labels = analysis_dir / "calibration_manual_anchor_labels_v0.2.tsv"
     _write_manifest(session_dir, manifest)
 
-    source = Path(__file__).resolve().parent.parent / "tools" / "ManualAnchorWeb.java"
+    repo_root = Path(__file__).resolve().parent.parent
+    source = repo_root / "tools" / "ManualAnchorWeb.java"
     if not source.is_file():
         raise SystemExit(f"Java web labeler source is missing: {source}")
 
     completed = subprocess.run(
-        [java, "--add-modules", "jdk.httpserver", str(source), str(manifest), str(labels)],
+        [
+            java,
+            "--add-modules",
+            "jdk.httpserver",
+            str(source),
+            str(manifest),
+            str(labels),
+            sys.executable,
+            str(repo_root),
+        ],
         check=False,
     )
     return int(completed.returncode)
