@@ -39,28 +39,38 @@ _ONSET_CLASS = {
 
 ANCHOR_INSTRUCTIONS = {
     "stop": {
-        "zh": "点击塞音释放/爆破开始的位置。",
-        "en": "Click the onset of the stop release/burst.",
+        "zh": "听到声母憋住后突然放开的那一下，就点那一下开始的位置。",
+        "en": "Click where the held closure suddenly releases.",
+        "short_zh": "找“突然放开”的那一下",
+        "short_en": "Find the release burst",
         "anchor_type": "manual_release_anchor",
     },
     "affricate": {
-        "zh": "点击闭塞释放并进入持续摩擦噪声的开始位置。",
-        "en": "Click the release into sustained affricate frication.",
+        "zh": "找到声母从憋住变成持续“擦——”声的瞬间，点在摩擦声刚开始的位置。",
+        "en": "Click where the closure releases into sustained frication.",
+        "short_zh": "找持续摩擦声刚开始的位置",
+        "short_en": "Find the start of frication",
         "anchor_type": "manual_frication_release_anchor",
     },
     "fricative": {
-        "zh": "点击持续摩擦噪声第一次稳定出现的位置。",
-        "en": "Click the first stable onset of sustained frication noise.",
+        "zh": "找到“嘶/呼/擦”这种持续噪声第一次稳定出现的位置，点在那里。",
+        "en": "Click where the sustained noisy frication first becomes stable.",
+        "short_zh": "找持续噪声刚开始的位置",
+        "short_en": "Find the noise onset",
         "anchor_type": "manual_frication_onset_anchor",
     },
     "sonorant": {
-        "zh": "点击鼻音/近音等持续有声结构第一次稳定出现的位置。",
-        "en": "Click the first stable onset of sustained sonorant voicing/energy.",
+        "zh": "找到鼻音或带嗓音的持续声音第一次稳定出现的位置，点在那里。",
+        "en": "Click where the sustained voiced/sonorant sound first becomes stable.",
+        "short_zh": "找持续有声部分刚开始的位置",
+        "short_en": "Find the voiced onset",
         "anchor_type": "manual_sonorant_onset_anchor",
     },
     "other": {
-        "zh": "点击目标声母最早稳定出现的位置。",
-        "en": "Click the first stable onset of the target consonant.",
+        "zh": "找到目标声母第一次稳定出现的位置，点在那里。",
+        "en": "Click where the target consonant first becomes stable.",
+        "short_zh": "找声母开始的位置",
+        "short_en": "Find the consonant onset",
         "anchor_type": "manual_acoustic_anchor",
     },
 }
@@ -244,7 +254,11 @@ def setup_payload(session_dir: Path) -> dict[str, object]:
         "selection_version": SELECTION_VERSION,
         "session_id": session_dir.name,
         "session_dir": str(session_dir),
-        "window": {"start_ms_after_cue": 60.0, "end_ms_after_cue": 520.0},
+        "window": {
+            "display_start_ms_after_cue": -40.0,
+            "label_start_ms_after_cue": 60.0,
+            "end_ms_after_cue": 520.0,
+        },
         "prompts": [
             {
                 "prompt_index": item.prompt_index,
