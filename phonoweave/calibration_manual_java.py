@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+from pathlib import Path
+
+from .calibration_manual_labels import resolve_dev_selection
+
+
+def _write_manifest(session_dir: Path, output: Path) -> None:
+    rows = [
+        "# prompt_index\tbase_unit\tcontext_family\tsyllable\tclass_name\twav\toccurrence\tprev_cue_ms\tcue_ms\tnext_cue_ms"
+    ]
+    for item in resolve_dev_selection(session_dir):
+        wav = session_dir / "recordings" / item.wav
+        for occurrence in (1, 2):
+            i = occurrence - 1
+            rows.append(
+                "\t".join(
+                    [
+                        str(item.prompt_index),
+                        item.base_unit,
+                        item.context_family,
+                        item.syllable,
+                        item.class_name,
+                        str(wav),
+                        str(occurrence),
+                        f"{item.prev_cues_ms[i]:.3f}",
+                        f"{item.cues_ms[i]:.3f}",
+                        f"{item.next_cues_ms[i]:.3f}",
+                    ]
+                )
+            )
+    output.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="phonoweave-manual-java")
+    parser.add_argument("session", type=Path)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    session_dir = args.session.expanduser().resolve()
+    java = shutil.which("java")
+    if not java:
+        raise SystemExit("Java was not found. Install a JDK, then run this command again.")
+
+    analysis_dir = session_dir / "analysis"
+    analysis_dir.mkdir(exist_ok=True)
+    manifest = analysis_dir / "manual_anchor_manifest_v0.2.tsv"
+    labels = analysis_dir / "calibration_manual_anchor_labels_v0.2.tsv"
+    _write_manifest(session_dir, manifest)
+
+    source = Path(__file__).resolve().parent.parent / "tools" / "ManualAnchorLabeler.java"
+    if not source.is_file():
+        raise SystemExit(f"Java labeler source is missing: {source}")
+
+    completed = subprocess.run(
+        [java, str(source), str(manifest), str(labels)],
+        check=False,
+    )
+    return int(completed.returncode)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
