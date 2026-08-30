@@ -390,7 +390,7 @@ public class ManualAnchorLabeler {
         for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (line.isBlank() || line.startsWith("#")) continue;
             String[] p = line.split("\\t", -1);
-            if (p.length < 11) throw new IOException("Bad manifest row: " + line);
+            if (p.length < 10) throw new IOException("Bad manifest row: " + line);
             Item item = new Item();
             item.promptIndex = Integer.parseInt(p[0]);
             item.baseUnit = p[1];
