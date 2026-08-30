@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -60,6 +61,13 @@ def main(argv: list[str] | None = None) -> int:
     if not source.is_file():
         raise SystemExit(f"Java web labeler source is missing: {source}")
 
+    env = os.environ.copy()
+    # ManualAnchorWebV2 starts phonoweave.gui as a child process when the user
+    # clicks the return button. Python normally block-buffers stdout when it is
+    # piped, which prevents Java from seeing the GUI URL. Make that child
+    # interpreter unbuffered so the URL is available immediately.
+    env["PYTHONUNBUFFERED"] = "1"
+
     completed = subprocess.run(
         [
             java,
@@ -72,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             str(repo_root),
         ],
         check=False,
+        env=env,
     )
     return int(completed.returncode)
 
