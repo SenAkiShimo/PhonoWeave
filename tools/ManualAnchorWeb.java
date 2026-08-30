@@ -154,7 +154,8 @@ public class ManualAnchorWeb {
 
     private void handleLabel(HttpExchange ex) throws IOException {
         if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
-            text(ex, 405, "text/plain", "method not allowed"); return;
+            text(ex, 405, "text/plain", "method not allowed");
+            return;
         }
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         Map<String,String> form = parseForm(body);
@@ -180,7 +181,10 @@ public class ManualAnchorWeb {
         try {
             int prompt = Integer.parseInt(query(ex.getRequestURI()).getOrDefault("prompt", "-1"));
             Path wav = wavByPrompt.get(prompt);
-            if (wav == null || !Files.isRegularFile(wav)) { text(ex,404,"text/plain","not found"); return; }
+            if (wav == null || !Files.isRegularFile(wav)) {
+                text(ex, 404, "text/plain", "not found");
+                return;
+            }
             send(ex, 200, "audio/wav", Files.readAllBytes(wav));
         } catch (Exception err) {
             text(ex, 400, "text/plain", err.toString());
@@ -221,21 +225,254 @@ public class ManualAnchorWeb {
 <style>
 :root{--bg:#eceee9;--panel:#fff;--line:#999d96;--ink:#191a18;--muted:#666962;--blue:#245b97;--purple:#73549a;--red:#b02c2c;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}.app{min-height:100vh;display:grid;grid-template-rows:36px 1fr 26px}.bar,.status{background:#dde0da;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 11px;gap:10px}.status{border-top:1px solid var(--line);border-bottom:0;font:11px var(--mono)}.brand{font-weight:800}.spacer{flex:1}.main{width:min(1120px,calc(100vw - 36px));margin:auto;padding:20px 0}.step{font:12px var(--mono);color:var(--muted)}.title{font-size:29px;font-weight:800;margin:5px 0 2px}.meta{font:13px var(--mono);color:#444;margin-bottom:13px}.panel{background:var(--panel);border:1px solid var(--line);padding:12px}.wave{display:block;width:100%;height:390px;border:1px solid #aaa;background:#fbfbfa;cursor:crosshair}.controls{display:flex;gap:7px;align-items:center;margin-top:10px}.controls button{border:1px solid #777b74;background:#fff;padding:7px 12px;font:inherit;cursor:pointer}.controls button.primary{background:#234f86;color:#fff;border-color:#234f86}.readout{font:12px var(--mono);margin-left:10px}.legend{font:11px var(--mono);color:var(--muted);margin-top:8px}.status .spacer{flex:1}
-</style></head><body><div class="app"><div class="bar"><span class="brand">PHONOWEAVE</span><span>MANUAL LABELS</span></div><main class="main"><div class="step" id="step"></div><div class="title" id="title"></div><div class="meta" id="meta"></div><section class="panel"><canvas id="wave" class="wave"></canvas><div class="controls"><button id="prev">←</button><button id="play" class="primary">Play · Space</button><button id="uncertain">Uncertain · U</button><button id="clear">Clear · Del</button><button id="next">→</button><span class="readout" id="readout"></span></div><div class="legend">gray = prev beep · blue = cue · purple = next beep · red = mark</div></section></main><div class="status"><span id="status"></span><span class="spacer"></span><span id="count"></span></div></div>
+</style></head><body><div class="app"><div class="bar"><span class="brand">PHONOWEAVE</span><span>MANUAL LABELS</span></div><main class="main"><div class="step" id="step"></div><div class="title" id="title"></div><div class="meta" id="meta"></div><section class="panel"><canvas id="wave" class="wave"></canvas><div class="controls"><button id="prev">←</button><button id="play" class="primary">Play · Space</button><button id="uncertain">Uncertain · U</button><button id="clear">Clear · Del</button><button id="next">→</button><span class="readout" id="readout"></span></div><div class="legend">gray = prev beep · blue = cue · purple = next beep · red = mark</div></section></main><div class="status"><span id="status">loading</span><span class="spacer"></span><span id="count"></span></div></div>
 <script>
-const $=id=>document.getElementById(id);let items=[],labels=new Map(),index=0,ctx=null,buffers=new Map();
-function parseTsv(s){const rows=s.trim().split(/\r?\n/).map(x=>x.split('\t'));const h=rows.shift();return rows.filter(r=>r.length>=h.length).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]])))}
-function key(x){return `${x.prompt_index}:${x.occurrence}`}function cur(){return items[index]}
-async function load(){items=parseTsv(await (await fetch('/manifest.tsv')).text()).map(x=>({...x,prompt_index:+x.prompt_index,occurrence:+x.occurrence,prev_cue_ms:+x.prev_cue_ms,cue_ms:+x.cue_ms,next_cue_ms:+x.next_cue_ms}));for(const x of parseTsv(await (await fetch('/labels.tsv')).text()))labels.set(`${x.prompt_index}:${x.occurrence}`,{ms:+x.anchor_ms_after_cue,status:x.status});await loadAudio(cur());render()}
-async function loadAudio(x){if(buffers.has(x.prompt_index))return buffers.get(x.prompt_index);const arr=await (await fetch(`/audio?prompt=${x.prompt_index}`)).arrayBuffer();ctx??=new(window.AudioContext||window.webkitAudioContext)();const b=await ctx.decodeAudioData(arr.slice(0));buffers.set(x.prompt_index,b);return b}
-function render(){const x=cur(),l=labels.get(key(x));$('step').textContent=`${index+1} / ${items.length}`;$('title').textContent=`${x.syllable}   ${x.occurrence}/2`;$('meta').textContent=`${x.base_unit} · ${x.context} · ${x.class_name}`;$('readout').textContent=l?`${l.ms>=0?'+':''}${l.ms.toFixed(1)} ms${l.status==='uncertain'?'  ?':''}`:'';$('uncertain').textContent=l?.status==='uncertain'?'Certain · U':'Uncertain · U';$('prev').disabled=index===0;$('next').disabled=index===items.length-1;$('count').textContent=`${labels.size}/${items.length}`;draw()}
-function draw(){const c=$('wave'),g=c.getContext('2d'),d=devicePixelRatio||1,w=Math.max(1,Math.floor(c.clientWidth*d)),h=Math.max(1,Math.floor(c.clientHeight*d));if(c.width!==w||c.height!==h){c.width=w;c.height=h}g.clearRect(0,0,w,h);const x=cur(),b=buffers.get(x.prompt_index);if(!b)return;const a=Math.max(0,Math.floor(x.prev_cue_ms*b.sampleRate/1000)),z=Math.min(b.length,Math.ceil(x.next_cue_ms*b.sampleRate/1000)),span=Math.max(1,z-a),mid=h/2,step=Math.max(1,Math.floor(span/w));g.strokeStyle='#222';g.beginPath();for(let px=0;px<w;px++){let peak=0;const s=a+px*step,e=Math.min(z,s+step);for(let i=s;i<e;i++)peak=Math.max(peak,Math.abs(b.getChannelData(0)[i]));g.moveTo(px,mid-peak*h*.44);g.lineTo(px,mid+peak*h*.44)}g.stroke();line(x.prev_cue_ms,'#888','prev');line(x.cue_ms,'#245b97','cue');line(x.next_cue_ms,'#73549a','next');const l=labels.get(key(x));if(l)line(x.cue_ms+l.ms,'#b02c2c','',3);function line(ms,color,name,width=2){const px=(ms-x.prev_cue_ms)/(x.next_cue_ms-x.prev_cue_ms)*w;g.strokeStyle=color;g.lineWidth=width;g.beginPath();g.moveTo(px,0);g.lineTo(px,h);g.stroke();if(name){g.fillStyle=color;g.font=`${11*d}px ui-monospace`;g.fillText(name,Math.min(w-45*d,px+4*d),15*d)}g.lineWidth=1}}
-async function save(x,ms,status){const k=key(x);if(status==='unset')labels.delete(k);else labels.set(k,{ms,status});render();const body=new URLSearchParams({prompt:String(x.prompt_index),occurrence:String(x.occurrence),ms:ms==null?'':String(ms),status});try{const r=await fetch('/label',{method:'POST',body});if(!r.ok)throw Error(await r.text());$('status').textContent='saved'}catch(e){$('status').textContent='SAVE ERROR: '+e}}
-async function mark(ev){const c=$('wave'),r=c.getBoundingClientRect(),frac=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)),x=cur(),abs=x.prev_cue_ms+frac*(x.next_cue_ms-x.prev_cue_ms),ms=abs-x.cue_ms;save(x,ms,'ok');if(index<items.length-1){index++;await loadAudio(cur());render()}}
-async function move(d){const n=Math.max(0,Math.min(items.length-1,index+d));if(n!==index){index=n;await loadAudio(cur());render()}}
-async function play(){const x=cur(),b=await loadAudio(x);ctx??=new(window.AudioContext||window.webkitAudioContext)();await ctx.resume();const s=Math.max(0,(x.prev_cue_ms-60)/1000),e=Math.min(b.duration,(x.next_cue_ms+60)/1000),src=ctx.createBufferSource();src.buffer=b;src.connect(ctx.destination);src.start(0,s,e-s)}
-function toggle(){const x=cur(),l=labels.get(key(x));if(l)save(x,l.ms,l.status==='uncertain'?'ok':'uncertain')}function clear(){const x=cur();if(labels.has(key(x)))save(x,null,'unset')}
-$('wave').addEventListener('mousedown',mark);$('prev').onclick=()=>move(-1);$('next').onclick=()=>move(1);$('play').onclick=play;$('uncertain').onclick=toggle;$('clear').onclick=clear;addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();play()}else if(e.key==='ArrowLeft')move(-1);else if(e.key==='ArrowRight')move(1);else if(e.key.toLowerCase()==='u')toggle();else if(e.key==='Delete'||e.key==='Backspace')clear()});addEventListener('resize',render);load();
+const $=id=>document.getElementById(id);
+let items=[];
+let labels=new Map();
+let index=0;
+let audioCtx=null;
+let buffers=new Map();
+
+function splitLines(text){
+  const cr=String.fromCharCode(13);
+  const lf=String.fromCharCode(10);
+  return text.replaceAll(cr,'').split(lf).filter(line=>line.length>0);
+}
+
+function parseTsv(text){
+  const tab=String.fromCharCode(9);
+  const lines=splitLines(text);
+  if(lines.length===0)return [];
+  const rows=lines.map(line=>line.split(tab));
+  const header=rows.shift();
+  return rows.filter(row=>row.length>=header.length).map(row=>Object.fromEntries(header.map((key,i)=>[key,row[i]])));
+}
+
+function itemKey(item){return item.prompt_index+':'+item.occurrence;}
+function current(){return items[index];}
+
+async function fetchText(url){
+  const response=await fetch(url,{cache:'no-store'});
+  if(!response.ok)throw new Error(url+' HTTP '+response.status+' '+await response.text());
+  return response.text();
+}
+
+async function loadAudio(item){
+  if(!item)throw new Error('manifest is empty');
+  if(buffers.has(item.prompt_index))return buffers.get(item.prompt_index);
+  const response=await fetch('/audio?prompt='+encodeURIComponent(item.prompt_index),{cache:'no-store'});
+  if(!response.ok)throw new Error('audio HTTP '+response.status+' '+await response.text());
+  const arrayBuffer=await response.arrayBuffer();
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const buffer=await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+  buffers.set(item.prompt_index,buffer);
+  return buffer;
+}
+
+async function initialize(){
+  try{
+    const manifestText=await fetchText('/manifest.tsv');
+    items=parseTsv(manifestText).map(row=>({
+      ...row,
+      prompt_index:Number(row.prompt_index),
+      occurrence:Number(row.occurrence),
+      prev_cue_ms:Number(row.prev_cue_ms),
+      cue_ms:Number(row.cue_ms),
+      next_cue_ms:Number(row.next_cue_ms)
+    }));
+    const labelText=await fetchText('/labels.tsv');
+    for(const row of parseTsv(labelText)){
+      labels.set(row.prompt_index+':'+row.occurrence,{ms:Number(row.anchor_ms_after_cue),status:row.status});
+    }
+    if(items.length===0)throw new Error('manifest contains 0 items');
+    await loadAudio(current());
+    render();
+    $('status').textContent='ready';
+    prefetchNext();
+  }catch(error){
+    console.error(error);
+    $('status').textContent='LOAD ERROR: '+error.message;
+  }
+}
+
+function render(){
+  const item=current();
+  if(!item)return;
+  const label=labels.get(itemKey(item));
+  $('step').textContent=(index+1)+' / '+items.length;
+  $('title').textContent=item.syllable+'   '+item.occurrence+'/2';
+  $('meta').textContent=item.base_unit+' · '+item.context+' · '+item.class_name;
+  $('readout').textContent=label?((label.ms>=0?'+':'')+label.ms.toFixed(1)+' ms'+(label.status==='uncertain'?'  ?':'')):'';
+  $('uncertain').textContent=label&&label.status==='uncertain'?'Certain · U':'Uncertain · U';
+  $('prev').disabled=index===0;
+  $('next').disabled=index===items.length-1;
+  $('count').textContent=labels.size+'/'+items.length;
+  draw();
+}
+
+function draw(){
+  const canvas=$('wave');
+  const g=canvas.getContext('2d');
+  const ratio=window.devicePixelRatio||1;
+  const width=Math.max(1,Math.floor(canvas.clientWidth*ratio));
+  const height=Math.max(1,Math.floor(canvas.clientHeight*ratio));
+  if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+  g.clearRect(0,0,width,height);
+
+  const item=current();
+  const buffer=item?buffers.get(item.prompt_index):null;
+  if(!item||!buffer)return;
+  const samples=buffer.getChannelData(0);
+  const start=Math.max(0,Math.floor(item.prev_cue_ms*buffer.sampleRate/1000));
+  const end=Math.min(buffer.length,Math.ceil(item.next_cue_ms*buffer.sampleRate/1000));
+  const span=Math.max(1,end-start);
+  const mid=height/2;
+  const samplesPerPixel=Math.max(1,Math.ceil(span/width));
+
+  g.strokeStyle='#222';
+  g.beginPath();
+  for(let px=0;px<width;px++){
+    const a=start+px*samplesPerPixel;
+    if(a>=end)break;
+    const z=Math.min(end,a+samplesPerPixel);
+    let peak=0;
+    for(let i=a;i<z;i++)peak=Math.max(peak,Math.abs(samples[i]));
+    g.moveTo(px,mid-peak*height*0.44);
+    g.lineTo(px,mid+peak*height*0.44);
+  }
+  g.stroke();
+
+  drawLine(item.prev_cue_ms,'#888','prev',2);
+  drawLine(item.cue_ms,'#245b97','cue',2);
+  drawLine(item.next_cue_ms,'#73549a','next',2);
+  const label=labels.get(itemKey(item));
+  if(label)drawLine(item.cue_ms+label.ms,'#b02c2c','',3);
+
+  function drawLine(ms,color,name,lineWidth){
+    const px=(ms-item.prev_cue_ms)/(item.next_cue_ms-item.prev_cue_ms)*width;
+    g.strokeStyle=color;
+    g.lineWidth=lineWidth;
+    g.beginPath();
+    g.moveTo(px,0);
+    g.lineTo(px,height);
+    g.stroke();
+    if(name){
+      g.fillStyle=color;
+      g.font=(11*ratio)+'px ui-monospace';
+      g.fillText(name,Math.min(width-45*ratio,px+4*ratio),15*ratio);
+    }
+    g.lineWidth=1;
+  }
+}
+
+function postLabel(item,ms,status){
+  const body=new URLSearchParams({
+    prompt:String(item.prompt_index),
+    occurrence:String(item.occurrence),
+    ms:ms==null?'':String(ms),
+    status:status
+  });
+  fetch('/label',{method:'POST',body}).then(async response=>{
+    if(!response.ok)throw new Error(await response.text());
+    $('status').textContent='saved';
+  }).catch(error=>{
+    console.error(error);
+    $('status').textContent='SAVE ERROR: '+error.message;
+  });
+}
+
+async function mark(event){
+  const canvas=$('wave');
+  const rect=canvas.getBoundingClientRect();
+  const fraction=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));
+  const item=current();
+  const absoluteMs=item.prev_cue_ms+fraction*(item.next_cue_ms-item.prev_cue_ms);
+  const relativeMs=absoluteMs-item.cue_ms;
+  labels.set(itemKey(item),{ms:relativeMs,status:'ok'});
+  postLabel(item,relativeMs,'ok');
+  if(index<items.length-1){
+    index++;
+    try{
+      await loadAudio(current());
+      render();
+      prefetchNext();
+    }catch(error){
+      $('status').textContent='AUDIO ERROR: '+error.message;
+    }
+  }else{
+    render();
+  }
+}
+
+async function move(delta){
+  const nextIndex=Math.max(0,Math.min(items.length-1,index+delta));
+  if(nextIndex===index)return;
+  index=nextIndex;
+  try{
+    await loadAudio(current());
+    render();
+    prefetchNext();
+  }catch(error){
+    $('status').textContent='AUDIO ERROR: '+error.message;
+  }
+}
+
+function prefetchNext(){
+  const nextItem=items[index+1];
+  if(nextItem)loadAudio(nextItem).catch(()=>{});
+}
+
+async function play(){
+  try{
+    const item=current();
+    const buffer=await loadAudio(item);
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    await audioCtx.resume();
+    const start=Math.max(0,(item.prev_cue_ms-60)/1000);
+    const end=Math.min(buffer.duration,(item.next_cue_ms+60)/1000);
+    const source=audioCtx.createBufferSource();
+    source.buffer=buffer;
+    source.connect(audioCtx.destination);
+    source.start(0,start,Math.max(0.01,end-start));
+  }catch(error){
+    $('status').textContent='PLAY ERROR: '+error.message;
+  }
+}
+
+function toggleUncertain(){
+  const item=current();
+  const label=labels.get(itemKey(item));
+  if(!label)return;
+  label.status=label.status==='uncertain'?'ok':'uncertain';
+  render();
+  postLabel(item,label.ms,label.status);
+}
+
+function clearMark(){
+  const item=current();
+  if(!labels.has(itemKey(item)))return;
+  labels.delete(itemKey(item));
+  render();
+  postLabel(item,null,'unset');
+}
+
+$('wave').addEventListener('pointerdown',mark);
+$('prev').addEventListener('click',()=>move(-1));
+$('next').addEventListener('click',()=>move(1));
+$('play').addEventListener('click',play);
+$('uncertain').addEventListener('click',toggleUncertain);
+$('clear').addEventListener('click',clearMark);
+window.addEventListener('keydown',event=>{
+  if(event.code==='Space'){event.preventDefault();play();}
+  else if(event.key==='ArrowLeft')move(-1);
+  else if(event.key==='ArrowRight')move(1);
+  else if(event.key.toLowerCase()==='u')toggleUncertain();
+  else if(event.key==='Delete'||event.key==='Backspace')clearMark();
+});
+window.addEventListener('resize',render);
+window.addEventListener('error',event=>{$('status').textContent='JS ERROR: '+event.message;});
+initialize();
 </script></body></html>
 """;
 }
