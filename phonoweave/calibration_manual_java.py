@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     _write_manifest(session_dir, manifest)
 
     repo_root = Path(__file__).resolve().parent.parent
-    source = repo_root / "tools" / "ManualAnchorWeb.java"
+    source = repo_root / "tools" / "ManualAnchorWebV2.java"
     if not source.is_file():
         raise SystemExit(f"Java web labeler source is missing: {source}")
 
