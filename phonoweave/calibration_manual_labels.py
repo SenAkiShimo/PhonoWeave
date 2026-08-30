@@ -85,7 +85,13 @@ class ManualPrompt:
     class_name: str
     wav: str
     cues_ms: tuple[float, float]
+    next_cues_ms: tuple[float, float]
     token_indices: tuple[int, int]
+
+    def label_end_ms_after_cue(self, occurrence: int) -> float:
+        cue = self.cues_ms[occurrence - 1]
+        next_cue = self.next_cues_ms[occurrence - 1]
+        return max(120.0, next_cue - cue - 25.0)
 
 
 def label_path(session_dir: Path) -> Path:
@@ -135,10 +141,10 @@ def resolve_dev_selection(session_dir: Path) -> tuple[ManualPrompt, ...]:
         wav_name = str(recording["wav"])
         samples, sample_rate = read_wav(session_dir / "recordings" / wav_name)
         sequence = detect_beep_sequence(samples, sample_rate, len(tokens))
-        cues = (
-            float(sequence.events[target_indices[0] + 1].time_ms),
-            float(sequence.events[target_indices[1] + 1].time_ms),
-        )
+        cue_events = [sequence.events[target_indices[0] + 1], sequence.events[target_indices[1] + 1]]
+        next_events = [sequence.events[target_indices[0] + 2], sequence.events[target_indices[1] + 2]]
+        cues = (float(cue_events[0].time_ms), float(cue_events[1].time_ms))
+        next_cues = (float(next_events[0].time_ms), float(next_events[1].time_ms))
         selected.append(
             ManualPrompt(
                 prompt_index=index,
@@ -148,6 +154,7 @@ def resolve_dev_selection(session_dir: Path) -> tuple[ManualPrompt, ...]:
                 class_name=_ONSET_CLASS.get(key[0], "other"),
                 wav=wav_name,
                 cues_ms=cues,
+                next_cues_ms=next_cues,
                 token_indices=(target_indices[0], target_indices[1]),
             )
         )
@@ -198,8 +205,11 @@ def save_manual_label(
         if anchor_ms_after_cue is None:
             raise ValueError("anchor time is required")
         value = float(anchor_ms_after_cue)
-        if value < 60.0 or value > 520.0:
-            raise ValueError("anchor must be between 60 and 520 ms after cue")
+        maximum = prompt.label_end_ms_after_cue(occurrence)
+        if value < 50.0 or value > maximum:
+            raise ValueError(
+                f"anchor must be between 50 and {maximum:.1f} ms after the detected cue"
+            )
     else:
         value = None
 
@@ -254,10 +264,13 @@ def setup_payload(session_dir: Path) -> dict[str, object]:
         "selection_version": SELECTION_VERSION,
         "session_id": session_dir.name,
         "session_dir": str(session_dir),
-        "window": {
-            "display_start_ms_after_cue": -40.0,
-            "label_start_ms_after_cue": 60.0,
-            "end_ms_after_cue": 520.0,
+        "display": {
+            "start_ms_before_cue": 100.0,
+            "end_ms_after_next_cue": 70.0,
+            "label_start_ms_after_cue": 50.0,
+            "label_end_ms_before_next_cue": 25.0,
+            "cue_gray_start_ms": -20.0,
+            "cue_gray_end_ms": 90.0,
         },
         "prompts": [
             {
@@ -268,6 +281,10 @@ def setup_payload(session_dir: Path) -> dict[str, object]:
                 "class_name": item.class_name,
                 "wav": item.wav,
                 "cues_ms": [round(value, 3) for value in item.cues_ms],
+                "next_cues_ms": [round(value, 3) for value in item.next_cues_ms],
+                "slot_ms": [
+                    round(item.next_cues_ms[i] - item.cues_ms[i], 3) for i in range(2)
+                ],
                 "token_indices": list(item.token_indices),
                 "instruction": ANCHOR_INSTRUCTIONS.get(item.class_name, ANCHOR_INSTRUCTIONS["other"]),
             }
