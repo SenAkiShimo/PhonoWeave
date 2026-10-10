@@ -14,7 +14,7 @@ from .calibration_cv_transition import cv_tracks
 from .calibration_cv_consistency import classify_syllable
 from .calibration_negative_controls import CORPUS_DIR, CATEGORIES
 
-def test_paired_noise(session_dir: Path) -> dict:
+def evaluate_paired_noise(session_dir: Path) -> dict:
     session_dir=session_dir.expanduser().resolve()
     session=load_calibration_session(session_dir)
     manual=load_dual_labels(session_dir)["labels"]
