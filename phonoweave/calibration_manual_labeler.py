@@ -103,13 +103,18 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            result = save_manual_label(
-                _STATE.session_dir,
-                int(payload["prompt_index"]),
-                int(payload["occurrence"]),
-                None if payload.get("anchor_ms_after_cue") is None else float(payload["anchor_ms_after_cue"]),
-                str(payload["status"]),
-            )
+            if urlparse(self.path).path == "/copy-legacy":
+                result = copy_legacy_label(
+                    _STATE.session_dir, int(payload["prompt_index"]),
+                    int(payload["occurrence"]), str(payload["anchor_type"]),
+                )
+            else:
+                result = save_dual_label(
+                    _STATE.session_dir, int(payload["prompt_index"]),
+                    int(payload["occurrence"]), str(payload["anchor_type"]),
+                    None if payload.get("anchor_ms_after_cue") is None else float(payload["anchor_ms_after_cue"]),
+                    str(payload["status"]),
+                )
             self._json({"labels": result.get("labels", {})})
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
