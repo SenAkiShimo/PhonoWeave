@@ -1,12 +1,12 @@
 from __future__ import annotations
 import argparse
 from pathlib import Path
-from .calibration_paired_noise import test_paired_noise
+from .calibration_paired_noise import evaluate_paired_noise
 
 def main(argv=None):
     p=argparse.ArgumentParser(description="Paired CV onset robustness evaluation")
     p.add_argument("session",type=Path)
-    r=test_paired_noise(p.parse_args(argv).session)
+    r=evaluate_paired_noise(p.parse_args(argv).session)
     print("Session:",r["session_id"])
     for condition, s in r["summary"].items():
         print(f"{condition}: positive={s['positive_paired']}/{s['positive_total']}, "
