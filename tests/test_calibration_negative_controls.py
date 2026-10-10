@@ -7,7 +7,7 @@ def wav_bytes():
     bio=io.BytesIO()
     with wave.open(bio,"wb") as w:
         w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000)
-        w.writeframes(b"\\x00\\x00" * 48000)
+        w.writeframes(bytes(96000))
     return bio.getvalue()
 
 def test_negative_corpus_is_separate_and_preserves_metadata(tmp_path):
