@@ -111,3 +111,54 @@ def test_setup_contains_browser_waveform_fields(tmp_path: Path, monkeypatch) -> 
         assert prompt["instruction"]["en"]
         assert len(prompt["slot_ms"]) == 2
         assert all(value > 0 for value in prompt["slot_ms"])
+
+def test_manual_anchor_allows_outside_expected_slot_inside_wav(tmp_path: Path, monkeypatch) -> None:
+    session = _session(tmp_path)
+
+    class FakeEvent:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+
+    class FakeSequence:
+        events = tuple(FakeEvent(250.0 + 833.333 * i) for i in range(8))
+
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: FakeSequence(),
+    )
+    protocol = json.loads((session / "protocol.json").read_text(encoding="utf-8"))
+    index = next(i for i, p in enumerate(protocol["prompts"])
+                 if (p["base_unit"], p["context_family"]) == DEV_ANCHOR_TARGETS[0])
+    # Beyond the next beat but still within this physical recording.
+    result = save_manual_label(session, index, 1, 900.0, "ok")
+    value = result["labels"][str(index)]["occurrences"]["1"]
+    assert value["outside_expected_slot"] is True
+    assert value["anchor_ms_after_cue"] == 900.0
+
+    in_slot = save_manual_label(session, index, 1, 180.0, "ok")
+    assert in_slot["labels"][str(index)]["occurrences"]["1"]["outside_expected_slot"] is False
+
+
+def test_manual_anchor_rejects_locations_outside_wav(tmp_path: Path, monkeypatch) -> None:
+    import pytest
+
+    session = _session(tmp_path)
+
+    class FakeEvent:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+
+    class FakeSequence:
+        events = tuple(FakeEvent(250.0 + 833.333 * i) for i in range(8))
+
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: FakeSequence(),
+    )
+    protocol = json.loads((session / "protocol.json").read_text(encoding="utf-8"))
+    index = next(i for i, p in enumerate(protocol["prompts"])
+                 if (p["base_unit"], p["context_family"]) == DEV_ANCHOR_TARGETS[0])
+    with pytest.raises(ValueError, match="within the recording"):
+        save_manual_label(session, index, 1, 8000.0, "ok")
+    with pytest.raises(ValueError, match="finite"):
+        save_manual_label(session, index, 1, float("nan"), "ok")
