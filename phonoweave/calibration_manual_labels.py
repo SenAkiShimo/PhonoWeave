@@ -252,6 +252,34 @@ def save_manual_label(
     return payload
 
 
+def _instruction_for(class_name: str) -> dict[str, str]:
+    """User-facing anchor definition, separate from phoneme classification."""
+    descriptions = {
+        "stop": (
+            "标出辅音爆破释放的瞬间，不要标到后面的元音起点。",
+            "Mark the consonant release burst, not the following vowel onset.",
+        ),
+        "affricate": (
+            "标出闭塞之后开始出现摩擦噪声的位置，不要标到元音起点。",
+            "Mark the onset of frication after closure, not the vowel onset.",
+        ),
+        "fricative": (
+            "标出持续摩擦噪声刚开始的位置，不要标到元音起点。",
+            "Mark the beginning of sustained frication, not the vowel onset.",
+        ),
+        "sonorant": (
+            "标出鼻音或其他响音开始发声的位置，不要标到后面的元音起点。",
+            "Mark the beginning of the sonorant, not the following vowel onset.",
+        ),
+    }
+    zh, en = descriptions.get(
+        class_name,
+        ("标出目标辅音真正开始的位置。", "Mark the beginning of the target consonant."),
+    )
+    return {"short_zh": "请标记辅音起点", "short_en": "Mark consonant onset",
+            "zh": zh, "en": en}
+
+
 def setup_payload(session_dir: Path) -> dict[str, object]:
     session_dir = session_dir.expanduser().resolve()
     selected = resolve_dev_selection(session_dir)
@@ -267,6 +295,13 @@ def setup_payload(session_dir: Path) -> dict[str, object]:
                 "context_family": item.context_family,
                 "syllable": item.syllable,
                 "class_name": item.class_name,
+                "instruction": _instruction_for(item.class_name),
+                "slot_ms": [
+                    round(next_cue - cue, 3)
+                    for cue, next_cue in zip(
+                        item.cues_ms, item.next_cues_ms, strict=True
+                    )
+                ],
                 "wav": item.wav,
                 "cues_ms": [round(value, 3) for value in item.cues_ms],
                 "prev_cues_ms": [round(value, 3) for value in item.prev_cues_ms],
