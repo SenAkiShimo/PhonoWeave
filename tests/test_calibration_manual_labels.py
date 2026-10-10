@@ -11,6 +11,7 @@ from phonoweave.calibration_manual_labels import (
     DEV_ANCHOR_TARGETS,
     load_manual_labels,
     save_manual_label,
+    setup_payload,
 )
 from phonoweave.calibration_protocol import live_calibration_protocol
 
@@ -85,3 +86,28 @@ def test_manual_label_save_uncertain_and_clear(tmp_path: Path, monkeypatch) -> N
     save_manual_label(session, prompt_index, 1, None, "unset")
     loaded = load_manual_labels(session)
     assert "1" not in loaded["labels"][str(prompt_index)]["occurrences"]
+
+def test_setup_contains_browser_waveform_fields(tmp_path: Path, monkeypatch) -> None:
+    session = _session(tmp_path)
+
+    class FakeEvent:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+
+    class FakeSequence:
+        events = tuple(FakeEvent(250.0 + 833.333 * i) for i in range(8))
+
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: FakeSequence(),
+    )
+    payload = setup_payload(session)
+    assert payload["display"]["start_ms_before_cue"] > 0
+    assert payload["display"]["cue_gray_end_ms"] > 0
+    assert len(payload["prompts"]) == 16
+    for prompt in payload["prompts"]:
+        assert prompt["instruction"]["short_zh"]
+        assert prompt["instruction"]["zh"]
+        assert prompt["instruction"]["en"]
+        assert len(prompt["slot_ms"]) == 2
+        assert all(value > 0 for value in prompt["slot_ms"])
