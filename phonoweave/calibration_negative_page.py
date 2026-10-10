@@ -10,7 +10,6 @@ HTML = r"""<!doctype html>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;color:#222;background:#f4f4f2}
 body{max-width:820px;padding:24px;margin:auto;font-size:14px}
 h1{font-size:23px;margin-bottom:4px}
-p{color:#555;line-height:1.55}
 main{display:grid;gap:16px}
 section{border:1px solid #bbb;background:white;padding:18px}
 label{font-weight:600;display:block;margin-bottom:7px}
@@ -29,7 +28,7 @@ a{color:#23507f}
 <body>
 <a href="/calibration">← Live Calibration</a>
 <h1>Negative Control Recording · 负对照录音</h1>
-<p>Standalone control sounds for acoustic onset screening. Each 3-second take contains one category, without click tracks or preceding target syllables. Keep the relevant sound near the middle of the take (approximately 0.9–1.7 s).</p>
+
 <main>
 <section>
 <div class="grid">
@@ -59,13 +58,12 @@ a{color:#23507f}
 <button id="enable">Enable microphone · 启用麦克风</button>
 <button id="record" disabled>Record 3 s · 录制 3 秒</button>
 </div>
-<p class="small">Microphone settings request no echo cancellation, noise suppression or automatic gain control; actual browser settings are recorded when available. Device names and IDs are not stored.</p>
+
 <div id="status" role="status">Microphone not enabled.</div>
 <audio id="preview" controls></audio>
 <div class="small" id="saved"></div>
 </section>
-<section><strong>Acquisition protocol</strong>
-<p>For vowels and breath: start after approximately 0.8 seconds, continue for about 1 second, and stop. For silence or ambient noise: maintain the selected condition throughout the clip. Record several takes per category. These are screening recordings; independent review is required before interpreting trigger rates as false positives.</p></section>
+
 </main>
 <script>
 const $=id=>document.getElementById(id);
