@@ -40,6 +40,15 @@ python -m pip install -e .
 
 ## Main commands
 
+Inspect a text recording-list template without inferring phonemes:
+
+```bash
+phonoweave inspect-reclist /path/to/reclist.txt --json
+```
+
+This first-step importer supports UTF-8/CP932 and preserves source text. It does **not** yet infer phonemes, compare template coverage or generate a personalized reclist. See [template import milestone](docs/reclist-import-milestone.md).
+
+
 Inspect an existing voicebank:
 
 ```bash
@@ -110,7 +119,7 @@ Not implemented yet:
 
 - final UTAU/OpenUtau alias compilation
 - adaptive `oto.ini` suggestions
-- supplementary reclist generation
+- integrated end-to-end personalized reclist generation (experimental supplementary reclist code exists)
 - broad cross-speaker validation
 - formal perceptual validation
 - general language-module support beyond the current Mandarin path
