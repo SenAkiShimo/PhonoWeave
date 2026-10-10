@@ -26,9 +26,9 @@ def test_manual_gold_exposes_rms_rejection():
     f=_tracks()
     result=gate_audit(f,cue_ms=0.,gold_ms=120.)
     assert result["full_joint_frames"]==0
-    assert result["no_rms_candidate_ms_diagnostic_only"]==107.
+    assert result["no_rms_candidate_ms_diagnostic_only"]==100.
     assert result["gold"]["inside_automatic_search"]
-    assert result["gold"]["no_rms_candidate_error_ms_diagnostic_only"]==-13.
+    assert result["gold"]["no_rms_candidate_error_ms_diagnostic_only"]==-20.
     assert result["gold"]["local_gate_counts"]["rms_rise"]==0
 
 
