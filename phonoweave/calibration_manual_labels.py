@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import wave
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -200,14 +202,30 @@ def save_manual_label(
         if anchor_ms_after_cue is None:
             raise ValueError("anchor time is required")
         value = float(anchor_ms_after_cue)
-        minimum = prompt.label_min_ms_after_cue(occurrence)
-        maximum = prompt.label_max_ms_after_cue(occurrence)
-        if value < minimum or value > maximum:
+        if not math.isfinite(value):
+            raise ValueError("anchor time must be finite")
+        # The original cue-relative interval was suitable for a fixed
+        # window, but can exclude an anticipatory or delayed consonant.
+        # Validate against the actual WAV duration instead. Retain a
+        # separate outside-slot flag for review and downstream QC.
+        with wave.open(
+            str(session_dir / "recordings" / prompt.wav), "rb"
+        ) as handle:
+            duration_ms = 1000.0 * handle.getnframes() / handle.getframerate()
+        cue_ms = prompt.cues_ms[occurrence - 1]
+        absolute_ms = cue_ms + value
+        if absolute_ms < 0.0 or absolute_ms > duration_ms:
             raise ValueError(
-                f"anchor must be between {minimum:.1f} and {maximum:.1f} ms relative to cue"
+                f"anchor must fall within the recording (0..{duration_ms:.1f} ms)"
             )
+        outside_expected_slot = not (
+            prompt.label_min_ms_after_cue(occurrence)
+            <= value
+            <= prompt.label_max_ms_after_cue(occurrence)
+        )
     else:
         value = None
+        outside_expected_slot = False
 
     payload = load_manual_labels(session_dir)
     labels = payload.setdefault("labels", {})
@@ -243,6 +261,7 @@ def save_manual_label(
             "anchor_ms_after_cue": round(value, 3),
             "absolute_anchor_ms": round(cue_ms + value, 3),
             "status": status,
+            "outside_expected_slot": outside_expected_slot,
         }
 
     analysis_dir = session_dir / "analysis"
