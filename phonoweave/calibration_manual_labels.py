@@ -288,6 +288,14 @@ def setup_payload(session_dir: Path) -> dict[str, object]:
         "selection_version": SELECTION_VERSION,
         "session_id": session_dir.name,
         "session_dir": str(session_dir),
+        "display": {
+            "start_ms_before_cue": 100.0,
+            "end_ms_after_next_cue": 80.0,
+            "label_start_ms_after_cue": -780.0,
+            "label_end_ms_before_next_cue": 20.0,
+            "cue_gray_start_ms": -20.0,
+            "cue_gray_end_ms": 100.0,
+        },
         "prompts": [
             {
                 "prompt_index": item.prompt_index,
