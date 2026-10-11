@@ -31,7 +31,13 @@ def trace_early_frication(tracks: dict, onset_ms: float | None, cue_ms: float,
         if high[i-1]<minimum or excess[i-1]<minimum:
             break
         i-=1
-    proposal=round(float(t[i]-FRAME_MS/2),3)
+    # The tracked frame center and the input onset need not share the same
+    # time-grid origin. Bound the proposed timestamp in physical milliseconds,
+    # not by the difference between two rounded frame centers.
+    earliest = float(onset_ms) - float(max_back_ms)
+    proposed_frame_start = float(t[i] - FRAME_MS / 2)
+    proposal = round(min(float(onset_ms), max(earliest, proposed_frame_start)), 3)
+    shift = round(float(onset_ms) - proposal, 3)
     return {"status":"shadow_candidate","onset_ms":proposal,
-            "backtrace_ms":round(max(0.,onset_ms-proposal),3),
+            "backtrace_ms":shift,
             "baseline_dbfs":round(baseline,3)}
