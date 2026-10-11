@@ -46,9 +46,18 @@ def _session(tmp_path: Path) -> Path:
     return session
 
 
-def test_fixed_manual_selection_has_16_unique_targets() -> None:
-    assert len(DEV_ANCHOR_TARGETS) == 16
-    assert len(set(DEV_ANCHOR_TARGETS)) == 16
+def test_manual_selection_extends_legacy_targets_without_reordering() -> None:
+    assert len(DEV_ANCHOR_TARGETS) == 18
+    assert len(set(DEV_ANCHOR_TARGETS)) == 18
+    assert DEV_ANCHOR_TARGETS[-2:] == (("x", "rounded"), ("sh", "plain"))
+    assert DEV_ANCHOR_TARGETS[:16] == (
+        ("zh", "plain"), ("ch", "rounded"), ("j", "plain"),
+        ("q", "rounded"), ("x", "plain"), ("sh", "rounded"),
+        ("f", "rounded"), ("h", "other"), ("r", "front"),
+        ("m", "i_series"), ("n", "u_series"), ("n", "other"),
+        ("b", "i_series"), ("d", "i_series"),
+        ("g", "u_series"), ("k", "other"),
+    )
 
 
 def test_manual_label_save_uncertain_and_clear(tmp_path: Path, monkeypatch) -> None:
@@ -104,7 +113,7 @@ def test_setup_contains_browser_waveform_fields(tmp_path: Path, monkeypatch) -> 
     payload = setup_payload(session)
     assert payload["display"]["start_ms_before_cue"] > 0
     assert payload["display"]["cue_gray_end_ms"] > 0
-    assert len(payload["prompts"]) == 16
+    assert len(payload["prompts"]) == 18
     for prompt in payload["prompts"]:
         assert prompt["instruction"]["short_zh"]
         assert prompt["instruction"]["zh"]
