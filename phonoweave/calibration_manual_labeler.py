@@ -77,7 +77,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/setup":
             try:
-                self._json({**setup_payload(_STATE.session_dir), "labels": load_dual_labels(_STATE.session_dir)["labels"], "legacy_labels": setup_payload(_STATE.session_dir)["labels"]})
+                self._json({**setup_payload(_STATE.session_dir, allow_partial=True), "labels": load_dual_labels(_STATE.session_dir)["labels"], "legacy_labels": setup_payload(_STATE.session_dir, allow_partial=True)["labels"]})
             except Exception as exc:
                 self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
@@ -134,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     session_dir = args.session.expanduser().resolve()
     load_calibration_session(session_dir)
-    setup_payload(session_dir)
+    setup_payload(session_dir, allow_partial=True)
     _STATE.session_dir = session_dir
     server = ThreadingHTTPServer(("127.0.0.1", args.port), _Handler)
     port = server.server_address[1]
