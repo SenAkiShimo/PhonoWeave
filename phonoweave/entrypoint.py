@@ -368,6 +368,9 @@ def _build_synthesis_inventory(argv: list[str]) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "inspect-reclist":
+        from .reclist_cli import main as reclist_main
+        return reclist_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
