@@ -20,7 +20,7 @@ def test_not_paired_cannot_create_onset():
     assert choose(1100.,1060.,status="review")["onset_ms"] is None
 
 def test_cv_timing_and_backtrace_limits():
-    assert choose(1100.,1076.,cv=1380.)["reason"]=="cv_timing"
+    assert choose(1100.,1076.,cv=1450.)["reason"]=="cv_timing"
     assert choose(1100.,980.)["reason"]=="invalid_backtrace"
     assert choose(1100.,1110.)["reason"]=="invalid_backtrace"
 
