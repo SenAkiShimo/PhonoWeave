@@ -81,7 +81,7 @@ def label_path(session_dir: Path) -> Path:
 
 
 @lru_cache(maxsize=8)
-def _resolve_cached(session_dir_text: str) -> tuple[ManualPrompt, ...]:
+def _resolve_cached(session_dir_text: str, allow_partial: bool = False) -> tuple[ManualPrompt, ...]:
     session_dir = Path(session_dir_text)
     session = load_calibration_session(session_dir)
     protocol = session["protocol"]
@@ -153,14 +153,19 @@ def _resolve_cached(session_dir_text: str) -> tuple[ManualPrompt, ...]:
             )
         )
 
-    if missing:
+    if missing and not allow_partial:
         raise ValueError("development anchor selection is incomplete: " + ", ".join(missing))
+    if allow_partial and not selected:
+        raise ValueError("no recorded annotation targets in this session")
     return tuple(selected)
 
 
-def resolve_dev_selection(session_dir: Path) -> tuple[ManualPrompt, ...]:
+def resolve_dev_selection(
+    session_dir: Path, *, allow_partial: bool = False
+) -> tuple[ManualPrompt, ...]:
+    """Allow recording-only selection for independent partial sessions."""
     resolved = session_dir.expanduser().resolve()
-    return _resolve_cached(str(resolved))
+    return _resolve_cached(str(resolved), allow_partial)
 
 
 def load_manual_labels(session_dir: Path) -> dict[str, object]:
@@ -302,9 +307,11 @@ def _instruction_for(class_name: str) -> dict[str, str]:
             "zh": zh, "en": en}
 
 
-def setup_payload(session_dir: Path) -> dict[str, object]:
+def setup_payload(
+    session_dir: Path, *, allow_partial: bool = False
+) -> dict[str, object]:
     session_dir = session_dir.expanduser().resolve()
-    selected = resolve_dev_selection(session_dir)
+    selected = resolve_dev_selection(session_dir, allow_partial=allow_partial)
     labels = load_manual_labels(session_dir)
     return {
         "selection_version": SELECTION_VERSION,
