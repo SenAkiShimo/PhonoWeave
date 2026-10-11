@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import wave
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -10,7 +12,7 @@ from .audio import read_wav
 from .calibration_io import load_calibration_session
 
 
-SELECTION_VERSION = "dev16_v0.2"
+SELECTION_VERSION = "dev16_v0.2"  # Retained for existing v0.2 annotation compatibility.
 
 DEV_ANCHOR_TARGETS: tuple[tuple[str, str], ...] = (
     ("zh", "plain"),
@@ -29,6 +31,9 @@ DEV_ANCHOR_TARGETS: tuple[tuple[str, str], ...] = (
     ("d", "i_series"),
     ("g", "u_series"),
     ("k", "other"),
+    # Additive targets: keep the legacy sixteen-group ordering and schema marker.
+    ("x", "rounded"),
+    ("sh", "plain"),
 )
 
 _ONSET_CLASS = {
@@ -76,7 +81,7 @@ def label_path(session_dir: Path) -> Path:
 
 
 @lru_cache(maxsize=8)
-def _resolve_cached(session_dir_text: str) -> tuple[ManualPrompt, ...]:
+def _resolve_cached(session_dir_text: str, allow_partial: bool = False) -> tuple[ManualPrompt, ...]:
     session_dir = Path(session_dir_text)
     session = load_calibration_session(session_dir)
     protocol = session["protocol"]
@@ -148,14 +153,19 @@ def _resolve_cached(session_dir_text: str) -> tuple[ManualPrompt, ...]:
             )
         )
 
-    if missing:
+    if missing and not allow_partial:
         raise ValueError("development anchor selection is incomplete: " + ", ".join(missing))
+    if allow_partial and not selected:
+        raise ValueError("no recorded annotation targets in this session")
     return tuple(selected)
 
 
-def resolve_dev_selection(session_dir: Path) -> tuple[ManualPrompt, ...]:
+def resolve_dev_selection(
+    session_dir: Path, *, allow_partial: bool = False
+) -> tuple[ManualPrompt, ...]:
+    """Allow recording-only selection for independent partial sessions."""
     resolved = session_dir.expanduser().resolve()
-    return _resolve_cached(str(resolved))
+    return _resolve_cached(str(resolved), allow_partial)
 
 
 def load_manual_labels(session_dir: Path) -> dict[str, object]:
@@ -200,14 +210,30 @@ def save_manual_label(
         if anchor_ms_after_cue is None:
             raise ValueError("anchor time is required")
         value = float(anchor_ms_after_cue)
-        minimum = prompt.label_min_ms_after_cue(occurrence)
-        maximum = prompt.label_max_ms_after_cue(occurrence)
-        if value < minimum or value > maximum:
+        if not math.isfinite(value):
+            raise ValueError("anchor time must be finite")
+        # The original cue-relative interval was suitable for a fixed
+        # window, but can exclude an anticipatory or delayed consonant.
+        # Validate against the actual WAV duration instead. Retain a
+        # separate outside-slot flag for review and downstream QC.
+        with wave.open(
+            str(session_dir / "recordings" / prompt.wav), "rb"
+        ) as handle:
+            duration_ms = 1000.0 * handle.getnframes() / handle.getframerate()
+        cue_ms = prompt.cues_ms[occurrence - 1]
+        absolute_ms = cue_ms + value
+        if absolute_ms < 0.0 or absolute_ms > duration_ms:
             raise ValueError(
-                f"anchor must be between {minimum:.1f} and {maximum:.1f} ms relative to cue"
+                f"anchor must fall within the recording (0..{duration_ms:.1f} ms)"
             )
+        outside_expected_slot = not (
+            prompt.label_min_ms_after_cue(occurrence)
+            <= value
+            <= prompt.label_max_ms_after_cue(occurrence)
+        )
     else:
         value = None
+        outside_expected_slot = False
 
     payload = load_manual_labels(session_dir)
     labels = payload.setdefault("labels", {})
@@ -243,6 +269,7 @@ def save_manual_label(
             "anchor_ms_after_cue": round(value, 3),
             "absolute_anchor_ms": round(cue_ms + value, 3),
             "status": status,
+            "outside_expected_slot": outside_expected_slot,
         }
 
     analysis_dir = session_dir / "analysis"
@@ -252,14 +279,52 @@ def save_manual_label(
     return payload
 
 
-def setup_payload(session_dir: Path) -> dict[str, object]:
+def _instruction_for(class_name: str) -> dict[str, str]:
+    """User-facing anchor definition, separate from phoneme classification."""
+    descriptions = {
+        "stop": (
+            "标出辅音爆破释放的瞬间，不要标到后面的元音起点。",
+            "Mark the consonant release burst, not the following vowel onset.",
+        ),
+        "affricate": (
+            "标出闭塞之后开始出现摩擦噪声的位置，不要标到元音起点。",
+            "Mark the onset of frication after closure, not the vowel onset.",
+        ),
+        "fricative": (
+            "标出持续摩擦噪声刚开始的位置，不要标到元音起点。",
+            "Mark the beginning of sustained frication, not the vowel onset.",
+        ),
+        "sonorant": (
+            "标出鼻音或其他响音开始发声的位置，不要标到后面的元音起点。",
+            "Mark the beginning of the sonorant, not the following vowel onset.",
+        ),
+    }
+    zh, en = descriptions.get(
+        class_name,
+        ("标出目标辅音真正开始的位置。", "Mark the beginning of the target consonant."),
+    )
+    return {"short_zh": "请标记辅音起点", "short_en": "Mark consonant onset",
+            "zh": zh, "en": en}
+
+
+def setup_payload(
+    session_dir: Path, *, allow_partial: bool = False
+) -> dict[str, object]:
     session_dir = session_dir.expanduser().resolve()
-    selected = resolve_dev_selection(session_dir)
+    selected = resolve_dev_selection(session_dir, allow_partial=allow_partial)
     labels = load_manual_labels(session_dir)
     return {
         "selection_version": SELECTION_VERSION,
         "session_id": session_dir.name,
         "session_dir": str(session_dir),
+        "display": {
+            "start_ms_before_cue": 100.0,
+            "end_ms_after_next_cue": 80.0,
+            "label_start_ms_after_cue": -780.0,
+            "label_end_ms_before_next_cue": 20.0,
+            "cue_gray_start_ms": -20.0,
+            "cue_gray_end_ms": 100.0,
+        },
         "prompts": [
             {
                 "prompt_index": item.prompt_index,
@@ -267,6 +332,13 @@ def setup_payload(session_dir: Path) -> dict[str, object]:
                 "context_family": item.context_family,
                 "syllable": item.syllable,
                 "class_name": item.class_name,
+                "instruction": _instruction_for(item.class_name),
+                "slot_ms": [
+                    round(next_cue - cue, 3)
+                    for cue, next_cue in zip(
+                        item.cues_ms, item.next_cues_ms, strict=True
+                    )
+                ],
                 "wav": item.wav,
                 "cues_ms": [round(value, 3) for value in item.cues_ms],
                 "prev_cues_ms": [round(value, 3) for value in item.prev_cues_ms],

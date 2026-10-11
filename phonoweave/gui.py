@@ -22,6 +22,8 @@ from .calibration_io import (
     save_calibration_recording_to_session,
 )
 from .calibration_page import HTML as CALIBRATION_HTML
+from .calibration_negative_page import HTML as NEGATIVE_HTML
+from .calibration_negative_controls import save_negative_recording
 from .calibration_protocol import live_calibration_protocol
 from .gui_model import GuiAnalysisSnapshot, analyze_for_gui
 from .gui_page_remake import HTML
@@ -59,6 +61,7 @@ def _calibration_page_html() -> str:
         + '打开本地会话 / Open Session</button>'
     )
     page = CALIBRATION_HTML.replace(marker, open_button, 1)
+    page = page.replace('<span class="session" id="session">', '<a class="toolbtn" href="/negative-controls">Negative Controls / 负对照</a><span class="session" id="session">', 1)
     bridge = r"""
 <script>
 async function loadSavedTake(i){
@@ -232,6 +235,9 @@ class _Handler(BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
+        if path == "/negative-controls":
+            self._send_bytes(NEGATIVE_HTML.encode("utf-8"), "text/html; charset=utf-8")
+            return
         if path == "/calibration":
             self._send_bytes(
                 _calibration_page_html().encode("utf-8"),
@@ -312,6 +318,36 @@ class _Handler(BaseHTTPRequestHandler):
                 with _STATE_LOCK:
                     _STATE.snapshot = snapshot
                 self._json(_snapshot_payload(snapshot))
+            except ValueError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/negative-controls/recording":
+            try:
+                query = parse_qs(parsed.query)
+                def param(name: str, default: str) -> str:
+                    return query.get(name, [default])[0]
+                processing = {}
+                for key in ("echoCancellation", "noiseSuppression", "autoGainControl"):
+                    raw = param(key, "")
+                    if raw in ("true", "false"):
+                        processing[key] = raw == "true"
+                    elif raw:
+                        raise ValueError("invalid capture processing setting")
+                size = int(self.headers.get("Content-Length", "0"))
+                if not 44 <= size <= 16 * 1024 * 1024:
+                    raise ValueError("invalid recording size")
+                body = self.rfile.read(size)
+                with _STATE_LOCK:
+                    root = _STATE.calibration_root
+                saved = save_negative_recording(
+                    root, param("category", ""), body,
+                    device_category=param("device_category", "unknown"),
+                    environment=param("environment", "other"),
+                    actual_processing=processing,
+                )
+                self._json(saved)
             except ValueError as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             except Exception as exc:

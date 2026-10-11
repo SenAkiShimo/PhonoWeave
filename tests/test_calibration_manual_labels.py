@@ -11,6 +11,7 @@ from phonoweave.calibration_manual_labels import (
     DEV_ANCHOR_TARGETS,
     load_manual_labels,
     save_manual_label,
+    setup_payload,
 )
 from phonoweave.calibration_protocol import live_calibration_protocol
 
@@ -45,9 +46,18 @@ def _session(tmp_path: Path) -> Path:
     return session
 
 
-def test_fixed_manual_selection_has_16_unique_targets() -> None:
-    assert len(DEV_ANCHOR_TARGETS) == 16
-    assert len(set(DEV_ANCHOR_TARGETS)) == 16
+def test_manual_selection_extends_legacy_targets_without_reordering() -> None:
+    assert len(DEV_ANCHOR_TARGETS) == 18
+    assert len(set(DEV_ANCHOR_TARGETS)) == 18
+    assert DEV_ANCHOR_TARGETS[-2:] == (("x", "rounded"), ("sh", "plain"))
+    assert DEV_ANCHOR_TARGETS[:16] == (
+        ("zh", "plain"), ("ch", "rounded"), ("j", "plain"),
+        ("q", "rounded"), ("x", "plain"), ("sh", "rounded"),
+        ("f", "rounded"), ("h", "other"), ("r", "front"),
+        ("m", "i_series"), ("n", "u_series"), ("n", "other"),
+        ("b", "i_series"), ("d", "i_series"),
+        ("g", "u_series"), ("k", "other"),
+    )
 
 
 def test_manual_label_save_uncertain_and_clear(tmp_path: Path, monkeypatch) -> None:
@@ -85,3 +95,110 @@ def test_manual_label_save_uncertain_and_clear(tmp_path: Path, monkeypatch) -> N
     save_manual_label(session, prompt_index, 1, None, "unset")
     loaded = load_manual_labels(session)
     assert "1" not in loaded["labels"][str(prompt_index)]["occurrences"]
+
+def test_setup_contains_browser_waveform_fields(tmp_path: Path, monkeypatch) -> None:
+    session = _session(tmp_path)
+
+    class FakeEvent:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+
+    class FakeSequence:
+        events = tuple(FakeEvent(250.0 + 833.333 * i) for i in range(8))
+
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: FakeSequence(),
+    )
+    payload = setup_payload(session)
+    assert payload["display"]["start_ms_before_cue"] > 0
+    assert payload["display"]["cue_gray_end_ms"] > 0
+    assert len(payload["prompts"]) == 18
+    for prompt in payload["prompts"]:
+        assert prompt["instruction"]["short_zh"]
+        assert prompt["instruction"]["zh"]
+        assert prompt["instruction"]["en"]
+        assert len(prompt["slot_ms"]) == 2
+        assert all(value > 0 for value in prompt["slot_ms"])
+
+def test_manual_anchor_allows_outside_expected_slot_inside_wav(tmp_path: Path, monkeypatch) -> None:
+    session = _session(tmp_path)
+
+    class FakeEvent:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+
+    class FakeSequence:
+        events = tuple(FakeEvent(250.0 + 833.333 * i) for i in range(8))
+
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: FakeSequence(),
+    )
+    protocol = json.loads((session / "protocol.json").read_text(encoding="utf-8"))
+    index = next(i for i, p in enumerate(protocol["prompts"])
+                 if (p["base_unit"], p["context_family"]) == DEV_ANCHOR_TARGETS[0])
+    # Beyond the next beat but still within this physical recording.
+    result = save_manual_label(session, index, 1, 900.0, "ok")
+    value = result["labels"][str(index)]["occurrences"]["1"]
+    assert value["outside_expected_slot"] is True
+    assert value["anchor_ms_after_cue"] == 900.0
+
+    in_slot = save_manual_label(session, index, 1, 180.0, "ok")
+    assert in_slot["labels"][str(index)]["occurrences"]["1"]["outside_expected_slot"] is False
+
+
+def test_manual_anchor_rejects_locations_outside_wav(tmp_path: Path, monkeypatch) -> None:
+    import pytest
+
+    session = _session(tmp_path)
+
+    class FakeEvent:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+
+    class FakeSequence:
+        events = tuple(FakeEvent(250.0 + 833.333 * i) for i in range(8))
+
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: FakeSequence(),
+    )
+    protocol = json.loads((session / "protocol.json").read_text(encoding="utf-8"))
+    index = next(i for i, p in enumerate(protocol["prompts"])
+                 if (p["base_unit"], p["context_family"]) == DEV_ANCHOR_TARGETS[0])
+    with pytest.raises(ValueError, match="within the recording"):
+        save_manual_label(session, index, 1, 8000.0, "ok")
+    with pytest.raises(ValueError, match="finite"):
+        save_manual_label(session, index, 1, float("nan"), "ok")
+
+
+def test_partial_recording_selection_and_dual_anchor_save(tmp_path: Path, monkeypatch) -> None:
+    from phonoweave.calibration_manual_labels import resolve_dev_selection
+    from phonoweave.calibration_dual_labels import save_dual_label, load_dual_labels
+    session = _session(tmp_path)
+    recording_dir = session / "recordings"
+    keep = {"013_x_plain", "014_x_rounded", "015_sh_plain", "016_sh_rounded"}
+    for path in recording_dir.iterdir():
+        if path.stem not in keep:
+            path.unlink()
+    class Event:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+    class Sequence:
+        events = tuple(Event(250.0 + 833.333 * i) for i in range(8))
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: Sequence(),
+    )
+    with __import__("pytest").raises(ValueError, match="incomplete"):
+        resolve_dev_selection(session)
+    selected = resolve_dev_selection(session, allow_partial=True)
+    assert len(selected) == 4
+    assert {x.prompt_index for x in selected} == {12, 13, 14, 15}
+    assert len(setup_payload(session, allow_partial=True)["prompts"]) == 4
+    saved = save_dual_label(session, 13, 1, "consonant_onset", 30., "ok")
+    assert saved["labels"]["13"]["occurrences"]["1"]["consonant_onset"]["status"] == "ok"
+    saved = save_dual_label(session, 13, 1, "cv_boundary", 200., "ok")
+    assert "consonant_onset" in saved["labels"]["13"]["occurrences"]["1"]
+    assert "cv_boundary" in load_dual_labels(session)["labels"]["13"]["occurrences"]["1"]
