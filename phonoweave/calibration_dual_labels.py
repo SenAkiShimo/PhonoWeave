@@ -37,7 +37,7 @@ def save_dual_label(session_dir: Path, prompt_index: int, occurrence: int,
     if status not in ("ok", "uncertain", "unset"):
         raise ValueError("invalid status")
     session_dir = session_dir.expanduser().resolve()
-    prompts = {p.prompt_index: p for p in resolve_dev_selection(session_dir)}
+    prompts = {p.prompt_index: p for p in resolve_dev_selection(session_dir, allow_partial=True)}
     prompt = prompts.get(prompt_index)
     if prompt is None:
         raise ValueError("prompt outside fixed selection")
