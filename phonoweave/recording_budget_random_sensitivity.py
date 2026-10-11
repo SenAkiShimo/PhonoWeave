@@ -47,18 +47,18 @@ def evaluate_random_sensitivity(
         candidates = metadata(train)
         original_seed = partition_seed + 8101 + fold
         fixed_sequence = select_sequence(
-            candidates, mapping.__getitem__, policy="fixed_balanced",
+            candidates, lambda digest: mapping[digest].examples, policy="fixed_balanced",
             seed=original_seed,
         )
         adaptive_sequence = select_sequence(
-            candidates, mapping.__getitem__, policy="adaptive_observed",
+            candidates, lambda digest: mapping[digest].examples, policy="adaptive_observed",
             seed=original_seed,
         )
         random_sequences = []
         for repeat in range(n_random):
             current_seed = original_seed + repeat * SEED_STRIDE
             sequence = select_sequence(
-                candidates, mapping.__getitem__, policy="stratified_random",
+                candidates, lambda digest: mapping[digest].examples, policy="stratified_random",
                 seed=current_seed,
             )
             random_sequences.append((current_seed, sequence))
