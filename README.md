@@ -82,6 +82,19 @@ phonoweave analyze-rhotic /path/to/voicebank
 phonoweave splice-test /path/to/voicebank --base sh
 ```
 
+## Experimental live calibration
+
+The repository also contains an experimental calibration workflow for elicited recordings, separate from the existing voicebank analysis and synthesis-inventory compiler.
+
+- Record a calibration session with `phonoweave-gui`.
+- Annotate consonant onset and consonant–vowel (CV) boundary independently using `python -m phonoweave.calibration_manual_labeler /path/to/session`. The labeler supports sessions containing only a subset of recorded prompts, preserves existing annotation files, and displays synchronized waveform/spectrogram views.
+- Evaluate paired onset/CV candidates and experimental noise-compensated onset refinements using the research CLIs under `phonoweave/calibration_*`. Development diagnostics and manual reference scores are not inputs to the default voicebank inventory compiler.
+- Compare a new, independently recorded session with the frozen selective-onset procedure using `python -m phonoweave.calibration_independent_session_cli /path/to/new_session --development-session /path/to/development_session --device phone --environment quiet`. Device and environment metadata must reflect the actual capture conditions.
+
+**Validation boundary:** The evaluated paired-fricative detector and selective backtrace were developed primarily for elicited Mandarin `x`/`sh` targets. Reported localization results are from limited development and independent-session recordings, not broad speaker, device, or environmental validation. The experimental calibrator is not yet connected to the production speaker-profile or synthesis-inventory decision rules. Do not interpret its exploratory timing outputs as a validated automatic recording scheme.
+
+Implementation and study limitations are documented in `docs/calibration-*.md`.
+
 ## Design principles
 
 - Acoustic difference alone does not imply a separate synthesis unit.
