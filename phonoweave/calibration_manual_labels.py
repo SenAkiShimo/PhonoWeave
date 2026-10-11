@@ -12,7 +12,7 @@ from .audio import read_wav
 from .calibration_io import load_calibration_session
 
 
-SELECTION_VERSION = "dev16_v0.2"
+SELECTION_VERSION = "dev16_v0.2"  # Retained for existing v0.2 annotation compatibility.
 
 DEV_ANCHOR_TARGETS: tuple[tuple[str, str], ...] = (
     ("zh", "plain"),
@@ -31,6 +31,9 @@ DEV_ANCHOR_TARGETS: tuple[tuple[str, str], ...] = (
     ("d", "i_series"),
     ("g", "u_series"),
     ("k", "other"),
+    # Additive targets: keep the legacy sixteen-group ordering and schema marker.
+    ("x", "rounded"),
+    ("sh", "plain"),
 )
 
 _ONSET_CLASS = {
