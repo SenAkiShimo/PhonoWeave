@@ -171,3 +171,34 @@ def test_manual_anchor_rejects_locations_outside_wav(tmp_path: Path, monkeypatch
         save_manual_label(session, index, 1, 8000.0, "ok")
     with pytest.raises(ValueError, match="finite"):
         save_manual_label(session, index, 1, float("nan"), "ok")
+
+
+def test_partial_recording_selection_and_dual_anchor_save(tmp_path: Path, monkeypatch) -> None:
+    from phonoweave.calibration_manual_labels import resolve_dev_selection
+    from phonoweave.calibration_dual_labels import save_dual_label, load_dual_labels
+    session = _session(tmp_path)
+    recording_dir = session / "recordings"
+    keep = {"013_x_plain", "014_x_rounded", "015_sh_plain", "016_sh_rounded"}
+    for path in recording_dir.iterdir():
+        if path.stem not in keep:
+            path.unlink()
+    class Event:
+        def __init__(self, time_ms: float) -> None:
+            self.time_ms = time_ms
+    class Sequence:
+        events = tuple(Event(250.0 + 833.333 * i) for i in range(8))
+    monkeypatch.setattr(
+        "phonoweave.calibration_manual_labels.detect_beep_sequence",
+        lambda samples, sample_rate, token_count: Sequence(),
+    )
+    with __import__("pytest").raises(ValueError, match="incomplete"):
+        resolve_dev_selection(session)
+    selected = resolve_dev_selection(session, allow_partial=True)
+    assert len(selected) == 4
+    assert {x.prompt_index for x in selected} == {12, 13, 14, 15}
+    assert len(setup_payload(session, allow_partial=True)["prompts"]) == 4
+    saved = save_dual_label(session, 13, 1, "consonant_onset", 30., "ok")
+    assert saved["labels"]["13"]["occurrences"]["1"]["consonant_onset"]["status"] == "ok"
+    saved = save_dual_label(session, 13, 1, "cv_boundary", 200., "ok")
+    assert "consonant_onset" in saved["labels"]["13"]["occurrences"]["1"]
+    assert "cv_boundary" in load_dual_labels(session)["labels"]["13"]["occurrences"]["1"]
