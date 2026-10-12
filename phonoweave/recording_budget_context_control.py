@@ -30,6 +30,7 @@ from .recording_budget_duration_comparison import (
     _duration_row, duration_limited_prefix,
 )
 from .recording_budget_random_sensitivity import SEED_STRIDE
+from .recording_budget_context_fast_eval import PreparedHeldoutDistances
 
 VERSION = "0.8-context-coverage-random-control"
 REQUIRED_V07 = "0.7-equal-duration-ceiling"
@@ -162,7 +163,7 @@ def _validate_original(
     bank_reference: dict, units: tuple[RecordingUnit, ...],
     folds: tuple, duration: dict[str, float],
 ) -> None:
-    if bank_reference.get("status") != "evaluated":
+    if bank_reference.get("status", "evaluated") != "evaluated":
         raise ValueError("v0.7 reference bank not evaluated")
     if bank_reference.get("version") != REQUIRED_V07:
         raise ValueError("v0.7 reference version mismatch")
@@ -233,6 +234,18 @@ def evaluate_context_control(
             )
             for i in range(repeats)
         ]
+        evaluator = PreparedHeldoutDistances(lookup, held)
+        sequences = {
+            **original,
+            **{f"control_{i}": order for i, order in enumerate(trials)}
+        }
+        cached = {
+            name: evaluator.score_duration_budgets(
+                sequence, wav_seconds, BUDGETS,
+                available_seconds, available_segments,
+            )
+            for name, sequence in sequences.items()
+        }
         fold_budgets = []
         for fraction in BUDGETS:
             ref_budget = next(
@@ -245,13 +258,7 @@ def evaluate_context_control(
             if not math.isclose(ref_budget["budget_ceiling_seconds"], ceiling,
                                 rel_tol=0, abs_tol=0.000002):
                 raise ValueError("duration ceiling differs from v0.7")
-            anchors = {
-                name: _evaluated_sequence(
-                    sequence, lookup, wav_seconds, held,
-                    ceiling, available_seconds, available_segments,
-                )
-                for name, sequence in original.items()
-            }
+            anchors = {name: cached[name][fraction] for name in original}
             for policy, anchor in anchors.items():
                 old = ref_budget["policies"][policy]
                 for key, expected in (
@@ -268,11 +275,7 @@ def evaluate_context_control(
             ):
                 raise ValueError("v0.7 first random baseline is inconsistent")
             control_rows = [
-                _evaluated_sequence(
-                    order, lookup, wav_seconds, held, ceiling,
-                    available_seconds, available_segments,
-                )
-                for order in trials
+                cached[f"control_{i}"][fraction] for i in range(repeats)
             ]
             fold_budgets.append({
                 "budget_fraction": fraction,
