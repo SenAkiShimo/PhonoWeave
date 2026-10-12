@@ -1,0 +1,45 @@
+{
+  "schema": "phonoweave.voicebank_replication_cohort.v1",
+  "voicebanks": [
+    {
+      "bank_id": "bank01",
+      "speaker_group_id": "speaker01",
+      "relative_dir": "LynneQing_CVVChn_Mang"
+    },
+    {
+      "bank_id": "bank02",
+      "speaker_group_id": "speaker02",
+      "relative_dir": "Cha Yin CVVChinese Vivid Four Tune (2)"
+    },
+    {
+      "bank_id": "bank03",
+      "speaker_group_id": "speaker03",
+      "relative_dir": "Cha Yue CVVChinese for UTAU"
+    },
+    {
+      "bank_id": "bank04",
+      "speaker_group_id": "speaker04",
+      "relative_dir": "HengXin_zhenghe[默认heng]"
+    },
+    {
+      "bank_id": "bank05",
+      "speaker_group_id": "speaker05",
+      "relative_dir": "koni_asakao"
+    },
+    {
+      "bank_id": "bank06",
+      "speaker_group_id": "speaker06",
+      "relative_dir": "roy_toukaede"
+    },
+    {
+      "bank_id": "bank07",
+      "speaker_group_id": "speaker07",
+      "relative_dir": "Morrow_lie"
+    },
+    {
+      "bank_id": "bank08",
+      "speaker_group_id": "speaker08",
+      "relative_dir": "GilQing_CVVChn"
+    }
+  ]
+}
