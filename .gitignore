@@ -9,3 +9,6 @@ venv/
 build/
 dist/
 *.egg-info/
+
+# Local research replication manifests contain absolute filesystem paths
+voicebanks.json
