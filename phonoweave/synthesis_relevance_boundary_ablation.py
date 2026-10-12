@@ -29,6 +29,9 @@ def stage_boundary_ablation(source:Path, old_singer:Path, output:Path, *,
     output=output.expanduser().resolve()
     if output.exists():
         raise FileExistsError(f"Refusing to overwrite: {output}")
+    key=output.parent/(output.name+"_REVEAL.json")
+    if key.exists():
+        raise FileExistsError(f"Reveal key already exists: {key}")
     if source==output or source in output.parents or old_singer in output.parents:
         raise ValueError("Output must not be within source or prior singer")
     record=json.loads((old_singer/"experiment.json").read_text("utf-8"))
@@ -111,9 +114,6 @@ def stage_boundary_ablation(source:Path, old_singer:Path, output:Path, *,
     }
     (output/"experiment.json").write_text(
         json.dumps(public,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    key=output.parent/(output.name+"_REVEAL.json")
-    if key.exists():
-        raise FileExistsError(f"Reveal key already exists: {key}")
     key.write_text(json.dumps({
         "schema":VERSION,"target_event_id":target.identity,
         "target_wav":target.source_wav,"target_alias":target.alias,
