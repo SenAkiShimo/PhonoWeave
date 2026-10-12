@@ -163,6 +163,14 @@ def audit_extraction(root: Path, *, base: str = "sh") -> dict:
             ),
         }
     return {
+        "v05_feature_name_order_warning": (
+            "v0.5 _features returns [COG_early, highband_early, flatness_early, "
+            "COG_middle, highband_middle, flatness_middle, "
+            "COG_late, highband_late, flatness_late], but FEATURE_NAMES "
+            "incorrectly lists three COGs, three highband fractions, "
+            "and three flatness values. Numerical CV scores are unaffected; "
+            "v0.5 per-feature named interpretation must be corrected."
+        ),
         "candidate_contexts":dict(sorted((k,dict(v)) for k,v in by_context.items())),
         "candidate_subbanks":dict(sorted((k,dict(v)) for k,v in by_subbank.items())),
         "oto_interval_ms_histogram":dict(sorted(duration_bins.items())),
