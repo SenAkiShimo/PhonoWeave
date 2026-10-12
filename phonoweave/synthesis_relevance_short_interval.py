@@ -153,7 +153,7 @@ def extract(root:Path,*,base:str="sh") -> tuple[dict[str,list[Observation]],dict
     return results,{
         "unique_candidate_events":len(all_physical),
         "valid_events_by_protocol":{k:len(v) for k,v in banks.items()},
-        "valid_WAVs_by_protocol":{k:len({o.wav_id for o in v.values()}) for k,v in results.items()},
+        "valid_WAVs_by_protocol":{k:len({o.wav_id for o in v}) for k,v in results.items()},
         "duration_bins":dict(duration_bins),
         "rejection_reasons":dict(reason),
         "per_context":{k:dict(v) for k,v in context_counts.items()},
