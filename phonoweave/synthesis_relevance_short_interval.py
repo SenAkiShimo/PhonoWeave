@@ -18,7 +18,7 @@ from .mandarin import collect_observations, context_for
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 from .synthesis_relevance_acoustic_separability import (
-    Observation, _features as legacy_features, grouped_cv, paired_wav_control,
+    Observation, extract_bank as frozen_legacy_extract, grouped_cv, paired_wav_control,
 )
 from .synthesis_relevance_validity_audit import leave_one_subbank_out, wav_group_label_null
 
@@ -139,18 +139,20 @@ def extract(root:Path,*,base:str="sh") -> tuple[dict[str,list[Observation]],dict
                     reason[name+"_invalid:"+str(exc)[:80]]+=1
                     continue
                 banks[name][key]=Observation(uid,subbank,context,feature)
-            if duration>=110:
-                try:
-                    feature=legacy_features(samples,rate,e.offset,e.offset+duration)
-                    banks["legacy"][key]=Observation(uid,subbank,context,feature)
-                except (AudioReadError,ValueError,OverflowError):
-                    reason["legacy_invalid"]+=1
             if key in banks["short_interior"]:
                 context_counts[context]["accepted"]+=1
         except (AudioReadError,OSError,ValueError,OverflowError):
             reason["wav_decode_failure"]+=1
     results={k:list(v.values()) for k,v in banks.items()}
+    # The historical comparator MUST reproduce the independent v0.5
+    # successful-event deduplication. The 40-ms short pass can otherwise
+    # claim a same-coordinate candidate before the 110-ms old pass sees it.
+    legacy_rows,legacy_meta=frozen_legacy_extract(root,base=base)
+    results["legacy"]=legacy_rows
     return results,{
+        "legacy_replay_matches_frozen_v05": True,
+        "legacy_replay_events":legacy_meta["events"],
+        "legacy_replay_WAVs":legacy_meta["physical_wavs"],
         "unique_candidate_events":len(all_physical),
         "valid_events_by_protocol":{k:len(v) for k,v in banks.items()},
         "valid_WAVs_by_protocol":{k:len({o.wav_id for o in v}) for k,v in results.items()},
