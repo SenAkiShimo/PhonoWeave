@@ -41,3 +41,16 @@ def test_empty_voicebank_returns_insufficient(tmp_path:Path):
 def test_schema_and_threshold_frozen():
     assert SCHEMA.endswith("v0.7")
     assert MIN_MS==40.0
+
+def test_legacy_protocol_matches_independent_frozen_extractor(tmp_path:Path,monkeypatch):
+    from phonoweave.synthesis_relevance_short_interval import extract
+    from phonoweave.synthesis_relevance_acoustic_separability import Observation
+    import phonoweave.synthesis_relevance_short_interval as module
+    canonical=[Observation("wav1","D4","plain",tuple([0.1]*9))]
+    monkeypatch.setattr(module,"frozen_legacy_extract",lambda root,base:(
+        canonical,{"events":1,"physical_wavs":1}
+    ))
+    protocols,coverage=extract(tmp_path)
+    assert protocols["legacy"]==canonical
+    assert coverage["legacy_replay_matches_frozen_v05"] is True
+    assert coverage["legacy_replay_events"]==1
