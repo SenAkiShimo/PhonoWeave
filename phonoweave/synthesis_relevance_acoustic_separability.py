@@ -21,9 +21,9 @@ from .prefixmap import load_prefix_maps, affix_pairs
 
 SCHEMA = "phonoweave.synthesis_relevance.acoustic_separability.v0.5"
 FEATURE_NAMES = (
-    "cog_early_khz", "cog_middle_khz", "cog_late_khz",
-    "highband_fraction_early", "highband_fraction_middle", "highband_fraction_late",
-    "spectral_flatness_early", "spectral_flatness_middle", "spectral_flatness_late",
+    "cog_early_khz", "highband_fraction_early", "spectral_flatness_early",
+    "cog_middle_khz", "highband_fraction_middle", "spectral_flatness_middle",
+    "cog_late_khz", "highband_fraction_late", "spectral_flatness_late",
 )
 SEED = 20261011
 
