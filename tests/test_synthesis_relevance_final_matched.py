@@ -36,12 +36,19 @@ def test_identical_source_is_not_a_valid_counterfactual_donor():
     assert not trials
     assert len(co_recorded_pairs(units))==1
 
-def test_duration_balance_can_block_all_pairs():
+def test_duration_balance_rejects_imbalanced_target_not_valid_reverse_target():
     units=[u("target","a","plain",100),u("same","a","plain",90),
            u("other","ua","rounded",100)]
     trials,miss=matched_trials(units)
-    assert not trials
+    # target@100: same-final donor is 10 ms away while cross donor is 0 ms
+    # away. Its mismatch gap exceeds the prespecified 5-ms arm balance.
+    assert not any(t["wav_id"]=="target" for t in trials)
     assert miss["arm_duration_balance_exceeds_5ms"]>=1
+    # same@90 is a separate eligible target: both candidates are 10 ms
+    # away. A rejected target must not invalidate another valid trial.
+    reverse=next(t for t in trials if t["wav_id"]=="same")
+    assert reverse["same_duration_mismatch_ms"]==10
+    assert reverse["cross_duration_mismatch_ms"]==10
 
 def test_sparse_empty_bank_is_unevaluable(tmp_path):
     (tmp_path/"oto.ini").write_text("",encoding="utf-8")
