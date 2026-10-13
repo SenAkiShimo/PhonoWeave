@@ -45,5 +45,15 @@ def test_complete_candidate_matches_frozen_strict_protocol():
                    u("r1","ua","rounded",102),u("r2","ua","rounded",103)])
     assert r["strict_trial_replay"]==4
     assert status(r,"eligible")==4
-    assert r["aggregate_counts"]["final_recording_deficit_two_each"]==0
+    # The fixture fully covers a/ua only. Its own recording deficit is zero.
+    pairs={p["pair"]:p for p in r["subbanks"][0]["pairs"]}
+    assert pairs["a/ua"]["minimum_additional_final_recordings_for_two_per_side"]==0
+    assert pairs["a/ua"]["bidirectional_two_WAV_per_final_feasible"]
+    # Three other frozen final pairs remain entirely absent in this subbank:
+    # ai/uai, an/uan, ang/uang; each needs two WAVs per final (4 instances).
+    assert all(
+        pairs[pair]["minimum_additional_final_recordings_for_two_per_side"]==4
+        for pair in ("ai/uai","an/uan","ang/uang")
+    )
+    assert r["aggregate_counts"]["final_recording_deficit_two_each"]==12
     assert SCHEMA.endswith("v1.0")
