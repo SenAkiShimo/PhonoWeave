@@ -19,6 +19,53 @@ SEED=20261013
 RULE_ORDER=("a/ua","an/uan","ai/uai","ang/uang")
 PAIR_NAMES=tuple("/".join(pair) for pair in FINAL_PAIRS)
 
+def _heldout_wavs(by_pair, rng, min_train_per_final):
+    """Select reproducible WAV-level holdouts stratified by observed finals."""
+    by_final=defaultdict(set)
+    for finals in by_pair.values():
+        for final,events in finals.items():
+            by_final[final].update(u.wav_id for u in events)
+    all_wavs=sorted({wav for ids in by_final.values() for wav in ids})
+    order=list(rng.permutation(all_wavs))
+    rank={wav:i for i,wav in enumerate(order)}
+    eligible={final:ids for final,ids in by_final.items()
+              if len(ids)>=min_train_per_final+1}
+    priorities=sorted(eligible,key=lambda f:(len(eligible[f]),f))
+
+    # Cover every feasible final while reserving two training WAVs per
+    # final. A shared WAV has only one train/test assignment per subbank.
+    def cover(selected):
+        uncovered=[f for f in priorities if not (eligible[f] & selected)]
+        if not uncovered:
+            return selected
+        target=uncovered[0]
+        candidates=[w for w in order if w in eligible[target] and w not in selected]
+        candidates.sort(key=lambda w:(-sum(w in eligible[f] for f in uncovered),rank[w]))
+        for wav in candidates:
+            proposal=selected|{wav}
+            if any(len(ids-proposal)<min_train_per_final for ids in eligible.values()):
+                continue
+            answer=cover(proposal)
+            if answer is not None:
+                return answer
+        return None
+
+    heldout=cover(set())
+    if heldout is None:
+        # Globally coupled WAV memberships can make the requirements
+        # infeasible. Individual cells will then report insufficiency.
+        heldout=set()
+    target_size=(len(order)+4)//5
+    for wav in order:
+        if len(heldout)>=target_size:
+            break
+        if wav in heldout:
+            continue
+        proposal=heldout|{wav}
+        if all(len(ids-proposal)>=min_train_per_final for ids in eligible.values()):
+            heldout=proposal
+    return heldout
+
 def allocate(units, *, base="sh", min_train_per_final=2):
     """Return observable cells, no sound generation or data-dependent tuning."""
     rng=np.random.default_rng(SEED)
@@ -30,9 +77,7 @@ def allocate(units, *, base="sh", min_train_per_final=2):
     partitions=[]
     for subbank,by_pair in sorted(groups.items()):
         # WAVs held out *across all pairs in a subbank*, not row-wise.
-        wavs=sorted({u.wav_id for finals in by_pair.values() for ls in finals.values() for u in ls})
-        shuffled=list(rng.permutation(wavs))
-        test_ids=set(shuffled[::5])
+        test_ids=_heldout_wavs(by_pair,rng,min_train_per_final)
         for pair in PAIR_NAMES:
             a,b=pair.split("/")
             finals=by_pair.get(pair,{})
@@ -145,7 +190,7 @@ def run_manifest(manifest:Path,output:Path,*,base="sh"):
         units,meta=extract(Path(entry["path"]),base=base)
         item=evaluate_bank(units)
         item.update(bank_id=entry["bank_id"],speaker_group_id=entry["speaker_group_id"],
-                    "extraction":meta)
+                    extraction=meta)
         reports.append(item)
     result={"schema":SCHEMA,"base":base,"banks":reports,
         "budget_units":"extra paired-context donor identity; 0 merged / 4 split",
