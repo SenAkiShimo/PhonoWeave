@@ -49,3 +49,25 @@ The auditor rejects absent files, changed grid/roles, duplicate file hashes, una
 This is a **data-acquisition pilot**, not validated synthesis or proof that adaptive splitting improves quality. Do not mix speaker identities or pitch subbanks as though recordings were interchangeable. Do not use S02 to choose acoustic feature settings or policy ranks; if it becomes development material, recruit an untouched third evaluation session. A missing cell, clipping, unverifiable provenance or non-independent repeats blocks the affected comparison instead of being treated as zero loss.
 
 The artifact contains no original audio and does not modify legacy WAV/OTO. The preceding draft PR #54 remains separate.
+
+## Optional guided terminal capture (macOS)
+
+The non-overwriting, resumable microphone recorder has an optional local audio input dependency:
+
+```bash
+python -m pip install sounddevice
+python -m phonoweave.synthesis_relevance_controlled_capture --list-devices
+```
+
+After microphone, clipping level, stable /sh/ production, pitch target, and session-reset checks, acquire S01:
+
+```bash
+python -m phonoweave.synthesis_relevance_controlled_capture \
+  --manifest ~/Downloads/controlled_sh_pilot/manifest.json \
+  --session S01 --room-id quiet_room --gain-setting fixed \
+  --target-pitch-hz 220 --confirm-setup-reset
+```
+
+220 Hz is only an example, not a prescribed pitch. Select a comfortable, measurable target and preserve it in S02. Use `--device` if the default microphone is incorrect. The utility captures 48-kHz mono PCM16 WAVs using fixed filenames. Enter starts a take; q quits. Re-running verifies recorded hashes and resumes safely. Files without a matching manifest hash are never overwritten. S02 is blocked until S01 hashes are complete and must be recorded on a later date. Do not change room, microphone, gain, or target pitch during a partial session.
+
+**Acquisition limitations:** no auditory count-in, no internally generated pitch reference, no calibrated clipping/volume or pitch-stability check, and no built-in independent perceptual QC. The recorder detects stream overflow; the capture begins after the Enter trigger, so reaction time is included in the recording. Microphone name is OS metadata, not hardware attestation. Take order is deterministically shuffled per session; the order index is saved with each file. Onset/CV boundary labels remain separate manual annotations, so the audit correctly stays not-analysis-ready after raw capture.
