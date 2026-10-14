@@ -52,6 +52,7 @@ def write_plan(path: Path, **kwargs):
     """Fail rather than overwrite a manifest holding acquired data."""
     path = path.expanduser()
     data = make_plan(**kwargs)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("x", encoding="utf-8") as stream:
         json.dump(data, stream, ensure_ascii=False, indent=2)
         stream.write("\n")
