@@ -110,11 +110,34 @@ def capture_session(manifest: Path, session_id: str, *, room_id: str,
     manifest = manifest.expanduser().resolve(strict=True)
     root = manifest.parent
     data = json.loads(manifest.read_text(encoding="utf-8"))
+    if data.get("schema") != SCHEMA:
+        raise ValueError("unrecognized capture manifest schema")
+
+    # Check destination conflicts *before* the full WAV-format audit. A
+    # pre-existing unregistered file is a non-overwrite conflict even when
+    # it is corrupt or not a WAV at all. Never change the manifest on error.
+    # The full audit still validates all registered WAVs and the frozen grid.
+    for row in data.get("recordings", []):
+        if not isinstance(row, dict) or row.get("session_id") != session_id:
+            continue
+        rel = row.get("relative_wav")
+        if not isinstance(rel, str) or not rel:
+            continue  # Full manifest audit reports missing/invalid paths.
+        target = _relative_audio_path(root, rel)
+        digest = row.get("wav_sha256")
+        if target.exists():
+            if not digest or sha256(target.read_bytes()).hexdigest() != digest:
+                raise FileExistsError(
+                    f"WAV exists without matching manifest hash: {target}"
+                )
+        elif digest:
+            raise FileNotFoundError(
+                f"manifest contains hash but WAV is missing: {target}"
+            )
+
     report = audit_manifest(data, root)
     if report["errors"]:
         raise ValueError("invalid pilot manifest: " + "; ".join(report["errors"]))
-    if data.get("schema") != SCHEMA:
-        raise ValueError("unrecognized capture manifest schema")
     slots = [row for row in data["recordings"] if row["session_id"] == session_id]
     if len(slots) != len(FINALS) * REPEATS:
         raise ValueError("invalid session recording grid")
