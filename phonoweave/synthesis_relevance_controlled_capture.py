@@ -13,7 +13,10 @@ import os
 from pathlib import Path
 import random
 import tempfile
+import time
 import wave
+
+from .synthesis_relevance_capture_screen import analyze_pcm, format_screen
 
 from .synthesis_relevance_controlled_corpus import (
     SCHEMA, FINALS, ROLES, REPEATS, audit_manifest,
@@ -85,11 +88,47 @@ def _session_order(records, session_id):
     return order
 
 
+def _countdown(seconds=3, sleeper=time.sleep, output=print):
+    for second in range(seconds, 0, -1):
+        output(f"Recording in {second}...")
+        sleeper(1)
+    output("RECORD")
+
+
+def trial_capture(root: Path, *, device=None, target_pitch_hz=233.08,
+                  duration=3.0, recorder=None, ask=input, countdown=_countdown):
+    """Four disposable-free but independent preflight WAVs; no manifest edits."""
+    if not 60 <= target_pitch_hz <= 1000 or not 0.3 <= duration <= 8:
+        raise ValueError("invalid target pitch or duration")
+    root = root.expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    recorder = recorder or _record_pcm
+    results = []
+    for final in ("a", "ua", "ai", "uai"):
+        name = "sh" + final
+        target = root / f"{name}.wav"
+        if target.exists():
+            raise FileExistsError(f"preflight WAV already exists: {target}")
+        answer = ask(f"Pilot {name}: Enter to record, q to stop: ")
+        if answer.strip().lower() == "q":
+            return results
+        if answer.strip():
+            raise ValueError("invalid response")
+        countdown()
+        frames = round(RATE * duration)
+        pcm = recorder(frames, device=device)
+        screen = analyze_pcm(pcm, rate=RATE, target_pitch_hz=target_pitch_hz)
+        _write_pcm_exclusive(target, pcm, frames)
+        results.append({"syllable": name, "wav": str(target), **screen})
+        print(f"{name}: {format_screen(screen)}")
+    return results
+
+
 def capture_session(manifest: Path, session_id: str, *, room_id: str,
                     gain_setting: str, target_pitch_hz: float, duration: float = 3.0,
                     device=None, device_id: str = "default_input",
                     confirm_reset: bool = False, recorder=None, ask=input,
-                    capture_date=None):
+                    capture_date=None, countdown=None):
     """Record missing takes; preserve existing files and manifest hashes.
 
     A repeated launch is safe: a hashed WAV is checked and skipped. An
@@ -192,8 +231,12 @@ def capture_session(manifest: Path, session_id: str, *, room_id: str,
             return captured
         if answer.strip():
             raise ValueError("unrecognized response; no recording for this take")
+        if countdown is not None:
+            countdown()
         pcm = recorder(frames, device=device)
+        screen = analyze_pcm(pcm, rate=RATE, target_pitch_hz=target_pitch_hz)
         _write_pcm_exclusive(target, pcm, frames)
+        print(f"Capture screen: {format_screen(screen)}")
         row["wav_sha256"] = sha256(target.read_bytes()).hexdigest()
         row["capture_order"] = index
         _save_manifest(manifest, data)
@@ -206,6 +249,9 @@ def capture_session(manifest: Path, session_id: str, *, room_id: str,
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Guided, lossless 48-take pilot recording")
     parser.add_argument("--list-devices", action="store_true")
+    parser.add_argument("--trial", action="store_true")
+    parser.add_argument("--trial-output", type=Path)
+    parser.add_argument("--countdown-seconds", type=int, default=3)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--session", choices=("S01", "S02"))
     parser.add_argument("--room-id")
@@ -222,6 +268,21 @@ def main(argv=None):
         except ImportError:
             parser.error("install optional input driver: python -m pip install sounddevice")
         print(sd.query_devices())
+        return 0
+    if not 0 <= args.countdown_seconds <= 10:
+        parser.error("countdown must be between 0 and 10 seconds")
+    if args.trial:
+        if not args.trial_output or args.target_pitch_hz is None:
+            parser.error("--trial requires --trial-output and --target-pitch-hz")
+        try:
+            import sounddevice as sd
+            device = int(args.device) if args.device and args.device.isdecimal() else args.device
+            sd.query_devices(device, kind="input")
+            trial_capture(args.trial_output, device=device, target_pitch_hz=args.target_pitch_hz,
+                          duration=args.duration,
+                          countdown=lambda: _countdown(args.countdown_seconds))
+        except (OSError, ValueError, RuntimeError, FileExistsError) as exc:
+            parser.error(str(exc))
         return 0
     if (args.manifest is None or args.session is None or
             args.room_id is None or args.gain_setting is None or
@@ -244,6 +305,7 @@ def main(argv=None):
             target_pitch_hz=args.target_pitch_hz,
             duration=args.duration, device=device, device_id=device_id,
             confirm_reset=True,
+            countdown=lambda: _countdown(args.countdown_seconds),
         )
     except (OSError, ValueError, RuntimeError, FileNotFoundError,
             FileExistsError) as exc:
