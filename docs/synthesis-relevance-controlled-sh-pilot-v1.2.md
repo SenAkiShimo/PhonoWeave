@@ -71,3 +71,19 @@ python -m phonoweave.synthesis_relevance_controlled_capture \
 220 Hz is only an example, not a prescribed pitch. Select a comfortable, measurable target and preserve it in S02. Use `--device` if the default microphone is incorrect. The utility captures 48-kHz mono PCM16 WAVs using fixed filenames. Enter starts a take; q quits. Re-running verifies recorded hashes and resumes safely. Files without a matching manifest hash are never overwritten. S02 is blocked until S01 hashes are complete and must be recorded on a later date. Do not change room, microphone, gain, or target pitch during a partial session.
 
 **Acquisition limitations:** no auditory count-in, no internally generated pitch reference, no calibrated clipping/volume or pitch-stability check, and no built-in independent perceptual QC. The recorder detects stream overflow; the capture begins after the Enter trigger, so reaction time is included in the recording. Microphone name is OS metadata, not hardware attestation. Take order is deterministically shuffled per session; the order index is saved with each file. Onset/CV boundary labels remain separate manual annotations, so the audit correctly stays not-analysis-ready after raw capture.
+
+## Four-syllable isolated trial and acquisition quality screen
+
+The optional `--trial` mode records only `sha`, `shua`, `shai`, and `shuai` to an independent directory; it neither reads nor changes the 48-take `manifest.json`. It uses the explicitly selected microphone, a visible three-second countdown, 48 kHz mono PCM16 WAV output, and refuses to replace an existing trial file.
+
+```bash
+python -m phonoweave.synthesis_relevance_controlled_capture \
+  --trial \
+  --trial-output ~/Downloads/controlled_sh_pilot/preflight_01 \
+  --device 0 --target-pitch-hz 233.08 \
+  --duration 3 --countdown-seconds 3
+```
+
+The pitch is a **candidate target only**; choosing it permanently requires a comfortable and stable vocal production on all four pilot finals. The screen reports peak dBFS, digital clipping, approximate median voiced F0, target-cent deviation, and F0 percentile range. These are lightweight autocorrelation proxies, not reliable F0 tracking in arbitrary voice qualities, and cannot confirm /sh/ articulation or formant preservation. A screen pass does not automatically accept a take: manual listening and frication/CV boundary inspection remain mandatory.
+
+Formal acquisition also uses the same countdown and on-screen screen information, but preserves raw files and manifest hashes even when a quality flag is raised. Flagged files require manual review; they must not be silently discarded or normalized. To repeat a trial, specify a fresh `--trial-output` directory rather than overwriting the previous recording.
