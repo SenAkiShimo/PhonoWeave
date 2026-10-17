@@ -79,3 +79,12 @@ CSV fields beginning with spreadsheet-formula prefixes are made safe for manual 
 The first milestone is reached when an actual voicebank compiles to the complete set of output files; missing/ambiguous observations are labeled; no original audio/OTO changes occur; and automated tests pass. This validates functioning core output generation, not synthesis quality superiority.
 
 The next milestone is to specify an OpenUtau/UTAU export convention, verify generated aliases against the voicebank's existing scheme, and implement a **preview-only** compiler with collision tests before any automatic editing.
+
+## v0.2 source-alias surface role preview
+
+Real bank05 records (5,902 aliases) show distinct pitch-suffixed surface roles:
+initial CV (`'- shaA#3`), standalone CV (`shaA#3`), vowel-to-consonant (`a shA#3`), vowel-to-vowel (`ang erA#3`), standalone vowel (`aiA#3`), and modified/special transitions (`a 吸RA#3`). Parsing this grammar is a prerequisite for any engine-specific alias compiler.
+
+The new `alias_roles_preview.csv` adds original alias, source OTO and line, stripped pitch suffix, surface tokens, a conservative role classification, and manual-review status. `summary.json` records `alias_role_counts`. A pitch suffix is stripped only when it agrees with the containing note-named OTO directory. Nonstandard consonant spelling, special modifiers, zero/empty alias, and unknown surface grammar remain explicitly manual-review; no alias spelling, OTO values, bank files or unit decisions are changed.
+
+**Important:** classification of the *existing* alias role does not establish phonetic correspondence, role-scoped realization identity, CV/VV segmentation boundary, or deployable OpenUtau alias mapping. The output remains review-only. Deterministic test fixtures cover core CV, initial CV, VC, VV, vowel, modifier, nonstandard phoneme and mismatched suffix.
