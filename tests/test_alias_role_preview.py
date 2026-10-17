@@ -6,7 +6,7 @@ from phonoweave.alias_role_preview import classify_alias_role
 def test_core_pitch_aliased_roles():
     oto = Path("/bank/A#3/oto.ini")
     examples = {
-        "'- shaA#3": ("initial_cv", "-", "sha"),
+        "- shaA#3": ("initial_cv", "-", "sha"),
         "shaA#3": ("standalone_cv", "", "sha"),
         "a shA#3": ("vc_transition", "a", "sh"),
         "ang erA#3": ("vv_transition", "ang", "er"),
