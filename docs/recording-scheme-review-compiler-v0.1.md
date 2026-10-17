@@ -106,3 +106,19 @@ assignment is exported. A round-trip pass is a structural check, **not**
 an engine-validity or acoustic-effect validation. In particular, a VC/VV
 transition does not imply a safe mapping to an initial-CV synthesis inventory
 unit. A later convention adapter must define engine requirements separately.
+
+## Pitch-scoped recording coverage and review queue
+
+The review package now includes `recording_coverage_matrix.csv` and
+`recording_review_queue.csv`. Each inventory unit is inspected by observed
+pitch group and existing initial-CV/standalone-CV alias evidence. The matrix
+reports unique alias references, source WAV references, observed syllables,
+and potential cross-pitch discrepancies. The queue prioritizes discrepancies
+and ambiguous context assignment ahead of already observed units.
+
+**Important limits:** source-WAV references are not distinct acoustic
+replications. The matrix must not interpret `mapping_scope_unresolved` or
+`not_traceably_mapped` as unrecorded syllables. Internal-CV decisions remain
+unassigned until a validated role-aware convention adapter exists. These
+outputs are coverage audits and human-review priorities, **not** recording
+orders or executable OpenUtau alias installations.
