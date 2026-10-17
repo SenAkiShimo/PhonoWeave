@@ -33,6 +33,19 @@ python -m phonoweave.entrypoint compile-recording-scheme \
 If the `phonoweave` shell command is available, the equivalent is
 `phonoweave compile-recording-scheme "/path/to/voicebank" --output ...`.
 
+You can also select an installed voicebank from the existing local
+eight-bank manifest without copying a long installation path:
+
+```bash
+python -m phonoweave.entrypoint compile-recording-scheme \
+  --manifest ~/.config/phonoweave/voicebanks.json \
+  --bank-id bank05 \
+  --output ~/Downloads/phonoweave_scheme_bank05_01
+```
+
+This manifest is read locally; only a uniquely matched `bank_id` and
+existing directory are accepted.
+
 This command never overwrites an existing output folder; it creates a sibling temporary output directory and renames on successful compilation.
 
 ## Generated files
