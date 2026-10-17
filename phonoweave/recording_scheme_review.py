@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 import tempfile
 
+from .alias_role_preview import classify_alias_role
 from .diagnostic_selector import DiagnosticSelection, select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .inventory import VoicebankInventoryAnalysis, analyze_voicebank_inventory
@@ -37,6 +38,11 @@ ALIAS_FIELDS = (
     "source_oto", "line_number", "source_wav", "original_alias",
     "alias_shape", "base_unit", "final", "inferred_context", "candidate_unit_id",
     "mapping_status", "decision",
+)
+ROLE_FIELDS = (
+    "source_oto", "line_number", "original_alias", "surface_alias",
+    "pitch_suffix", "pitch_suffix_status", "role", "left_token",
+    "right_token", "role_review_status",
 )
 OTO_FIELDS = (
     "source_oto", "line_number", "source_wav", "original_alias",
@@ -114,6 +120,7 @@ class ReviewPackage:
     plan_rows: list[dict]
     alias_rows: list[dict]
     oto_rows: list[dict]
+    role_rows: list[dict]
     supplement_rows: list[dict]
     supplement_text: str
 
@@ -149,6 +156,7 @@ def compile_review_package(
     }
     aliases: list[dict] = []
     timings: list[dict] = []
+    roles: list[dict] = []
     for entry in sorted(entries, key=lambda x: (str(x.oto_path), x.line_number)):
         origin = (str(entry.oto_path.resolve()), entry.line_number)
         obs = obs_by_origin.get(origin)
@@ -189,6 +197,19 @@ def compile_review_package(
             "decision": unit.decision if unit else "",
         }
         aliases.append(row)
+        parsed_role = classify_alias_role(entry.alias, entry.oto_path)
+        roles.append({
+            "source_oto": row["source_oto"],
+            "line_number": entry.line_number,
+            "original_alias": entry.alias,
+            "surface_alias": parsed_role.surface,
+            "pitch_suffix": parsed_role.pitch_suffix,
+            "pitch_suffix_status": parsed_role.pitch_suffix_status,
+            "role": parsed_role.role,
+            "left_token": parsed_role.left_token,
+            "right_token": parsed_role.right_token,
+            "role_review_status": parsed_role.review_status,
+        })
         timings.append({
             "source_oto": row["source_oto"],
             "line_number": entry.line_number,
@@ -244,6 +265,11 @@ def compile_review_package(
             for s in sorted({row["mapping_status"] for row in aliases})
         },
         "distinct_colliding_aliases": len(collisions),
+        "alias_role_counts": {
+            role: sum(row["role"] == role for row in roles)
+            for role in sorted({row["role"] for row in roles})
+        },
+        "alias_role_preview_status": "read_only_surface_grammar",
         "unclassified_alias_shapes": {
             shape: sum(row["mapping_status"] == "unclassified_alias"
                        and row["alias_shape"] == shape for row in aliases)
@@ -263,7 +289,7 @@ def compile_review_package(
         ],
     }
     return ReviewPackage(summary, inventory, plan, aliases, timings,
-                         supplement, lines.text())
+                         roles, supplement, lines.text())
 
 
 def build_from_voicebank(root: Path) -> ReviewPackage:
@@ -303,6 +329,8 @@ def write_review_package(package: ReviewPackage, output: Path) -> Path:
                    ALIAS_FIELDS, package.alias_rows)
         _write_csv(staging / "oto_timing_review.csv",
                    OTO_FIELDS, package.oto_rows)
+        _write_csv(staging / "alias_roles_preview.csv",
+                   ROLE_FIELDS, package.role_rows)
         _write_csv(staging / "supplemental_targets.csv",
                    SUPPLEMENT_FIELDS, package.supplement_rows)
         (staging / "supplemental_reclist.txt").write_text(
