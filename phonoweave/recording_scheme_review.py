@@ -18,6 +18,7 @@ from .alias_role_preview import classify_alias_role
 from .alias_compilation_preview import compile_alias_preview, FIELDS as COMPILED_ALIAS_FIELDS
 from .recording_scheme_coverage import (build_recording_coverage, COVERAGE_FIELDS, ACTION_FIELDS)
 from .internal_context_links import link_internal_contexts, FIELDS as INTERNAL_FIELDS
+from .recording_scheme_action_plan import build_action_plan, action_plan_markdown
 from .diagnostic_selector import DiagnosticSelection, select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .inventory import VoicebankInventoryAnalysis, analyze_voicebank_inventory
@@ -128,6 +129,7 @@ class ReviewPackage:
     coverage_rows: list[dict]
     coverage_actions: list[dict]
     internal_links: list[dict]
+    action_plan: dict
     supplement_rows: list[dict]
     supplement_text: str
 
@@ -263,7 +265,16 @@ def compile_review_package(
         units, aliases, roles, timings, compiled_alias_rows)
     coverage_rows, coverage_actions, coverage_summary = build_recording_coverage(
         units, aliases, compiled_alias_rows, internal_links=internal_links)
+    action_plan = build_action_plan(
+        inventory.speaker_id, coverage_rows, coverage_actions,
+        internal_links, supplement)
     summary = {
+        "recording_action_plan": {
+            "consolidated_tasks": action_plan["consolidated_tasks"],
+            "source_review_rows": action_plan["source_review_rows"],
+            "action_counts": action_plan["action_counts"],
+            "optional_diagnostic_lines": action_plan["optional_diagnostic_lines"],
+        },
         "internal_context_links": internal_summary,
         "recording_coverage": coverage_summary,
         "alias_compilation_preview": compile_summary,
@@ -305,7 +316,8 @@ def compile_review_package(
     }
     return ReviewPackage(summary, inventory, plan, aliases, timings,
                          roles, compiled_alias_rows, coverage_rows,
-                         coverage_actions, internal_links, supplement, lines.text())
+                         coverage_actions, internal_links, action_plan,
+                         supplement, lines.text())
 
 
 def build_from_voicebank(root: Path) -> ReviewPackage:
@@ -334,6 +346,13 @@ def write_review_package(package: ReviewPackage, output: Path) -> Path:
         staging = Path(staging_name)
         (staging / "synthesis_inventory.yaml").write_text(
             synthesis_inventory_yaml(package.inventory), encoding="utf-8"
+        )
+        (staging / "recording_action_plan.json").write_text(
+            json.dumps(package.action_plan, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (staging / "recording_action_plan.md").write_text(
+            action_plan_markdown(package.action_plan), encoding="utf-8"
         )
         (staging / "summary.json").write_text(
             json.dumps(package.summary, ensure_ascii=False, indent=2) + "\n",
