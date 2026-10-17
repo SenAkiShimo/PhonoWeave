@@ -10,6 +10,7 @@ import csv
 from dataclasses import dataclass
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 
@@ -34,7 +35,7 @@ PLAN_FIELDS = (
 )
 ALIAS_FIELDS = (
     "source_oto", "line_number", "source_wav", "original_alias",
-    "base_unit", "final", "inferred_context", "candidate_unit_id",
+    "alias_shape", "base_unit", "final", "inferred_context", "candidate_unit_id",
     "mapping_status", "decision",
 )
 OTO_FIELDS = (
@@ -81,6 +82,22 @@ def _action(decision: str) -> str:
         "unresolved": "collect_evidence_before_choice",
         "three_realizations_provisional": "review_three_realizations",
     }.get(decision, "manual_review")
+
+
+def _alias_shape(alias: str, oto_path: Path) -> str:
+    """Describe surface structure without interpreting an unknown alias."""
+    stem = oto_path.parent.name.removesuffix(" EX")
+    name = alias.strip()
+    if stem and name.endswith(stem):
+        name = name[:-len(stem)].strip()
+    parts = name.split()
+    if not parts:
+        return "pitch_only_or_empty"
+    if len(parts) >= 2:
+        return "multi_token_transition_or_modifier"
+    if parts[0].startswith("_"):
+        return "underscore_prefixed"
+    return "other_single_token"
 
 
 def _observed_context(base: str, final: str) -> str | None:
@@ -164,6 +181,7 @@ def compile_review_package(
             "line_number": entry.line_number,
             "source_wav": _rel(root, entry.wav_path),
             "original_alias": entry.alias,
+            "alias_shape": _alias_shape(entry.alias, entry.oto_path),
             "base_unit": base, "final": final,
             "inferred_context": context or "",
             "candidate_unit_id": unit.id if unit else "",
@@ -226,6 +244,12 @@ def compile_review_package(
             for s in sorted({row["mapping_status"] for row in aliases})
         },
         "distinct_colliding_aliases": len(collisions),
+        "unclassified_alias_shapes": {
+            shape: sum(row["mapping_status"] == "unclassified_alias"
+                       and row["alias_shape"] == shape for row in aliases)
+            for shape in sorted({row["alias_shape"] for row in aliases
+                                 if row["mapping_status"] == "unclassified_alias"})
+        },
         "suggested_diagnostic_lines": len(supplement),
         "unfilled_diagnostics": list(selection.unfilled),
         "production_alias_compilation": "not_implemented",
