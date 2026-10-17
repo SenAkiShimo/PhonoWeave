@@ -16,6 +16,7 @@ import tempfile
 
 from .alias_role_preview import classify_alias_role
 from .alias_compilation_preview import compile_alias_preview, FIELDS as COMPILED_ALIAS_FIELDS
+from .recording_scheme_coverage import (build_recording_coverage, COVERAGE_FIELDS, ACTION_FIELDS)
 from .diagnostic_selector import DiagnosticSelection, select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .inventory import VoicebankInventoryAnalysis, analyze_voicebank_inventory
@@ -123,6 +124,8 @@ class ReviewPackage:
     oto_rows: list[dict]
     role_rows: list[dict]
     compiled_alias_rows: list[dict]
+    coverage_rows: list[dict]
+    coverage_actions: list[dict]
     supplement_rows: list[dict]
     supplement_text: str
 
@@ -254,7 +257,10 @@ def compile_review_package(
         for item, line in zip(selection.items, lines.lines)
     ]
     compiled_alias_rows, compile_summary = compile_alias_preview(aliases, roles)
+    coverage_rows, coverage_actions, coverage_summary = build_recording_coverage(
+        units, aliases, compiled_alias_rows)
     summary = {
+        "recording_coverage": coverage_summary,
         "alias_compilation_preview": compile_summary,
         "schema": SCHEMA,
         "speaker_id": inventory.speaker_id,
@@ -293,7 +299,8 @@ def compile_review_package(
         ],
     }
     return ReviewPackage(summary, inventory, plan, aliases, timings,
-                         roles, compiled_alias_rows, supplement, lines.text())
+                         roles, compiled_alias_rows, coverage_rows,
+                         coverage_actions, supplement, lines.text())
 
 
 def build_from_voicebank(root: Path) -> ReviewPackage:
@@ -337,6 +344,10 @@ def write_review_package(package: ReviewPackage, output: Path) -> Path:
                    ROLE_FIELDS, package.role_rows)
         _write_csv(staging / "alias_compilation_preview.csv",
                    COMPILED_ALIAS_FIELDS, package.compiled_alias_rows)
+        _write_csv(staging / "recording_coverage_matrix.csv",
+                   COVERAGE_FIELDS, package.coverage_rows)
+        _write_csv(staging / "recording_review_queue.csv",
+                   ACTION_FIELDS, package.coverage_actions)
         _write_csv(staging / "supplemental_targets.csv",
                    SUPPLEMENT_FIELDS, package.supplement_rows)
         (staging / "supplemental_reclist.txt").write_text(
