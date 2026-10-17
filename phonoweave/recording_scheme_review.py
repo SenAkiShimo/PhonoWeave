@@ -259,10 +259,10 @@ def compile_review_package(
         for item, line in zip(selection.items, lines.lines)
     ]
     compiled_alias_rows, compile_summary = compile_alias_preview(aliases, roles)
-    coverage_rows, coverage_actions, coverage_summary = build_recording_coverage(
-        units, aliases, compiled_alias_rows)
     internal_links, internal_summary = link_internal_contexts(
         units, aliases, roles, timings, compiled_alias_rows)
+    coverage_rows, coverage_actions, coverage_summary = build_recording_coverage(
+        units, aliases, compiled_alias_rows, internal_links=internal_links)
     summary = {
         "internal_context_links": internal_summary,
         "recording_coverage": coverage_summary,
