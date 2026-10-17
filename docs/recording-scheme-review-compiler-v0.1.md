@@ -150,3 +150,17 @@ The queue action becomes `review_internal_candidate_mapping`, never
 `retain_existing_aliases` or an automatic recording order. The matrix includes
 candidate counts, referenced WAV counts and syllables. Unlinked cells remain
 unresolved; no source samples or alias configuration are changed.
+
+## Consolidated operational review plan
+
+`recording_action_plan.md` is the main human-facing deliverable.
+`recording_action_plan.json` preserves the same decisions and source
+references for downstream interfaces. They group repeated per-pitch review
+queue items by review action and inventory unit while retaining all affected
+pitch subbanks, selected syllables and relevant original OTO/WAV locations.
+The document orders concrete alias and internal-context checks before
+provisional split/merge decisions. Existing supplemental diagnostic lines
+are separate **optional candidates**, not automatically required recordings.
+It does not install aliases, infer missing independent takes or alter source
+OTO/WAV files. Once reviewer evidence is available, a later policy compiler
+can convert accepted decisions into a production recording specification.
