@@ -53,3 +53,26 @@ def test_source_mismatch_and_duplicate_units_rejected():
         build_recording_coverage([Unit("sh_plain")],[a],[b])
     with pytest.raises(ValueError,match="duplicate"):
         build_recording_coverage([Unit("x"),Unit("x")],[],[])
+
+
+def test_internal_link_updates_queue_without_claiming_validated_mapping():
+    a,b=rec("a bA#3","vc_transition",unit="",line=4)
+    a["source_wav"]="A#3/_a_baA#3.wav"
+    link={"source_oto":a["source_oto"],"line_number":a["line_number"],
+          "source_wav":a["source_wav"],"original_alias":a["original_alias"],
+          "pitch_group":"A#3","unit_id":"b_internal_other",
+          "base_unit":"b","context":"internal:other","syllable":"ba",
+          "review_status":"candidate_link_not_synthesis_validated"}
+    rows,actions,summary=build_recording_coverage(
+        [Unit("b_internal_other",base_unit="b",
+              contexts=("internal:other",))],[a],[b],[link])
+    assert rows[0]["coverage_status"]=="internal_candidate_evidence"
+    assert rows[0]["internal_candidate_links"]==1
+    assert actions[0]["review_action"]=="review_internal_candidate_mapping"
+    assert summary["internal_candidate_unit_pitch_cells"]==1
+    assert summary["recording_requests_auto_authorized"]==0
+    corrupted=dict(link,original_alias="forged")
+    with pytest.raises(ValueError,match="provenance"):
+        build_recording_coverage(
+            [Unit("b_internal_other",base_unit="b",
+                  contexts=("internal:other",))],[a],[b],[corrupted])
