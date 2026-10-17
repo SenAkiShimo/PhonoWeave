@@ -167,3 +167,17 @@ def test_package_can_be_empty_without_fabricated_reclist(tmp_path):
     assert package.supplement_rows == []
     assert package.supplement_text == ""
     assert package.summary["status"] == "manual_review_required"
+
+
+def test_unclassified_alias_shapes_are_only_descriptive(tmp_path):
+    oto_dir = tmp_path / "A#3"
+    oto_dir.mkdir()
+    first = _entry(oto_dir.parent, "a bA#3", 1)
+    # Use the real pitch-style OTO parent for suffix removal.
+    from dataclasses import replace
+    first = replace(first, oto_path=oto_dir / "oto.ini")
+    inv = _inventory(tmp_path)
+    package = compile_review_package(inv, [first], [], DiagnosticSelection((), ()))
+    assert package.alias_rows[0]["alias_shape"] == "multi_token_transition_or_modifier"
+    assert package.alias_rows[0]["mapping_status"] == "unclassified_alias"
+    assert package.summary["unclassified_alias_shapes"]["multi_token_transition_or_modifier"] == 1
