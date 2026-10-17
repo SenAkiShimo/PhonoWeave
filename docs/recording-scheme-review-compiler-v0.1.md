@@ -122,3 +122,19 @@ replications. The matrix must not interpret `mapping_scope_unresolved` or
 unassigned until a validated role-aware convention adapter exists. These
 outputs are coverage audits and human-review priorities, **not** recording
 orders or executable OpenUtau alias installations.
+
+## Internal CV sequence alignment (candidate evidence)
+
+`internal_context_links.csv` provides source-traceable, **review-only** links
+between role-scoped inventory groups and existing VC transitions. The adapter
+requires a complete recording filename syllable sequence, one initial anchor,
+matching event count, strictly increasing OTO offsets, a matching prefix-vowel
+and a parsed subsequent CV whose base consonant agrees with the alias. Unknown
+w/y shorthand, variant symbols and mismatched sequences abstain instead of
+silently guessing a realization. Its counts appear under
+`summary.json.internal_context_links`.
+
+A matched link indicates structural evidence, not a validated acoustic
+realization, independent WAV sample, phonemizer assignment or production
+alias mapping. No new `oto.ini` is emitted and no supplement order is
+automatically issued from these links.
