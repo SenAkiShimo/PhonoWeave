@@ -151,6 +151,9 @@ def test_publish_complete_package_then_refuse_overwrite(tmp_path):
     with (output / "observed_alias_review.csv").open(newline="") as f:
         alias_row = next(csv.DictReader(f))
     assert alias_row["original_alias"].startswith("'=")
+    with (output / "oto_timing_review.csv").open(newline="") as f:
+        timing_row = next(csv.DictReader(f))
+    assert timing_row["cutoff_ms"] == "-25"
     assert entry.wav_path.read_bytes() == original
     with pytest.raises(FileExistsError):
         write_review_package(package, output)
