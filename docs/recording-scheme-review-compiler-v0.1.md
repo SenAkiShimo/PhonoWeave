@@ -164,3 +164,37 @@ are separate **optional candidates**, not automatically required recordings.
 It does not install aliases, infer missing independent takes or alter source
 OTO/WAV files. Once reviewer evidence is available, a later policy compiler
 can convert accepted decisions into a production recording specification.
+
+## Human decision intake (read-only; experimental)
+
+The `review-recording-scheme` command now creates an explicit approval
+template tied to the exact action-plan SHA-256. All pitch-specific tasks
+(default `pending`) and all proposed diagnostics (default `defer`) remain
+listed, even though the human-facing plan groups repeated pitch tasks.
+
+```bash
+phonoweave review-recording-scheme template \
+  --plan ~/Downloads/phonoweave_scheme_bank05_09/recording_action_plan.json \
+  --output ~/Downloads/phonoweave_decisions_bank05_01.json
+```
+
+After actual human source review, set `reviewer_id`, individual
+`task_reviews[].resolution`, `note` and `evidence_reference`.
+Permitted resolutions depend on the check type. Every diagnostic approval
+also requires a rationale and a `related_task_id` with recorded same-base
+review evidence. Unreviewed proposals cannot be approved. Do **not** edit
+`source_plan_sha256` or task identity fields.
+
+```bash
+phonoweave review-recording-scheme compile \
+  --plan ~/Downloads/phonoweave_scheme_bank05_09/recording_action_plan.json \
+  --decisions ~/Downloads/phonoweave_decisions_bank05_01.json \
+  --output ~/Downloads/phonoweave_reviewed_bank05_01
+```
+
+The output includes `reviewed_scheme.json` and an
+`approved_diagnostic_reclist.txt` containing only explicitly approved
+pre-existing candidates. An empty reclist is expected when no reviewer has
+approved any candidates. The result remains **diagnostic-only** and does not
+write a production UTAU/OpenUtau alias dictionary, oto.ini or audio files.
+A regenerated plan invalidates old decision templates to avoid stale approvals.
