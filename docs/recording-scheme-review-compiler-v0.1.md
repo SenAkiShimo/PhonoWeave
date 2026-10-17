@@ -138,3 +138,15 @@ A matched link indicates structural evidence, not a validated acoustic
 realization, independent WAV sample, phonemizer assignment or production
 alias mapping. No new `oto.ini` is emitted and no supplement order is
 automatically issued from these links.
+
+## Internal candidate evidence in coverage decisions
+
+Sequence-aligned internal candidates are now consumed by the existing
+`recording_coverage_matrix.csv` and `recording_review_queue.csv` rather than
+reported only in a separate file. The new status
+`internal_candidate_evidence` replaces `mapping_scope_unresolved` only when
+the link provenance, pitch, VC alias role, and unit context all agree.
+The queue action becomes `review_internal_candidate_mapping`, never
+`retain_existing_aliases` or an automatic recording order. The matrix includes
+candidate counts, referenced WAV counts and syllables. Unlinked cells remain
+unresolved; no source samples or alias configuration are changed.
