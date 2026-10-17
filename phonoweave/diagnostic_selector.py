@@ -31,6 +31,7 @@ _LEGAL_SYLLABLES: dict[str, tuple[str, ...]] = {
     "b": ("ba", "bai", "ban", "bang", "bao", "bei", "ben", "beng", "bi", "bian", "biao", "bie", "bin", "bing", "bo", "bu"),
     "p": ("pa", "pai", "pan", "pang", "pao", "pei", "pen", "peng", "pi", "pian", "piao", "pie", "pin", "ping", "po", "pou", "pu"),
     "m": ("ma", "mai", "man", "mang", "mao", "me", "mei", "men", "meng", "mi", "mian", "miao", "mie", "min", "ming", "miu", "mo", "mou", "mu"),
+    "n": ("na", "nai", "nan", "nang", "nao", "ne", "nei", "nen", "neng", "ni", "nian", "niang", "niao", "nie", "nin", "ning", "niu", "nong", "nou", "nu", "nuan", "nuo", "nv", "nve"),
     "f": ("fa", "fan", "fang", "fei", "fen", "feng", "fo", "fou", "fu"),
     "t": ("ta", "tai", "tan", "tang", "tao", "te", "teng", "ti", "tian", "tiao", "tie", "ting", "tong", "tou", "tu", "tuan", "tui", "tun", "tuo"),
     "r": ("ran", "rang", "rao", "re", "ren", "reng", "ri", "rong", "rou", "ru", "ruan", "rui", "run", "ruo"),
@@ -47,7 +48,7 @@ def _family(base_unit: str, final: str) -> str | None:
     direct = context_for(base_unit, final)
     if direct is not None:
         return direct
-    if base_unit in {"b", "p", "t", "m"}:
+    if base_unit in {"b", "p", "t", "m", "n"}:
         if final.startswith("i"):
             return "i_series"
         if final.startswith("u"):
