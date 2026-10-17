@@ -143,7 +143,7 @@ def test_publish_complete_package_then_refuse_overwrite(tmp_path):
         "README.txt", "summary.json", "synthesis_inventory.yaml",
         "recording_units_review.csv", "observed_alias_review.csv",
         "oto_timing_review.csv", "supplemental_targets.csv",
-        "supplemental_reclist.txt",
+        "supplemental_reclist.txt", "alias_roles_preview.csv",
     }
     assert {p.name for p in output.iterdir()} == expected
     summary = json.loads((output / "summary.json").read_text())
