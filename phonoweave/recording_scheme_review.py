@@ -58,6 +58,10 @@ def _rel(root: Path, target: Path) -> str:
 
 def _safe_csv(value: object) -> str:
     """Prevent spreadsheet formula injection without changing source WAVs."""
+    # Signed numeric OTO fields must remain numeric in review CSVs.
+    # Only untrusted text strings are formula-escaped.
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
     text = "" if value is None else str(value)
     return "'" + text if text.lstrip().startswith(("=", "+", "-", "@")) else text
 
