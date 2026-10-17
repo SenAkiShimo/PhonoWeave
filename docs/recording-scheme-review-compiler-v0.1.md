@@ -88,3 +88,21 @@ initial CV (`'- shaA#3`), standalone CV (`shaA#3`), vowel-to-consonant (`a shA#3
 The new `alias_roles_preview.csv` adds original alias, source OTO and line, stripped pitch suffix, surface tokens, a conservative role classification, and manual-review status. `summary.json` records `alias_role_counts`. A pitch suffix is stripped only when it agrees with the containing note-named OTO directory. Nonstandard consonant spelling, special modifiers, zero/empty alias, and unknown surface grammar remain explicitly manual-review; no alias spelling, OTO values, bank files or unit decisions are changed.
 
 **Important:** classification of the *existing* alias role does not establish phonetic correspondence, role-scoped realization identity, CV/VV segmentation boundary, or deployable OpenUtau alias mapping. The output remains review-only. Deterministic test fixtures cover core CV, initial CV, VC, VV, vowel, modifier, nonstandard phoneme and mismatched suffix.
+
+## Strict alias reconstruction preview
+
+`alias_compilation_preview.csv` is a **read-only**, round-trip-verified
+reconstruction of existing pitch-suffixed CV, initial CV, vowel, VC and VV aliases.
+Every record retains its source OTO, line number, existing alias, role, and
+candidate unit linkage if applicable. Unsupported role grammar, unmatched pitch
+suffix, failed round trips and global alias-key collisions are individually
+flagged and withheld. A collision is checked across all source OTO files,
+including neighboring `EX` directories.
+
+`summary.json.alias_compilation_preview` reports permitted reconstructions,
+abstentions and collisions. Existing source aliases are never renamed and
+no production `oto.ini`, phonemizer dictionary, new timing or synthesis
+assignment is exported. A round-trip pass is a structural check, **not**
+an engine-validity or acoustic-effect validation. In particular, a VC/VV
+transition does not imply a safe mapping to an initial-CV synthesis inventory
+unit. A later convention adapter must define engine requirements separately.
