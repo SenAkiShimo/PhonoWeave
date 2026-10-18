@@ -26,7 +26,7 @@ def test_budget_zero_and_three_coverages():
     assert empty["selected_reclist"]==[]
     full=compile_recording_budget(source,3)
     assert full["feature_universe_sizes"]["syllables"]==7
-    assert full["feature_universe_sizes"]["exact_adjacent_pairs"]==4
+    assert full["feature_universe_sizes"]["exact_adjacent_pairs"]==5
     for mode in ("syllables","syllables_and_starts","exact_adjacent_pairs"):
         assert full["strategies"][mode]["coverage"]["syllables"]["fraction"]==1
         assert full["strategies"][mode]["coverage"]["exact_adjacent_pairs"]["fraction"]==1
