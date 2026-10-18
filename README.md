@@ -95,8 +95,8 @@ Or compile a previously registered voicebank by ID:
 
 ```bash
 phonoweave compile-recording-scheme \
-  --manifest ~/.config/phonoweave/voicebanks.json --bank-id bank05 \
-  --output ~/Downloads/phonoweave_scheme_bank05_01
+  --manifest ~/.config/phonoweave/voicebanks.json --bank-id example_bank \
+  --output ~/Downloads/phonoweave_scheme_example_bank_01
 ```
 
 The pack contains the neutral synthesis inventory, evidence-qualified unit decisions,
