@@ -198,3 +198,24 @@ pre-existing candidates. An empty reclist is expected when no reviewer has
 approved any candidates. The result remains **diagnostic-only** and does not
 write a production UTAU/OpenUtau alias dictionary, oto.ini or audio files.
 A regenerated plan invalidates old decision templates to avoid stale approvals.
+
+## Canonical alias export and source-evidence precheck
+
+Each new compilation exports `alias_records.jsonl` containing **lossless**
+source aliases, source WAV references, lexical roles, preview compilation status,
+and numeric OTO metadata. Presentation CSV fields may prefix spreadsheet-formula
+characters with an apostrophe. Never use these CSV values as production alias
+strings; machine consumers must use canonical JSONL.
+
+```bash
+python -m phonoweave.entrypoint precheck-recording-scheme \
+  --plan ~/Downloads/phonoweave_scheme_bank05_11/recording_action_plan.json \
+  --alias-records ~/Downloads/phonoweave_scheme_bank05_11/alias_records.jsonl \
+  --output ~/Downloads/phonoweave_bank05_precheck_01.json
+```
+
+This first precheck reports exact source-alias evidence for cross-pitch
+review tasks (e.g. `ceng` across A#3/D#4/G#4), retaining raw strings
+and OTO/WAV provenance. It cannot prove acoustic presence, approve a
+recording, or change a human review decision. Other review categories
+remain pending while more conservative rules are developed.
