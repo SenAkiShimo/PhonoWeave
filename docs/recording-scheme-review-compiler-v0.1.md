@@ -39,8 +39,8 @@ eight-bank manifest without copying a long installation path:
 ```bash
 python -m phonoweave.entrypoint compile-recording-scheme \
   --manifest ~/.config/phonoweave/voicebanks.json \
-  --bank-id bank05 \
-  --output ~/Downloads/phonoweave_scheme_bank05_01
+  --bank-id example_bank \
+  --output ~/Downloads/phonoweave_scheme_example_bank_01
 ```
 
 This manifest is read locally; only a uniquely matched `bank_id` and
@@ -82,7 +82,7 @@ The next milestone is to specify an OpenUtau/UTAU export convention, verify gene
 
 ## v0.2 source-alias surface role preview
 
-Real bank05 records (5,902 aliases) show distinct pitch-suffixed surface roles:
+Compatibility fixtures show distinct pitch-suffixed surface roles:
 initial CV (`'- shaA#3`), standalone CV (`shaA#3`), vowel-to-consonant (`a shA#3`), vowel-to-vowel (`ang erA#3`), standalone vowel (`aiA#3`), and modified/special transitions (`a 吸RA#3`). Parsing this grammar is a prerequisite for any engine-specific alias compiler.
 
 The new `alias_roles_preview.csv` adds original alias, source OTO and line, stripped pitch suffix, surface tokens, a conservative role classification, and manual-review status. `summary.json` records `alias_role_counts`. A pitch suffix is stripped only when it agrees with the containing note-named OTO directory. Nonstandard consonant spelling, special modifiers, zero/empty alias, and unknown surface grammar remain explicitly manual-review; no alias spelling, OTO values, bank files or unit decisions are changed.
@@ -174,8 +174,8 @@ listed, even though the human-facing plan groups repeated pitch tasks.
 
 ```bash
 phonoweave review-recording-scheme template \
-  --plan ~/Downloads/phonoweave_scheme_bank05_09/recording_action_plan.json \
-  --output ~/Downloads/phonoweave_decisions_bank05_01.json
+  --plan ~/Downloads/phonoweave_scheme_example_bank_09/recording_action_plan.json \
+  --output ~/Downloads/phonoweave_decisions_example_bank_01.json
 ```
 
 After actual human source review, set `reviewer_id`, individual
@@ -187,9 +187,9 @@ review evidence. Unreviewed proposals cannot be approved. Do **not** edit
 
 ```bash
 phonoweave review-recording-scheme compile \
-  --plan ~/Downloads/phonoweave_scheme_bank05_09/recording_action_plan.json \
-  --decisions ~/Downloads/phonoweave_decisions_bank05_01.json \
-  --output ~/Downloads/phonoweave_reviewed_bank05_01
+  --plan ~/Downloads/phonoweave_scheme_example_bank_09/recording_action_plan.json \
+  --decisions ~/Downloads/phonoweave_decisions_example_bank_01.json \
+  --output ~/Downloads/phonoweave_reviewed_example_bank_01
 ```
 
 The output includes `reviewed_scheme.json` and an
@@ -209,9 +209,9 @@ strings; machine consumers must use canonical JSONL.
 
 ```bash
 python -m phonoweave.entrypoint precheck-recording-scheme \
-  --plan ~/Downloads/phonoweave_scheme_bank05_11/recording_action_plan.json \
-  --alias-records ~/Downloads/phonoweave_scheme_bank05_11/alias_records.jsonl \
-  --output ~/Downloads/phonoweave_bank05_precheck_01.json
+  --plan ~/Downloads/phonoweave_scheme_example_bank_11/recording_action_plan.json \
+  --alias-records ~/Downloads/phonoweave_scheme_example_bank_11/alias_records.jsonl \
+  --output ~/Downloads/phonoweave_example_bank_precheck_01.json
 ```
 
 This first precheck reports exact source-alias evidence for cross-pitch
@@ -239,8 +239,8 @@ and exports a **reference**, not an optimized recording order:
 
 ```bash
 python -m phonoweave.entrypoint compile-reference-reclist \
-  --alias-records ~/Downloads/phonoweave_scheme_bank05_11/alias_records.jsonl \
-  --output ~/Downloads/phonoweave_bank05_reference_reclist_01
+  --alias-records ~/Downloads/phonoweave_scheme_example_bank_11/alias_records.jsonl \
+  --output ~/Downloads/phonoweave_example_bank_reference_reclist_01
 ```
 
 `reference_reclist.txt` contains only sequences observed with exactly one
@@ -261,7 +261,7 @@ python -m phonoweave.entrypoint plan-recording-budget \
   --blueprint ~/Downloads/reference_reclist_blueprint.json \
   --budget 60 \
   --mode syllables_and_starts \
-  --output ~/Downloads/phonoweave_bank05_budget_60
+  --output ~/Downloads/phonoweave_example_bank_budget_60
 ```
 
 `pilot_reclist.txt` contains a proposed **subset of observed source
@@ -292,11 +292,11 @@ unsupported groups remain excluded from optimization rather than merged.
 
 ```bash
 python -m phonoweave.entrypoint plan-speaker-context-budget \
-  --blueprint ~/Downloads/phonoweave_bank05_reference_reclist_01/reference_reclist_blueprint.json \
-  --units ~/Downloads/phonoweave_scheme_bank05_11/recording_units_review.csv \
-  --internal-links ~/Downloads/phonoweave_scheme_bank05_11/internal_context_links.csv \
+  --blueprint ~/Downloads/phonoweave_example_bank_reference_reclist_01/reference_reclist_blueprint.json \
+  --units ~/Downloads/phonoweave_scheme_example_bank_11/recording_units_review.csv \
+  --internal-links ~/Downloads/phonoweave_scheme_example_bank_11/internal_context_links.csv \
   --budget 60 --repeat-target 3 \
-  --output ~/Downloads/phonoweave_bank05_speaker_budget_60_01
+  --output ~/Downloads/phonoweave_example_bank_speaker_budget_60_01
 ```
 
 The report compares context-unit/pitch coverage depth across selected
@@ -316,11 +316,11 @@ lossless alias provenance:
 
 \`\`\`bash
 python -m phonoweave.entrypoint compile-split-handoff \
-  --budget ~/Downloads/phonoweave_bank05_speaker_budget_60_01/speaker_context_budget_plan.json \
-  --units ~/Downloads/phonoweave_scheme_bank05_11/recording_units_review.csv \
-  --action-plan ~/Downloads/phonoweave_scheme_bank05_11/recording_action_plan.json \
-  --alias-records ~/Downloads/phonoweave_scheme_bank05_11/alias_records.jsonl \
-  --output ~/Downloads/phonoweave_bank05_split_handoff_01
+  --budget ~/Downloads/phonoweave_example_bank_speaker_budget_60_01/speaker_context_budget_plan.json \
+  --units ~/Downloads/phonoweave_scheme_example_bank_11/recording_units_review.csv \
+  --action-plan ~/Downloads/phonoweave_scheme_example_bank_11/recording_action_plan.json \
+  --alias-records ~/Downloads/phonoweave_scheme_example_bank_11/alias_records.jsonl \
+  --output ~/Downloads/phonoweave_example_bank_split_handoff_01
 \`\`\`
 
 - \`ANNOTATOR_SPLIT_AND_OTO_GUIDE.md\`: context groups, original CV/VC
