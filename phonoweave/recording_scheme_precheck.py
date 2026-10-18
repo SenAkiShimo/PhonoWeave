@@ -196,7 +196,7 @@ def audit_plan_evidence(plan: dict, records: list[dict]) -> dict:
             status, detail = _task_details(task, by_pitch, by_identity)
         task_findings.append({
             "task_id": task_id, "review_action": action,
-            "unit_id": task["unit_id"], "pitch_groups": task["pitch_groups"],
+            "unit_id": task.get("unit_id", ""), "pitch_groups": task["pitch_groups"],
             "structural_status": status, "evidence": detail,
             "human_review_required": True,
             "review_resolution": "unchanged",
