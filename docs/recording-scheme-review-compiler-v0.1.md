@@ -278,3 +278,31 @@ recording positions. No generated subset may be substituted for the source
 voicebank as a production reclist. Existing excluded source WAV groups
 and unparsed aliases remain out of scope. Speaker-profile splitting/merging
 and actual synthesis tests are not yet coupled to this prototype.
+
+## Speaker-context evidence candidate budget
+
+The new `plan-speaker-context-budget` command compares a syllable-first
+reference baseline with a candidate speaker-context depth strategy. It uses
+the existing review's `recording_units_review.csv` and
+`internal_context_links.csv`; only `split_recommended` groups with
+`supported_under_proxy` synthesis evidence and moderate/high confidence
+enter the prioritization. For internal-CV evidence, exact filename sequence,
+pitch, source OTO and boundary index are checked. Unresolved and other
+unsupported groups remain excluded from optimization rather than merged.
+
+```bash
+python -m phonoweave.entrypoint plan-speaker-context-budget \
+  --blueprint ~/Downloads/phonoweave_bank05_reference_reclist_01/reference_reclist_blueprint.json \
+  --units ~/Downloads/phonoweave_scheme_bank05_11/recording_units_review.csv \
+  --internal-links ~/Downloads/phonoweave_scheme_bank05_11/internal_context_links.csv \
+  --budget 60 --repeat-target 3 \
+  --output ~/Downloads/phonoweave_bank05_speaker_budget_60_01
+```
+
+The report compares context-unit/pitch coverage depth across selected
+recording **sequences** (not distinct independent takes) and surface coverage
+against an equal-budget baseline. The planner protects observable syllables
+first and uses remaining line budget for context evidence depth, then starts
+and exact orthographic pairs. It is not a production reclist or a validated
+acoustic/synthesis optimizer. The excluded source WAV groups and uncertain
+context decisions remain explicit limitations.
