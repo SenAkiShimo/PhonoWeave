@@ -20,6 +20,7 @@ from .recording_scheme_precheck_cli import main as precheck_recording_scheme_mai
 from .reference_reclist_blueprint_cli import main as reference_reclist_main
 from .recording_scheme_budget_cli import main as recording_budget_main
 from .speaker_context_budget_cli import main as speaker_context_budget_main
+from .split_handoff_cli import main as split_handoff_main
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
 
@@ -414,6 +415,9 @@ def main() -> int:
 
     if len(sys.argv) > 1 and sys.argv[1] == "plan-speaker-context-budget":
         return speaker_context_budget_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "compile-split-handoff":
+        return split_handoff_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 
