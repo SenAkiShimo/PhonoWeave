@@ -144,7 +144,7 @@ def test_publish_complete_package_then_refuse_overwrite(tmp_path):
         "recording_units_review.csv", "observed_alias_review.csv",
         "oto_timing_review.csv", "supplemental_targets.csv",
         "supplemental_reclist.txt", "alias_roles_preview.csv",
-        "alias_compilation_preview.csv", "recording_coverage_matrix.csv",
+        "alias_compilation_preview.csv", "alias_records.jsonl", "recording_coverage_matrix.csv",
         "recording_review_queue.csv", "internal_context_links.csv", "recording_action_plan.json",
         "recording_action_plan.md",
     }
