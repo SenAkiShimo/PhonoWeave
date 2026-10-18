@@ -250,3 +250,31 @@ Special and non-sequence filenames are excluded. No additional takes,
 aliases, OTO boundaries or phonological decisions are fabricated. This
 reconstructs the *observed bank's source recording convention*, not a
 speaker-adaptive minimum budget proposal or production export.
+
+## Budgeted recording-sequence pilot (surface coverage baseline)
+
+Run the new deterministic, budget-capped sequence planner against a
+source-derived reference blueprint:
+
+```bash
+python -m phonoweave.entrypoint plan-recording-budget \
+  --blueprint ~/Downloads/reference_reclist_blueprint.json \
+  --budget 60 \
+  --mode syllables_and_starts \
+  --output ~/Downloads/phonoweave_bank05_budget_60
+```
+
+`pilot_reclist.txt` contains a proposed **subset of observed source
+sequences**, and `recording_budget_plan.json` compares three equally
+budgeted selection objectives: unique syllable types, syllables plus
+sequence starts, and exact adjacent orthographic syllable pairs. Each
+objective reports covered/uncovered features against the same available
+180-sequence reference. Budget counts lines **per pitch**; it is not a
+time-cost or acoustic-budget estimate. A deterministic greedy algorithm
+provides a transparent baseline, **not** a proven optimal set cover.
+
+Preserving syllables alone does not preserve their transitions or
+recording positions. No generated subset may be substituted for the source
+voicebank as a production reclist. Existing excluded source WAV groups
+and unparsed aliases remain out of scope. Speaker-profile splitting/merging
+and actual synthesis tests are not yet coupled to this prototype.
