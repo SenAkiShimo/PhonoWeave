@@ -19,6 +19,7 @@ from .alias_compilation_preview import compile_alias_preview, FIELDS as COMPILED
 from .recording_scheme_coverage import (build_recording_coverage, COVERAGE_FIELDS, ACTION_FIELDS)
 from .internal_context_links import link_internal_contexts, FIELDS as INTERNAL_FIELDS
 from .recording_scheme_action_plan import build_action_plan, action_plan_markdown
+from .lossless_alias_export import write_alias_records
 from .diagnostic_selector import DiagnosticSelection, select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .inventory import VoicebankInventoryAnalysis, analyze_voicebank_inventory
@@ -360,6 +361,9 @@ def write_review_package(package: ReviewPackage, output: Path) -> Path:
         )
         _write_csv(staging / "recording_units_review.csv",
                    PLAN_FIELDS, package.plan_rows)
+        write_alias_records(staging / "alias_records.jsonl", package.alias_rows,
+                            package.role_rows, package.compiled_alias_rows,
+                            package.oto_rows)
         _write_csv(staging / "observed_alias_review.csv",
                    ALIAS_FIELDS, package.alias_rows)
         _write_csv(staging / "oto_timing_review.csv",
