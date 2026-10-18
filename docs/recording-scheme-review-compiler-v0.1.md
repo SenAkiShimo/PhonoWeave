@@ -306,3 +306,30 @@ first and uses remaining line budget for context evidence depth, then starts
 and exact orthographic pairs. It is not a production reclist or a validated
 acoustic/synthesis optimizer. The excluded source WAV groups and uncertain
 context decisions remain explicit limitations.
+
+## Annotator and tuner split handoff
+
+A candidate recording plan must be accompanied by staff-facing instructions.
+The \`compile-split-handoff\` command produces two guides and one common
+machine-readable manifest from the same budget, inventory, action plan and
+lossless alias provenance:
+
+\`\`\`bash
+python -m phonoweave.entrypoint compile-split-handoff \
+  --budget ~/Downloads/phonoweave_bank05_speaker_budget_60_01/speaker_context_budget_plan.json \
+  --units ~/Downloads/phonoweave_scheme_bank05_11/recording_units_review.csv \
+  --action-plan ~/Downloads/phonoweave_scheme_bank05_11/recording_action_plan.json \
+  --alias-records ~/Downloads/phonoweave_scheme_bank05_11/alias_records.jsonl \
+  --output ~/Downloads/phonoweave_bank05_split_handoff_01
+\`\`\`
+
+- \`ANNOTATOR_SPLIT_AND_OTO_GUIDE.md\`: context groups, original CV/VC
+  references and OTO source locations, plus conservative waveform and
+  boundary-check instructions.
+- \`TUNER_ALIAS_AND_CONTEXT_GUIDE.md\`: provisional context-routing
+  and listening-test instructions, alias provenance and explicit fallback abstention.
+- \`split_handoff_manifest.json\`: source-linked unit, pitch, status and review
+  task identifiers consumed by both guides.
+
+These are **review-only**. No approved new alias or OTO timing is generated;
+provisional split recommendations do not authorize a production mapping.
