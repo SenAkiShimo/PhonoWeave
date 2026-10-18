@@ -36,3 +36,57 @@ def test_mismatched_provenance_refused(tmp_path):
     r["line_number"]=7
     with pytest.raises(ValueError,match="mismatch"):
         write_alias_records(tmp_path/"records.jsonl",[s],[r],[c],[t])
+
+
+def test_all_review_actions_have_non_authorizing_structural_findings():
+    src, role, comp, timing = data(alias="a pD#4", role="vc_transition")
+    role["right_token"] = "p"
+    src["base_unit"] = "p"
+    rec = dict(schema="phonoweave.lossless_alias_record.v0.1",
+               source=src, role=role, compilation_preview=comp,
+               original_oto_timing=timing)
+    example = {"source_oto": src["source_oto"], "line_number": src["line_number"],
+               "source_wav": src["source_wav"],
+               "original_alias": src["original_alias"],
+               "pitch_group": "D#4"}
+    actions = [
+        ("review_internal_candidate_mapping", [example]),
+        ("review_context_mapping", []),
+        ("review_role_scoped_mapping", []),
+        ("review_provisional_unit_decision", []),
+    ]
+    plan = {"schema": "phonoweave.recording_scheme_action_plan.v0.1",
+            "speaker_id": "s", "tasks": [
+                {"task_id": f"RS-{i:03d}", "unit_id": "p_internal",
+                 "base_unit": "p", "review_action": action,
+                 "pitch_groups": ["D#4"], "source_examples": examples,
+                 "suggested_syllables": []}
+                for i, (action, examples) in enumerate(actions, 1)
+            ]}
+    result = audit_plan_evidence(plan, [rec])
+    assert result["review_tasks_checked"] == 4
+    assert result["human_resolutions_written"] == 0
+    assert result["recordings_authorized"] == 0
+    assert result["task_findings"][0]["evidence"]["consistent_examples"] == 1
+
+
+def test_internal_candidate_mismatched_wav_remains_unverified():
+    src, role, comp, timing = data(alias="a pD#4", role="vc_transition")
+    role["right_token"] = "p"
+    rec = dict(schema="phonoweave.lossless_alias_record.v0.1",
+               source=src, role=role, compilation_preview=comp)
+    plan = {"schema": "phonoweave.recording_scheme_action_plan.v0.1",
+            "speaker_id": "s", "tasks": [{
+                "task_id": "RS-001", "unit_id": "p_internal",
+                "base_unit": "p", "review_action": "review_internal_candidate_mapping",
+                "pitch_groups": ["D#4"], "suggested_syllables": [],
+                "source_examples": [{
+                    "source_oto": src["source_oto"],
+                    "line_number": src["line_number"],
+                    "original_alias": src["original_alias"],
+                    "source_wav": "incorrect.wav", "pitch_group": "D#4",
+                }],
+            }]}
+    result = audit_plan_evidence(plan, [rec])
+    assert result["task_findings"][0]["structural_status"] == "source_examples_need_review"
+    assert "source_wav_mismatch" in result["task_findings"][0]["evidence"]["source_examples"][0]["issues"]
