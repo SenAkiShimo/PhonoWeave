@@ -230,3 +230,23 @@ internal candidates, and observed unit alias references for provisional
 split/merge reviews. `structural_status` is strictly a source-data audit
 state, **not** a human approval or acoustic pass. This stage never revises
 `reviewed_scheme.json`, marks a recording missing, or proposes OTO edits.
+
+## Source-derived reference reclist blueprint
+
+A read-only compiler now extracts underscore-delimited recording sequences from
+canonical alias record WAV paths, groups them across observed pitch subbanks,
+and exports a **reference**, not an optimized recording order:
+
+```bash
+python -m phonoweave.entrypoint compile-reference-reclist \
+  --alias-records ~/Downloads/phonoweave_scheme_bank05_11/alias_records.jsonl \
+  --output ~/Downloads/phonoweave_bank05_reference_reclist_01
+```
+
+`reference_reclist.txt` contains only sequences observed with exactly one
+physical source WAV per pitch group. `reference_reclist_blueprint.json`
+preserves incomplete and ambiguous sequences and source OTO provenance.
+Special and non-sequence filenames are excluded. No additional takes,
+aliases, OTO boundaries or phonological decisions are fabricated. This
+reconstructs the *observed bank's source recording convention*, not a
+speaker-adaptive minimum budget proposal or production export.
