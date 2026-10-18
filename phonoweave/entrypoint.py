@@ -18,6 +18,7 @@ from .recording_scheme_review_cli import main as compile_recording_scheme_main
 from .recording_scheme_decisions_cli import main as review_recording_scheme_main
 from .recording_scheme_precheck_cli import main as precheck_recording_scheme_main
 from .reference_reclist_blueprint_cli import main as reference_reclist_main
+from .recording_scheme_budget_cli import main as recording_budget_main
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
 
@@ -406,6 +407,9 @@ def main() -> int:
 
     if len(sys.argv) > 1 and sys.argv[1] == "compile-reference-reclist":
         return reference_reclist_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "plan-recording-budget":
+        return recording_budget_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 
