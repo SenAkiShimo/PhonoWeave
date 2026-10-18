@@ -219,3 +219,14 @@ review tasks (e.g. `ceng` across A#3/D#4/G#4), retaining raw strings
 and OTO/WAV provenance. It cannot prove acoustic presence, approve a
 recording, or change a human review decision. Other review categories
 remain pending while more conservative rules are developed.
+
+## Structural precheck v0.2
+
+The same `precheck-recording-scheme` command now reports a `task_findings`
+entry for every action-plan task, not only cross-pitch anomalies. Evidence checks
+include CV source observations for context mapping, VC source presence for
+unresolved role-scoped mapping, exact OTO/WAV alias provenance for aligned
+internal candidates, and observed unit alias references for provisional
+split/merge reviews. `structural_status` is strictly a source-data audit
+state, **not** a human approval or acoustic pass. This stage never revises
+`reviewed_scheme.json`, marks a recording missing, or proposes OTO edits.
