@@ -16,6 +16,7 @@ from .nasal_relevance_cli import main as nasal_relevance_main
 from .profile import write_speaker_profile
 from .recording_scheme_review_cli import main as compile_recording_scheme_main
 from .recording_scheme_decisions_cli import main as review_recording_scheme_main
+from .recording_scheme_precheck_cli import main as precheck_recording_scheme_main
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
 
@@ -398,6 +399,9 @@ def main() -> int:
 
     if len(sys.argv) > 1 and sys.argv[1] == "review-recording-scheme":
         return review_recording_scheme_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "precheck-recording-scheme":
+        return precheck_recording_scheme_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 
