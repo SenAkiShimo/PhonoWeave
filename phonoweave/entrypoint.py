@@ -14,6 +14,13 @@ from .lateral_timecourse_cli import main as lateral_timecourse_main
 from .nasal_cli import main as nasal_main
 from .nasal_relevance_cli import main as nasal_relevance_main
 from .profile import write_speaker_profile
+from .recording_scheme_review_cli import main as compile_recording_scheme_main
+from .recording_scheme_decisions_cli import main as review_recording_scheme_main
+from .recording_scheme_precheck_cli import main as precheck_recording_scheme_main
+from .reference_reclist_blueprint_cli import main as reference_reclist_main
+from .recording_scheme_budget_cli import main as recording_budget_main
+from .speaker_context_budget_cli import main as speaker_context_budget_main
+from .split_handoff_cli import main as split_handoff_main
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
 
@@ -390,6 +397,27 @@ def main() -> int:
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
         return _build_synthesis_inventory(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
+        return compile_recording_scheme_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "review-recording-scheme":
+        return review_recording_scheme_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "precheck-recording-scheme":
+        return precheck_recording_scheme_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "compile-reference-reclist":
+        return reference_reclist_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "plan-recording-budget":
+        return recording_budget_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "plan-speaker-context-budget":
+        return speaker_context_budget_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "compile-split-handoff":
+        return split_handoff_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 

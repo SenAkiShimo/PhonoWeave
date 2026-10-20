@@ -82,6 +82,30 @@ phonoweave analyze-rhotic /path/to/voicebank
 phonoweave splice-test /path/to/voicebank --base sh
 ```
 
+## Recording-scheme review compiler (preview)
+
+Compile an existing voicebank into a human-reviewable recording-scheme package:
+
+```bash
+phonoweave compile-recording-scheme /path/to/voicebank \
+  --output ~/Downloads/phonoweave_scheme_review_01
+```
+
+Or compile a previously registered voicebank by ID:
+
+```bash
+phonoweave compile-recording-scheme \
+  --manifest ~/.config/phonoweave/voicebanks.json --bank-id example_bank \
+  --output ~/Downloads/phonoweave_scheme_example_bank_01
+```
+
+The pack contains the neutral synthesis inventory, evidence-qualified unit decisions,
+observed-alias candidate mappings, original OTO timing tables, proposed diagnostic
+recordings and a supplemental reclist. It **never** modifies the input voicebank,
+does not overwrite output folders, and is not an automatic OpenUtau-compatible
+alias or OTO installation. See
+[recording scheme compiler v0.1](docs/recording-scheme-review-compiler-v0.1.md).
+
 ## Experimental live calibration
 
 The repository also contains an experimental calibration workflow for elicited recordings, separate from the existing voicebank analysis and synthesis-inventory compiler.

@@ -56,3 +56,11 @@ def test_illegal_tiu_is_not_a_candidate() -> None:
     request = _request("t", "i_series", 10, "internal")
     candidates = _candidates(request, Counter(), "i_series")
     assert "tiu" not in {item.syllable for item in candidates}
+
+
+def test_nasal_n_candidate_families_are_populated() -> None:
+    expected = {"i_series": "ni", "u_series": "nu",
+                "v_series": "nv", "other": "na"}
+    for family, syllable in expected.items():
+        candidates = _candidates(_request("n", family, 2), Counter(), family)
+        assert any(item.syllable == syllable for item in candidates)
