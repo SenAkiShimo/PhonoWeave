@@ -129,3 +129,13 @@ def test_cli_nonoverwrite_and_report(tmp_path, capsys):
     with pytest.raises(SystemExit) as exc:
         main([str(manifest), "--output", str(dest)])
     assert exc.value.code == 2
+
+
+def test_output_cannot_write_inside_corpus(tmp_path):
+    data = make_plan()
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    output = tmp_path / "results" / "score.json"
+    with pytest.raises(ValueError, match="outside the capture corpus"):
+        run_controlled_proxy(manifest, output)
+    assert not output.exists()

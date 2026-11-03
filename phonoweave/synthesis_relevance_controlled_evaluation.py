@@ -204,6 +204,8 @@ def run_controlled_proxy(manifest: Path, output: Path, *, root: Path | None = No
         json.loads(manifest.read_text(encoding="utf-8")), source
     )
     output = output.expanduser().resolve()
+    if output == source or source in output.parents:
+        raise ValueError("evaluation output must be outside the capture corpus")
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("x", encoding="utf-8") as stream:
         json.dump(result, stream, ensure_ascii=False, indent=2, allow_nan=False)

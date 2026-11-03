@@ -27,7 +27,7 @@ python -m phonoweave.synthesis_relevance_controlled_evaluation_cli \
   --output /path/to/new_spectral_proxy.json
 ```
 
-Evaluation refuses existing outputs. The JSON includes source manifest
+Evaluation refuses existing outputs and any output path inside the captured corpus. The JSON includes source manifest
 and per-take audio hashes, frozen train/test roles, train-only utility,
 held-out per-take spectral distances and full 0–4 split-identity budget
 curves for alphabetic, prespecified linguistic, and adaptive policies.
