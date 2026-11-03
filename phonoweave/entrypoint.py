@@ -402,6 +402,10 @@ def main() -> int:
         from .reclist_cli import main as inspect_reclist_main
         return inspect_reclist_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "plan-literal-reclist":
+        from .reclist_budget_cli import main as literal_budget_main
+        return literal_budget_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
