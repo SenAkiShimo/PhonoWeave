@@ -27,27 +27,44 @@ def _wav(path: Path, value: int) -> None:
 
 
 def _fixture(tmp_path):
+    from phonoweave.synthesis_relevance_controlled_corpus import FINALS, PAIRS, REPEATS
     root = tmp_path / "renders"
     root.mkdir()
     corpus = tmp_path / "corpus"
     corpus.mkdir()
+    original_hashes = {}
+    for si, sid in enumerate(("S01", "S02")):
+        for fi, final in enumerate(FINALS):
+            for repeat in range(1, REPEATS + 1):
+                name = f"{sid}_sh{final}_{repeat:02d}"
+                path = corpus / f"audio/{sid}/sh{final}_{repeat:02d}.wav"
+                _wav(path, 100 + si * 1000 + fi * 100 + repeat)
+                original_hashes[name] = _digest(path)
+
     tasks = []
-    for i in range(24):
-        take = f"S02_sh{i:02d}"
-        tasks.append({
-            "target_take_id": take,
-            "target_final": "a",
-            "source_reference_sha256": "0" * 64,
-            "allowed_S01_pooled_donor_take_ids": ["S01_a", "S01_b"],
-            "allowed_S01_split_donor_take_ids": ["S01_a"],
-            "render_wavs": {
-                "pooled": f"{take}/pooled.wav",
-                "split": f"{take}/split.wav",
-            },
-        })
+    for final in FINALS:
+        pair = next(p for p in PAIRS if final in p)
+        for repeat in range(1, REPEATS + 1):
+            take = f"S02_sh{final}_{repeat:02d}"
+            tasks.append({
+                "target_take_id": take,
+                "target_final": final,
+                "source_reference_sha256": original_hashes[take],
+                "allowed_S01_pooled_donor_take_ids": sorted(
+                    f"S01_sh{f}_{j:02d}" for f in pair for j in range(1, REPEATS + 1)
+                ),
+                "allowed_S01_split_donor_take_ids": sorted(
+                    f"S01_sh{final}_{j:02d}" for j in range(1, REPEATS + 1)
+                ),
+                "render_wavs": {
+                    "pooled": f"{take}/pooled.wav",
+                    "split": f"{take}/split.wav",
+                },
+            })
     plan = {
         "schema": PLAN_SCHEMA,
         "task_count": 24,
+        "source_audio_sha256_by_take": original_hashes,
         "tasks": tasks,
     }
     receipt = make_receipt_template(plan)
@@ -63,14 +80,13 @@ def _fixture(tmp_path):
     })
     for i, task in enumerate(tasks):
         item = receipt["trial_receipts"][i]
-        item["pooled_donor_take_ids_used"] = ["S01_a", "S01_b"]
-        item["split_donor_take_ids_used"] = ["S01_a"]
+        item["pooled_donor_take_ids_used"] = task["allowed_S01_pooled_donor_take_ids"]
+        item["split_donor_take_ids_used"] = task["allowed_S01_split_donor_take_ids"]
         for j, arm in enumerate(("pooled", "split")):
             path = root / task["render_wavs"][arm]
             _wav(path, (i + 1) * 10 + j + 1)
             item[f"{arm}_wav_sha256"] = _digest(path)
     return root, corpus, plan, receipt
-
 
 def test_receipts_validated_and_split_training_only(tmp_path):
     render, _, plan, receipt = _fixture(tmp_path)
@@ -149,6 +165,28 @@ def test_private_key_and_media_protection(tmp_path):
         compile_responses(manifest, key, [], tmp_path / "public")
 
 
+def test_source_corpus_tampering_blocks_blind_publication(tmp_path):
+    render, corpus, plan, receipt = _fixture(tmp_path)
+    source = corpus / "audio/S01/sha_01.wav"
+    source.write_bytes(b"not the original source")
+    with pytest.raises(ValueError, match="source audio checksum mismatch"):
+        stage_blind_session(
+            plan, receipt, render, tmp_path / "participant",
+            tmp_path / "answer.json", corpus=corpus, seed_hex="a"*64,
+        )
+    assert not (tmp_path / "participant").exists()
+
+
+def test_forged_donor_pool_blocks_blind_publication(tmp_path):
+    render, corpus, plan, receipt = _fixture(tmp_path)
+    plan["tasks"][0]["allowed_S01_split_donor_take_ids"] = ["S01_shua_01"]
+    with pytest.raises(ValueError, match="donor pools"):
+        stage_blind_session(
+            plan, receipt, render, tmp_path / "participant",
+            tmp_path / "answer.json", corpus=corpus, seed_hex="a"*64,
+        )
+
+
 def test_incomplete_corpus_cannot_authorize_render_plan(tmp_path):
     from phonoweave.synthesis_relevance_controlled_corpus import make_plan
     with pytest.raises(ValueError, match="not audit-ready"):
@@ -158,7 +196,7 @@ def test_incomplete_corpus_cannot_authorize_render_plan(tmp_path):
 def test_plan_write_guards(tmp_path):
     root = tmp_path / "corpus"
     root.mkdir()
-    plan = _fixture(tmp_path / "other")[2] if False else {
+    plan = {
         "schema": PLAN_SCHEMA, "task_count": 24, "tasks": [
             {"target_take_id": str(i)} for i in range(24)
         ]
