@@ -122,7 +122,9 @@ def test_noncanonical_capture_filename_rejected(tmp_path):
 
 def test_cli_nonoverwrite_and_report(tmp_path, capsys):
     data = make_plan()
-    manifest, dest = tmp_path / "manifest.json", tmp_path / "result.json"
+    corpus = tmp_path / "pilot"
+    corpus.mkdir()
+    manifest, dest = corpus / "manifest.json", tmp_path / "result.json"
     manifest.write_text(json.dumps(data), encoding="utf-8")
     assert main([str(manifest), "--output", str(dest)]) == 2
     assert json.loads(dest.read_text())["status"] == "insufficient"
