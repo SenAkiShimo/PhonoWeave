@@ -398,6 +398,10 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
         return _build_synthesis_inventory(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "inspect-reclist":
+        from .reclist_cli import main as inspect_reclist_main
+        return inspect_reclist_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
