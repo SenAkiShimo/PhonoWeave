@@ -99,6 +99,7 @@ def create_render_plan(manifest: dict, proxy: dict, corpus: Path) -> dict:
         "status": "render_tasks_only_no_audio_generated",
         "source_manifest_sha256": expected["source_manifest_sha256"],
         "source_proxy_sha256": _canonical(proxy),
+        "source_audio_sha256_by_take": dict(sorted(expected["source_audio_sha256_by_take"].items())),
         "speaker_id": manifest["speaker_id"],
         "pitch_subbank": manifest["pitch_subbank"],
         "train_session": "S01",
@@ -245,6 +246,45 @@ def _check_receipt(plan: dict, receipt: dict, render_root: Path) -> list[dict]:
     return files
 
 
+def verify_frozen_corpus(plan: dict, corpus: Path) -> None:
+    """Recheck all 48 frozen pilot sources before publishing blind media."""
+    root = corpus.expanduser().resolve(strict=True)
+    hashes = plan.get("source_audio_sha256_by_take")
+    expected = {
+        f"{sid}_sh{final}_{take:02d}":
+        f"audio/{sid}/sh{final}_{take:02d}.wav"
+        for sid in ("S01", "S02")
+        for final in FINALS
+        for take in range(1, REPEATS + 1)
+    }
+    if not isinstance(hashes, dict) or set(hashes) != set(expected):
+        raise ValueError("plan must freeze all 48 canonical source WAV hashes")
+    by_id = {x.get("target_take_id"): x for x in plan["tasks"]}
+    if len(by_id) != 24 or set(by_id) != {k for k in expected if k.startswith("S02_")}:
+        raise ValueError("render plan does not enumerate the frozen S02 targets")
+    for take_id, rel in expected.items():
+        digest = hashes[take_id]
+        if not isinstance(digest, str) or not _HEX.fullmatch(digest):
+            raise ValueError("invalid frozen source audio SHA-256")
+        path = (root / rel).resolve(strict=True)
+        if not path.is_relative_to(root) or not path.is_file():
+            raise ValueError("frozen audio path escapes corpus")
+        if _digest(path) != digest:
+            raise ValueError(f"frozen source audio checksum mismatch: {take_id}")
+        if take_id.startswith("S02_") and by_id[take_id].get("source_reference_sha256") != digest:
+            raise ValueError("heldout reference hash differs from frozen source")
+    for task in plan["tasks"]:
+        tid, final = task["target_take_id"], task.get("target_final")
+        if final not in FINALS or not tid.startswith(f"S02_sh{final}_"):
+            raise ValueError("render target final/identity mismatch")
+        pair = next(p for p in PAIRS if final in p)
+        pooled = sorted(f"S01_sh{f}_{n:02d}" for f in pair for n in range(1, REPEATS + 1))
+        split = sorted(f"S01_sh{final}_{n:02d}" for n in range(1, REPEATS + 1))
+        if (task.get("allowed_S01_pooled_donor_take_ids") != pooled
+                or task.get("allowed_S01_split_donor_take_ids") != split):
+            raise ValueError("render donor pools do not match frozen S01 protocol")
+
+
 def stage_blind_session(
     plan: dict, receipt: dict, render_root: Path,
     blind_output: Path, key_output: Path, *, corpus: Path, seed_hex: str,
@@ -263,6 +303,7 @@ def stage_blind_session(
         raise ValueError("blinded package and private key must be completely separate")
     if not isinstance(seed_hex, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", seed_hex):
         raise ValueError("blinding seed must be 32 random bytes, given as hex")
+    verify_frozen_corpus(plan, corpus)
     files = _check_receipt(plan, receipt, render_root)
     rng = random.Random(int(seed_hex, 16))
     indices = list(range(len(files)))
