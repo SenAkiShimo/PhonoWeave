@@ -414,6 +414,10 @@ def main() -> int:
         from .phonetic_transition_cli import main as phonetic_transitions_main
         return phonetic_transitions_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "audit-oto-vc-zip":
+        from .oto_vc_evidence import main as audit_oto_vc_main
+        return audit_oto_vc_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
