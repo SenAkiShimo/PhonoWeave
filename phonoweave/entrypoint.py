@@ -410,6 +410,10 @@ def main() -> int:
         from .reclist_budget_comparison_cli import main as compare_literal_main
         return compare_literal_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "plan-phonetic-transitions":
+        from .phonetic_transition_cli import main as phonetic_transitions_main
+        return phonetic_transitions_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
