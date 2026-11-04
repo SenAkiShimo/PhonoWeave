@@ -418,6 +418,10 @@ def main() -> int:
         from .oto_vc_evidence import main as audit_oto_vc_main
         return audit_oto_vc_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "review-verified-vc-nuclei":
+        from .vc_nucleus_review import main as vc_nucleus_review_main
+        return vc_nucleus_review_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
