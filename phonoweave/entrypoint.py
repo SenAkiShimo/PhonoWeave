@@ -442,6 +442,14 @@ def main() -> int:
         from .diffsinger_vc_splice_ab import main as vc_microsplice_main
         return vc_microsplice_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "diffsinger-note-phrase-ab":
+        from .diffsinger_note_phrase_ab import main as phrase_main
+        return phrase_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "diffsinger-note-phrase-blind":
+        from .diffsinger_phrase_listening import main as phrase_blind_main
+        return phrase_blind_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
