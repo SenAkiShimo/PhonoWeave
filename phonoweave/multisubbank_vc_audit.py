@@ -172,6 +172,22 @@ def build_audit(config: dict)->dict:
         raise ValueError('DiffSinger generation claim requires author confirmation')
     banks=[make_bank(item) for item in config.get('banks',[])]
     if not banks or len({b.id for b in banks})!=len(banks):raise ValueError('missing or duplicate banks')
+    # A single DiffSinger voicebank can expose multiple authored styles.
+    # Do not equate a shared voicebank identity with a known checkpoint or
+    # independent speakers. Preserve the author's claim as metadata only.
+    relation=source_provenance.get('voice_style_relation','unknown')
+    if relation not in ('unknown','same_voicebank_different_styles','different_voicebanks'):
+        raise ValueError('unsupported voice-style relationship')
+    if relation=='same_voicebank_different_styles':
+        bank_id=source_provenance.get('voicebank_id')
+        style_ids=source_provenance.get('voice_styles')
+        if (source_provenance['attestation']!='author_confirmed'
+            or not isinstance(bank_id,str) or not bank_id.strip()
+            or not isinstance(style_ids,list)
+            or len(style_ids)!=len(set(style_ids))
+            or set(style_ids)!={b.style for b in banks}):
+            raise ValueError('shared voicebank claim requires author confirmation, '
+                             'nonblank voicebank id and exact voice-style list')
     if sum(b.reference for b in banks)!=1:raise ValueError('exactly one D4 reviewed reference required')
     if not next(b for b in banks if b.reference).id=='mang_D4':
         raise ValueError('only user-confirmed mang_D4 reference annotation supported')
@@ -275,7 +291,7 @@ def build_audit(config: dict)->dict:
        'summary':summary,'subbanks':metadata,
        'duration_alignment':spreads,'targets':cliprows,'pairwise':pairwise,
        'limitations':[
-         'Four Mang pitches and three Lu pitches are two source voice styles, not seven independent speakers.',
+         'The four Mang and three Lu pitches are two styles of the same author-confirmed LynneQing voicebank, not two independent singer populations or seven independent speakers (for the LynneQing manifest).',
          'If author-confirmed DiffSinger rendered, these are synthetic model outputs, not human singing sessions or independent human repetitions. Checkpoint, prompt and inference settings are not determined from the WAVs.',
          'Most OTO timings are identical across pitch; transferred D4 manually marked intervals are NOT verified boundaries in the other six banks.',
          'Matched fixed-length recordings across subbanks may reflect a recording template, synchronized capture, reuse or audio processing; different PCM hashes cannot prove independent takes.',

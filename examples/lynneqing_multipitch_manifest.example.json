@@ -67,6 +67,8 @@
     ],
     "model_checkpoint_identity": "unknown",
     "shared_input_score_or_timing": "unknown",
-    "independent_render_seeds": "unknown"
+    "independent_render_seeds": "unknown",
+    "voicebank_id": "LynneQing",
+    "voice_style_relation": "same_voicebank_different_styles"
   }
 }

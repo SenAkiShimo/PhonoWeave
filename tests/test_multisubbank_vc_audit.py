@@ -150,3 +150,35 @@ def test_unconfirmed_generation_provenance_fails_closed(tmp_path):
                               'attestation':'not_provided'}
     with pytest.raises(ValueError,match='author confirmation'):
         build_audit(cfg)
+
+def test_author_attested_same_voicebank_different_styles(tmp_path):
+    cfg=_config(tmp_path)
+    cfg['source_provenance']={
+        'generation_method':'diffsinger_direct_render',
+        'attestation':'author_confirmed',
+        'voicebank_id':'LynneQing',
+        'voice_style_relation':'same_voicebank_different_styles',
+        'voice_styles':['mang'],
+        'model_checkpoint_identity':'unknown',
+    }
+    result=build_audit(cfg)
+    assert result['source_provenance']['voicebank_id']=='LynneQing'
+    assert result['source_provenance']['voice_style_relation']=='same_voicebank_different_styles'
+    assert result['source_provenance']['model_checkpoint_identity']=='unknown'
+    assert result['approved_split_or_share_decisions']==0
+
+def test_shared_voicebank_provenance_requires_exact_style_list(tmp_path):
+    cfg=_config(tmp_path)
+    cfg['source_provenance']={
+        'generation_method':'diffsinger_direct_render',
+        'attestation':'author_confirmed',
+        'voicebank_id':'LynneQing',
+        'voice_style_relation':'same_voicebank_different_styles',
+        'voice_styles':['mang','lu'],
+    }
+    with pytest.raises(ValueError,match='exact voice-style list'):
+        build_audit(cfg)
+    cfg['source_provenance']['voice_styles']=['mang']
+    cfg['source_provenance']['attestation']='not_provided'
+    with pytest.raises(ValueError):
+        build_audit(cfg)

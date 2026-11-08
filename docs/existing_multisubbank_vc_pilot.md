@@ -2,9 +2,9 @@
 
 ## Source provenance: confirmed by voicebank author
 
-The author confirmed **all provided pitch subbanks were generated directly with DiffSinger**, rather than independently sung as human takes. There are two designated voice styles (Mang/芒, Lu/露) and seven pitch subbanks. Do not count these as independent human recordings, independent singers or distinct DiffSinger model checkpoints. The exact DiffSinger model checkpoint(s), inference seeds, shared note/phoneme/duration inputs, and timbral conditioning controls are **not established** by the ZIP files or this confirmation.
+The author confirmed **all provided pitch subbanks were generated directly with DiffSinger**, rather than independently sung as human takes. The author additionally clarified that Mang/芒 and Lu/露 are **different voice styles of the same LynneQing DiffSinger voicebank**, with seven pitch subbanks in total. Do not count them as independent human recordings, independent singers, separate voicebanks or distinct DiffSinger model checkpoints. The exact DiffSinger model checkpoint(s), inference seeds, shared note/phoneme/duration inputs, and timbral conditioning controls are **not established** by the ZIP files or this confirmation.
 
-This pilot's target population is **DiffSinger-generated audio for subsequent concatenative voicebank construction**. It is useful for synthesis-to-concatenation adaptation and controlled pitch/style stress tests, not direct inference about natural singer coarticulation.
+The declared structure is **one voicebank → two styles (Mang, Lu) → seven pitch subbanks**, not a two-singer or two-model comparison. This pilot's target population is **DiffSinger-generated audio for subsequent concatenative voicebank construction**. It is useful for synthesis-to-concatenation adaptation and controlled pitch/style stress tests, not direct inference about natural singer coarticulation.
 
 ## What was audited
 
@@ -36,7 +36,7 @@ Production method is now confirmed as **DiffSinger direct rendering**. Do not re
 
 **Next decisive experiment (frozen render benchmark):** take an unchanged set of DiffSinger source WAVs as the *only* allowed unit inventory, compare two genuinely executable concatenative renderers/policies—(A) preserve author-defined separate VC classes and (B) selectively pool/share candidate VC classes—under matched source-sample or recording-duration budgets. Keep pitch, voice style, downstream note targets, resampler and wavtool fixed per pair. Evaluate on **unseen syllable sequences** with separately rendered DiffSinger reference vocals; do not merely replay or splice a training-reference passage. Freeze source/target membership before optimizing policy; use actual objective continuity/alignment and blinded listening tests. In this setting, DiffSinger references are a **teacher-generated target**, not human ground truth. The answer is whether unit reuse preserves teacher-output quality, *not* whether it reproduces natural human singer behavior.
 
-Before a strong claim, confirm whether bank generation reused the same MIDI/phoneme duration templates and whether Mang/Lu share any underlying model/checkpoint; this matters for generalization and train-test contamination. Manually check representative non-D4 boundaries before spectral policy learning. The 36-take human-session protocol remains a distinct, optional later external-validation study.
+Before a strong claim, confirm whether bank generation reused the same MIDI/phoneme duration templates and whether Mang/Lu share any underlying model/checkpoint; this matters for generalization and train-test contamination. Manually check representative non-D4 boundaries before spectral policy learning. The 36-take human-session protocol remains a distinct, optional later external-validation study. The next render A/B should first be stratified within each style and pitch (not pooled across styles), then assess whether a decision optimized for Mang transfers to Lu; this is within-one-voicebank style transfer, *not* cross-speaker or cross-checkpoint generalization.
 
 ## Reproduce
 
