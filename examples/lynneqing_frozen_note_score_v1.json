@@ -1,0 +1,97 @@
+{
+  "schema": "phonoweave.diffsinger_note_phrase_score.v1",
+  "score_id": "lynneqing_vc_six_context_score_freeze_v1",
+  "root_pitch_semantics": "subbank_pitch_name_is_reference_not_measured_f0",
+  "source_unit_policy": "same_style_same_subbank_only",
+  "target_reference": "absent_external_diffsinger_render_required",
+  "phrases": [
+    {
+      "id": "phrase_a",
+      "pairs": [
+        {
+          "left": "i",
+          "right": "m",
+          "semitones": [
+            0,
+            2
+          ],
+          "durations_ms": [
+            400,
+            510
+          ],
+          "rest_ms": 80
+        },
+        {
+          "left": "ir",
+          "right": "sh",
+          "semitones": [
+            3,
+            2
+          ],
+          "durations_ms": [
+            430,
+            460
+          ],
+          "rest_ms": 80
+        },
+        {
+          "left": "i0",
+          "right": "m",
+          "semitones": [
+            0,
+            -1
+          ],
+          "durations_ms": [
+            390,
+            520
+          ],
+          "rest_ms": 0
+        }
+      ]
+    },
+    {
+      "id": "phrase_b",
+      "pairs": [
+        {
+          "left": "i0",
+          "right": "sh",
+          "semitones": [
+            -1,
+            1
+          ],
+          "durations_ms": [
+            425,
+            485
+          ],
+          "rest_ms": 80
+        },
+        {
+          "left": "i",
+          "right": "sh",
+          "semitones": [
+            2,
+            4
+          ],
+          "durations_ms": [
+            395,
+            505
+          ],
+          "rest_ms": 80
+        },
+        {
+          "left": "ir",
+          "right": "m",
+          "semitones": [
+            2,
+            0
+          ],
+          "durations_ms": [
+            430,
+            490
+          ],
+          "rest_ms": 0
+        }
+      ]
+    }
+  ]
+}
