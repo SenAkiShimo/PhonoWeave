@@ -430,6 +430,10 @@ def main() -> int:
         from .vc_boundary_review_cli import main as vc_review_main
         return vc_review_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "reviewed-vc-probe":
+        from .reviewed_vc_probe import main as reviewed_vc_probe_main
+        return reviewed_vc_probe_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
