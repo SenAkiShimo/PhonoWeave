@@ -438,6 +438,10 @@ def main() -> int:
         from .multisubbank_vc_audit import main as multisubbank_main
         return multisubbank_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "diffsinger-vc-microsplice-ab":
+        from .diffsinger_vc_splice_ab import main as vc_microsplice_main
+        return vc_microsplice_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 

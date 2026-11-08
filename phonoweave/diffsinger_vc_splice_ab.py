@@ -1,8 +1,9 @@
-"""Real PCM, budget-matched DiffSinger CVVC *micro-splice* research pilot.
+"""Executable, fixed-source-duration VC->CV *micro-splice* auditory pilot.
 
-This produces audible two-unit splices, not OpenUtau singing synthesis or
-evidence of split/share efficacy. Donor sourcing stays within one voice style
-and one pitch bank. Fully preserved K3 is explicitly NOT budget matched.
+Author-attested DiffSinger direct-rendered CVVC source ZIPs only. This is not
+an OpenUtau/resampler render or independently held-out teacher-song A/B.
+The 3 K=2 policies differ only in which of i/ir/i0 class donors are retained;
+constant 120ms units, constant fixture CV and crossfade for all K=2 arms.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ import numpy as np
 SCHEMA = "phonoweave.diffsinger_vc_microsplice_ab.v1"
 LEFTS = ("i", "ir", "i0")
 RIGHTS = ("m", "sh")
-SOURCE = {
+TARGET_SOURCE_WAV = {
     ("i", "m"): "vcsection2.wav", ("ir", "m"): "vcsection2.wav",
     ("i0", "m"): "vcsection2.wav", ("i", "sh"): "vcsection3.wav",
     ("ir", "sh"): "ingi0ir.wav", ("i0", "sh"): "vcsection3.wav",
@@ -31,6 +32,7 @@ POLICIES = {
     "k2_keep_i_ir": {"i": "i", "ir": "ir", "i0": "i"},
     "k2_keep_i_i0": {"i": "i", "ir": "i", "i0": "i0"},
     "k2_keep_ir_i0": {"i": "ir", "ir": "ir", "i0": "i0"},
+    # Above K2 arms match budgets; K3 is a descriptive *higher-cost* ceiling.
     "k3_preserve_all_not_budget_matched": {"i": "i", "ir": "ir", "i0": "i0"},
 }
 UNIT_MS = 120
@@ -39,239 +41,271 @@ FADE_MS = 12
 PAD_MS = 40
 
 
-def _sha(b: bytes) -> str:
-    return sha256(b).hexdigest()
+def _sha(data: bytes) -> str:
+    return sha256(data).hexdigest()
 
 
-def _oto(raw: bytes, prefix: str) -> dict[tuple[str, str], list[dict]]:
+def _parse_oto(raw: bytes, prefix: str) -> dict[tuple[str, str], list[dict]]:
     try:
-        text = raw.decode("utf-8-sig")
+        txt = raw.decode("utf-8-sig")
     except UnicodeError:
-        text = raw.decode("cp932")
-    result = {}
-    for lineno, line in enumerate(text.splitlines(), 1):
+        txt = raw.decode("cp932")
+    indexed: dict[tuple[str, str], list[dict]] = {}
+    for no, line in enumerate(txt.splitlines(), 1):
         if not line.strip():
             continue
         try:
-            wav, tail = line.split("=", 1)
-            alias, *fields = tail.rsplit(",", 5)
-            values = [float(x) for x in fields]
-            if len(values) != 5 or any(not math.isfinite(v) for v in values):
-                raise ValueError("nonfinite or absent timings")
-        except (ValueError, IndexError) as err:
-            raise ValueError(f"malformed OTO line {lineno}") from err
-        result.setdefault((wav, alias), []).append(
-            {"wav": wav, "alias": alias, "line": lineno, "values": values}
-        )
-    return result
+            wav, data = line.split("=", 1)
+            alias, *values = data.rsplit(",", 5)
+            if len(values) != 5:
+                raise ValueError("five OTO numerical fields required")
+            timing = [float(v) for v in values]
+            if not all(math.isfinite(t) for t in timing):
+                raise ValueError("nonfinite OTO field")
+        except (ValueError, IndexError) as exc:
+            raise ValueError(f"invalid OTO line {no}") from exc
+        indexed.setdefault((wav, alias), []).append({
+            "line": no, "wav": wav, "alias": alias, "time": timing,
+        })
+    return indexed
 
 
-def _read_wav(z: zipfile.ZipFile, name: str) -> tuple[np.ndarray, int, str]:
-    if z.getinfo(name).file_size > 200_000_000:
+def _wav_pcm(z: zipfile.ZipFile, name: str) -> tuple[np.ndarray, int, str]:
+    inf = z.getinfo(name)
+    if inf.file_size > 200_000_000:
         raise ValueError("oversized source WAV")
-    with wave.open(io.BytesIO(z.read(name)), "rb") as wav:
-        if (wav.getcomptype() != "NONE" or wav.getnchannels() != 1
-                or wav.getsampwidth() != 2 or wav.getframerate() not in (44100, 48000)):
-            raise ValueError("only mono PCM16 44.1/48kHz supported")
-        rate = wav.getframerate()
-        pcm = wav.readframes(wav.getnframes())
-    return np.frombuffer(pcm, dtype="<i2"), rate, _sha(pcm)
+    raw = z.read(name)
+    try:
+        with wave.open(io.BytesIO(raw), "rb") as w:
+            if w.getnchannels() != 1 or w.getsampwidth() != 2 or w.getcomptype() != "NONE":
+                raise ValueError("expected mono PCM16 WAV")
+            rate = w.getframerate()
+            if rate not in (44100, 48000):
+                raise ValueError("expected 44100 or 48000 Hz")
+            samples = w.readframes(w.getnframes())
+    except (wave.Error, EOFError) as exc:
+        raise ValueError("WAV could not be decoded") from exc
+    return np.frombuffer(samples, dtype="<i2").copy(), rate, _sha(samples)
 
 
-def _slice(pcm: np.ndarray, rate: int, at_ms: float, ms: int) -> np.ndarray:
-    begin = round(at_ms * rate / 1000)
-    length = round(ms * rate / 1000)
-    if begin < 0 or begin + length > len(pcm) or length < 1:
-        raise ValueError("source segment outside WAV")
-    return pcm[begin:begin + length].astype(np.float64) / 32768.0
+def _extract(samples: np.ndarray, rate: int, start_ms: float, duration_ms: float) -> np.ndarray:
+    a = round(start_ms * rate / 1000)
+    length = round(duration_ms * rate / 1000)
+    if a < 0 or length <= 0 or a + length > len(samples):
+        raise ValueError("extraction interval outside original WAV")
+    return samples[a:a+length].astype(np.float64) / 32768.0
 
 
-def _pcm_wav(signal: np.ndarray, rate: int) -> bytes:
-    if not len(signal) or not np.isfinite(signal).all() or np.max(np.abs(signal)) > 1.0:
-        raise ValueError("invalid or clipped render; never normalize an arm separately")
-    data = np.round(signal * 32767).astype("<i2").tobytes()
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(rate)
-        wav.writeframes(data)
-    return buffer.getvalue()
+def _wav_bytes(samples: np.ndarray, rate: int) -> bytes:
+    if samples.ndim != 1 or not len(samples) or not np.all(np.isfinite(samples)):
+        raise ValueError("invalid render waveform")
+    if np.max(np.abs(samples)) > 1.0:
+        raise ValueError("clipping: reject rather than normalize either arm")
+    raw = np.round(np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
+    output = io.BytesIO()
+    with wave.open(output, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(raw)
+    return output.getvalue()
 
 
-def _splice(vc: np.ndarray, cv: np.ndarray, rate: int) -> np.ndarray:
+def _crossfade(vc: np.ndarray, cv: np.ndarray, rate: int) -> np.ndarray:
     n = round(FADE_MS * rate / 1000)
     if len(vc) <= n or len(cv) <= n:
-        raise ValueError("clip too short to join")
-    phases = np.linspace(0.0, np.pi / 2, n)
-    mixed = vc[-n:] * np.cos(phases) + cv[:n] * np.sin(phases)
-    pad = np.zeros(round(PAD_MS * rate / 1000))
-    return np.concatenate((pad, vc[:-n], mixed, cv[n:], pad))
+        raise ValueError("source units too short for crossfade")
+    x = np.linspace(0.0, np.pi / 2, n, endpoint=True)
+    transition = vc[-n:] * np.cos(x) + cv[:n] * np.sin(x)
+    joined = np.concatenate((vc[:-n], transition, cv[n:]))
+    margin = np.zeros(round(PAD_MS * rate / 1000), dtype=np.float64)
+    return np.concatenate((margin, joined, margin))
 
 
-def _source_bank(spec: dict) -> dict:
-    archive = Path(spec["archive"]).expanduser().resolve(strict=True)
-    root, prefix = spec["root"], spec["prefix"]
-    if (not isinstance(root, str) or not root.endswith("/")
-            or root.startswith("/") or ".." in root.split("/")
-            or not isinstance(prefix, str) or not prefix.isalnum()):
-        raise ValueError("noncanonical archive root/prefix")
+def _bank_data(config: dict):
+    archive = Path(config["archive"]).expanduser().resolve(strict=True)
+    root, prefix = config["root"], config["prefix"]
+    if not isinstance(root, str) or not root.endswith("/") or ".." in root.split("/") or root.startswith("/"):
+        raise ValueError("invalid bank ZIP root")
+    if not isinstance(prefix, str) or not prefix.isalnum():
+        raise ValueError("invalid prefix")
+    if not zipfile.is_zipfile(archive):
+        raise ValueError("source is not a ZIP")
     with zipfile.ZipFile(archive) as z:
         if sum(info.file_size for info in z.infolist()) > 2_000_000_000:
-            raise ValueError("uncompressed archive size exceeds 2GB")
-        oto_raw = z.read(root + "oto.ini")
-        entries = _oto(oto_raw, prefix)
-        source_names = set(SOURCE.values()) | {"a.wav"}
-        audio = {wav: _read_wav(z, root + wav) for wav in source_names}
-        rates = {t[1] for t in audio.values()}
+            raise ValueError("source ZIP exceeds 2GB uncompressed limit")
+        oto_name = root + "oto.ini"
+        oto_raw = z.read(oto_name)
+        oto = _parse_oto(oto_raw, prefix)
+        wanted = set(TARGET_SOURCE_WAV.values()) | {"a.wav"}
+        decoded = {name: _wav_pcm(z, root + name) for name in wanted}
+        rates = {rate for _, rate, _ in decoded.values()}
         if len(rates) != 1:
-            raise ValueError("inconsistent source rates")
+            raise ValueError("inconsistent WAV sample rates within bank")
         rate = rates.pop()
-        donors, details = {}, {}
-        for (left, right), src in SOURCE.items():
+        donors = {}
+        units = {}
+        for (left, right), wav in TARGET_SOURCE_WAV.items():
             alias = prefix + left + " " + right
-            matched = entries.get((src, alias), [])
-            if len(matched) != 1:
-                raise ValueError(f"missing/duplicate OTO: {src} {alias}")
-            rec = matched[0]
-            offset, cons, cutoff, pre, overlap = rec["values"]
-            anchor = offset + (pre + overlap) / 2
-            pcm, _, pcm_sha = audio[src]
-            donors[(left, right)] = _slice(pcm, rate, anchor - 50, UNIT_MS)
-            details[(left, right)] = {
-                "source_wav": src, "original_alias": alias,
-                "oto_line": rec["line"], "source_pcm_sha256": pcm_sha,
-                "source_start_ms": round(anchor - 50, 3),
-                "source_duration_ms": UNIT_MS,
+            matches = oto.get((wav, alias), [])
+            if len(matches) != 1:
+                raise ValueError(f"missing/duplicate OTO donor: {alias} / {wav}")
+            row = matches[0]
+            off, _cons, _cutoff, pre, overlap = row["time"]
+            # OTO-relative center is a provisional alignment, not a phone boundary.
+            anchor = off + (pre + overlap) / 2
+            pcm, _, pcm_hash = decoded[wav]
+            unit = _extract(pcm, rate, anchor - 50.0, UNIT_MS)
+            donors[(left, right)] = unit
+            units[(left, right)] = {
+                "source_wav": wav, "source_pcm_sha256": pcm_hash,
+                "original_alias": alias, "oto_line": row["line"],
+                "source_start_ms": round(anchor - 50, 3), "source_duration_ms": UNIT_MS,
+                "oto_anchor_ms": round(anchor, 3),
                 "phonetic_boundary_verified": False,
             }
-        fixtures, fixture_details = {}, {}
+        cvs, fixtures = {}, {}
         for right in RIGHTS:
             alias = prefix + right + "a"
-            matched = entries.get(("a.wav", alias), [])
-            if len(matched) != 1:
-                raise ValueError(f"missing/duplicate fixed CV fixture {alias}")
-            rec = matched[0]
-            offset, cons, cutoff, pre, overlap = rec["values"]
+            matches = oto.get(("a.wav", alias), [])
+            if len(matches) != 1:
+                raise ValueError(f"missing/duplicate fixed CV fixture: {alias}")
+            row = matches[0]
+            offset, cons, cut, pre, overlap = row["time"]
             anchor = offset + (pre + overlap) / 2
-            pcm, _, pcm_sha = audio["a.wav"]
-            fixtures[right] = _slice(pcm, rate, anchor, CV_MS)
-            fixture_details[right] = {
-                "source_wav": "a.wav", "original_alias": alias,
-                "oto_line": rec["line"], "source_pcm_sha256": pcm_sha,
-                "source_start_ms": round(anchor, 3),
-                "source_duration_ms": CV_MS,
-            }
-    return {
-        "style": spec["style"], "pitch": spec["pitch"], "rate": rate,
-        "archive_basename": archive.name,
-        "archive_sha256": _sha(archive.read_bytes()),
-        "oto_sha256": _sha(oto_raw),
-        "donors": donors, "sources": details,
-        "cv": fixtures, "cv_sources": fixture_details,
-    }
+            pcm, _, pcm_hash = decoded["a.wav"]
+            cvs[right] = _extract(pcm, rate, anchor, CV_MS)
+            fixtures[right] = {"source_wav": "a.wav", "source_pcm_sha256": pcm_hash,
+                               "alias": alias, "oto_line": row["line"],
+                               "source_start_ms": round(anchor, 3), "source_duration_ms": CV_MS}
+        return {
+            "style": config["style"], "pitch": config["pitch"],
+            "archive_name": archive.name, "archive_sha256": _sha(archive.read_bytes()),
+            "oto_sha256": _sha(oto_raw), "rate": rate,
+            "donors": donors, "donor_sources": units,
+            "cv": cvs, "cv_sources": fixtures,
+        }
 
 
-def render_microsplice_ab(config: dict, output: Path) -> dict:
-    if config.get("schema") != "phonoweave.diffsinger_vc_splice_input.v1":
-        raise ValueError("source manifest schema mismatch")
-    if config.get("source_provenance") != "author_confirmed_diffsinger_direct":
-        raise ValueError("DiffSinger source provenance must be author-confirmed")
-    specs = config.get("banks")
-    if not isinstance(specs, list) or not specs:
-        raise ValueError("at least one source bank required")
-    identities = [(s["style"], s["pitch"]) for s in specs]
-    if len(set(identities)) != len(identities):
-        raise ValueError("duplicate style/pitch")
+def render_microsplice_ab(manifest: dict, output: Path) -> dict:
+    """Render fully real PCM from original ZIPs, never modify those ZIPs.
+
+    Note: all source units & CV fixtures are from TRAINING BANKS. There is no
+    teacher/reference test set and no held-out sample included in this output.
+    """
+    if manifest.get("schema") != "phonoweave.diffsinger_vc_splice_input.v1":
+        raise ValueError("unexpected source manifest schema")
+    if manifest.get("source_provenance") != "author_confirmed_diffsinger_direct":
+        raise ValueError("synthetic generated source provenance must be explicit")
+    bank_specs = manifest.get("banks")
+    if not isinstance(bank_specs, list) or not bank_specs:
+        raise ValueError("at least one training subbank required")
+    ids = [(v["style"], v["pitch"]) for v in bank_specs]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate style/pitch bank")
     output = Path(output).expanduser().resolve()
+    archives = [Path(x["archive"]).expanduser().resolve(strict=True) for x in bank_specs]
     if output.exists():
-        raise FileExistsError("non-overwriting output exists")
-    banks = [_source_bank(s) for s in specs]
-    files, rows = {}, []
+        raise FileExistsError("review package already exists")
+    if any(output == p or output in p.parents for p in archives):
+        raise ValueError("cannot render over source ZIP")
+    banks = [_bank_data(b) for b in bank_specs]
+    results = []
+    payloads = {}
     for bank in banks:
-        for policy, lookup in POLICIES.items():
-            k = 2 if policy.startswith("k2_") else 3
-            if len(set(lookup.values())) != k:
-                raise ValueError("invalid frozen donor budget")
+        for policy_name, mapping in POLICIES.items():
+            budget = 2 if policy_name.startswith("k2_") else 3
+            actual_by_right = {right: sorted(set(mapping.values())) for right in RIGHTS}
+            if any(len(x) != budget for x in actual_by_right.values()):
+                raise ValueError("unmatched policy donor count")
             for right in RIGHTS:
-                for left in LEFTS:
-                    chosen = lookup[left]
-                    wav = _pcm_wav(_splice(bank["donors"][(chosen, right)],
-                                          bank["cv"][right], bank["rate"]), bank["rate"])
-                    rel = f"{bank['style']}_{bank['pitch']}/{policy}/{left}_{right}.wav"
-                    files[rel] = wav
-                    rows.append({
-                        "style": bank["style"], "pitch": bank["pitch"], "policy": policy,
-                        "target_left_class": left, "right_alias": right,
-                        "selected_donor_class": chosen,
+                for target in LEFTS:
+                    chosen = mapping[target]
+                    audio = _crossfade(bank["donors"][(chosen, right)], bank["cv"][right], bank["rate"])
+                    rel = (f"{bank['style']}_{bank['pitch']}/"
+                           f"{policy_name}/{target}_{right}.wav")
+                    encoded = _wav_bytes(audio, bank["rate"])
+                    payloads[rel] = encoded
+                    results.append({
+                        "style": bank["style"], "pitch": bank["pitch"],
+                        "policy": policy_name, "target_left_class": target,
+                        "right_alias": right, "selected_donor_class": chosen,
                         "source_voicebank_sha256": bank["archive_sha256"],
                         "source_oto_sha256": bank["oto_sha256"],
-                        "source_donor": bank["sources"][(chosen, right)],
+                        "source_donor": bank["donor_sources"][(chosen,right)],
                         "shared_cv_fixture": bank["cv_sources"][right],
-                        "left_connection_budget_units": k,
-                        "total_vc_budget_units_per_bank": len(RIGHTS) * k,
-                        "total_vc_budget_ms_per_bank": len(RIGHTS) * k * UNIT_MS,
+                        "left_connection_budget_units": budget,
+                        "total_vc_budget_units_per_bank": 2 * budget,
+                        "total_vc_budget_ms_per_bank": 2 * budget * UNIT_MS,
                         "common_cv_ms_per_bank": len(RIGHTS) * CV_MS,
-                        "rendered_wav": rel, "wav_sha256": _sha(wav),
+                        "source_pitch_transposition": "none",
+                        "rendered_wav": rel, "wav_sha256": _sha(encoded),
                         "render_sample_rate": bank["rate"],
-                        "phonetic_boundary_verified": False,
-                        "heldout_teacher_evaluated": False,
+                        "sound_quality_verified": False,
+                        "test_sequence_heldout": False,
                     })
-    report = {
-        "schema": SCHEMA, "source_provenance": config["source_provenance"],
-        "status": "actual_PCM_microsplice_only_not_full_singing_synthesis",
+    data = {
+        "schema": SCHEMA,
+        "status": "actual_source_pcm_rendered_microsplice_only_not_singing_benchmark",
+        "source_provenance": manifest["source_provenance"],
         "render_settings": {
             "vc_segment_ms": UNIT_MS, "cv_segment_ms": CV_MS,
-            "crossfade_ms": FADE_MS, "padding_ms": PAD_MS,
-            "renderer": "same_fixed_equal_power_crossfade_numpy_no_pitch_or_duration_render",
-            "units": "fixed_provisional_OTO_relative_windows",
+            "crossfade_ms": FADE_MS, "silence_padding_ms": PAD_MS,
+            "source_alignment": "OTO-derived provisional anchor; no independent target phone boundaries",
+            "renderer": "fixed_equal_power_crossfade_numpy_no_pitch_transpose_no_resampler",
         },
-        "matched_budget_policies": sorted(p for p in POLICIES if p.startswith("k2_")),
-        "nonmatched_higher_budget_reference": "k3_preserve_all_not_budget_matched",
-        "results": rows,
+        "matched_budget_policies": sorted(k for k in POLICIES if k.startswith("k2_")),
+        "nonmatched_high_cost_reference": "k3_preserve_all_not_budget_matched",
+        "results": results,
         "study_gates": {
             "actual_pcm_wav_rendered": True,
             "K2_policy_budgets_equal": True,
-            "independent_diffsinger_teacher_reference": False,
             "test_targets_unseen": False,
+            "independent_diffsinger_teacher_reference": False,
             "actual_OpenUtau_resampler_verified": False,
             "blinded_listener_test": False,
             "evidence_of_optimal_split_share": False,
         },
-        "limitations": [
-            "A genuine 2-unit PCM splice, not note-time/pitch-conditioned OpenUtau singing.",
-            "K2 variants have equal VC source-unit count and milliseconds; K3 does not.",
-            "All arms use identical post-VC CV fixture within same style/pitch/right context.",
-            "No held-out teacher utterance or test sequence is included or scored.",
-            "Transferred unverified OTO anchor does not establish phonetic boundaries.",
-            "The WAVs are author-confirmed DiffSinger renders, not independent live singing.",
+        "limits": [
+            "This pilot joins two existing source units, not a full note-conditioned singing phrase.",
+            "The three K=2 arms are matched in unit count and raw donor milliseconds; the K=3 ceiling is not.",
+            "The same fixed CV source is held across all arms within each style/pitch/right context.",
+            "Audio is neither pitch-shifted nor time-stretched and no independently held-out target is scored.",
+            "OTO anchors and fixed windows are not independently validated phoneme boundaries.",
+            "These source WAVs are DiffSinger synthetic renders, not independent live singing takes.",
+            "No raw source bank or source ZIP is uploaded to a public repository.",
         ],
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".pw-ds-vc-", dir=output.parent) as tmp:
-        stage = Path(tmp) / "render"
+    with tempfile.TemporaryDirectory(prefix=".pw-splice-", dir=output.parent) as tmp:
+        stage = Path(tmp) / "results"
         stage.mkdir()
-        for rel, wav in files.items():
-            dest = stage / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(wav)
+        for rel, encoded in payloads.items():
+            p = stage / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(encoded)
         (stage / "render_manifest.json").write_text(
-            json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+            json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
+        (stage / "README.txt").write_text(
+            "Real source-PCM VC->CV micro-splice listening examples.\n"
+            "Compare K=2 policies at the same fixed source-unit budget.\n"
+            "K=3 author-preserved is a higher-cost illustration, NOT a budget-matched arm.\n"
+            "No unseen DiffSinger target, no OpenUtau resampler, no claim of singing quality.\n",
             encoding="utf-8")
         if output.exists():
-            raise FileExistsError("output appeared during render")
+            raise FileExistsError("output appeared while processing")
         os.rename(stage, output)
-    return report
+    return data
 
 
-def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="phonoweave diffsinger-vc-microsplice-ab")
-    parser.add_argument("--manifest", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args(argv)
-    config = json.loads(args.manifest.read_text(encoding="utf-8"))
-    report = render_microsplice_ab(config, args.output)
-    print(f"Real PCM micro-splice WAVs: {len(report['results'])}; not a singing-quality benchmark")
+def main(argv=None):
+    p = argparse.ArgumentParser(description="Source-real, constant-budget CVVC microsplice A/B")
+    p.add_argument("--manifest", required=True, type=Path)
+    p.add_argument("--output", required=True, type=Path)
+    a = p.parse_args(argv)
+    data = json.loads(a.manifest.read_text(encoding="utf-8"))
+    r = render_microsplice_ab(data, a.output)
+    print(f"Actual source-PCM micro-splices: {len(r['results'])}; no heldout quality claim")
     return 0
 
 
