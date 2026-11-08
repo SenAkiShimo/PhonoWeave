@@ -434,6 +434,10 @@ def main() -> int:
         from .reviewed_vc_probe import main as reviewed_vc_probe_main
         return reviewed_vc_probe_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "audit-multisubbank-vc":
+        from .multisubbank_vc_audit import main as multisubbank_main
+        return multisubbank_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 

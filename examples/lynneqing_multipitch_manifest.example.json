@@ -1,0 +1,61 @@
+{
+  "schema": "phonoweave.multisubbank_input.v1",
+  "banks": [
+    {
+      "style": "mang",
+      "pitch": "D4",
+      "archive": "LynneQingD4.zip",
+      "root": "LynneQingD4/",
+      "prefix": "D4",
+      "reference": true
+    },
+    {
+      "style": "mang",
+      "pitch": "G3",
+      "archive": "LynneQingG3.zip",
+      "root": "LynneQingG3/",
+      "prefix": "G3",
+      "reference": false
+    },
+    {
+      "style": "mang",
+      "pitch": "G4",
+      "archive": "lynneqing_G4.zip",
+      "root": "lynneqing_G4/",
+      "prefix": "G4",
+      "reference": false
+    },
+    {
+      "style": "mang",
+      "pitch": "D5",
+      "archive": "LynneQingD5.zip",
+      "root": "LynneQingD5/",
+      "prefix": "D5",
+      "reference": false
+    },
+    {
+      "style": "lu",
+      "pitch": "C4",
+      "archive": "LynneQing_CVVChn_Lu.zip",
+      "root": "LynneQing_CVVChn_Lu/LynneQingC4/",
+      "prefix": "C4",
+      "reference": false
+    },
+    {
+      "style": "lu",
+      "pitch": "B4",
+      "archive": "LynneQing_CVVChn_Lu.zip",
+      "root": "LynneQing_CVVChn_Lu/LynneQingB4/",
+      "prefix": "B4",
+      "reference": false
+    },
+    {
+      "style": "lu",
+      "pitch": "F4",
+      "archive": "LynneQing_CVVChn_Lu.zip",
+      "root": "LynneQing_CVVChn_Lu/LynneQingF4/",
+      "prefix": "F4",
+      "reference": false
+    }
+  ]
+}
