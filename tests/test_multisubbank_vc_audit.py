@@ -129,3 +129,24 @@ def test_features_no_fabricated_signal():
 def test_nonindependent_same_length_not_mislabeled():
     assert len(TARGETS)==6
     assert set(D4_REVIEWED_INTERVALS)=={(a,b) for a,b,_ in TARGETS}
+
+def test_author_confirmed_diffsinger_provenance_changes_population(tmp_path):
+    cfg=_config(tmp_path)
+    cfg['source_provenance']={
+        'generation_method':'diffsinger_direct_render',
+        'attestation':'author_confirmed',
+        'model_checkpoint_identity':'unknown',
+        'shared_input_score_or_timing':'unknown',
+    }
+    report=build_audit(cfg)
+    assert report['evaluation_population']=='diffsinger_generated_voicebank_audio'
+    assert report['independent_recording_status']=='not_human_recording_repeats_synthetic_output'
+    assert report['source_provenance']['model_checkpoint_identity']=='unknown'
+    assert report['approved_split_or_share_decisions']==0
+
+def test_unconfirmed_generation_provenance_fails_closed(tmp_path):
+    cfg=_config(tmp_path)
+    cfg['source_provenance']={'generation_method':'diffsinger_direct_render',
+                              'attestation':'not_provided'}
+    with pytest.raises(ValueError,match='author confirmation'):
+        build_audit(cfg)

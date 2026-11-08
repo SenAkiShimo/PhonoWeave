@@ -1,4 +1,10 @@
-# PhonoWeave: retrospective seven-subbank CVVC pilot
+# PhonoWeave: retrospective DiffSinger-generated, seven-subbank CVVC pilot
+
+## Source provenance: confirmed by voicebank author
+
+The author confirmed **all provided pitch subbanks were generated directly with DiffSinger**, rather than independently sung as human takes. There are two designated voice styles (Mang/芒, Lu/露) and seven pitch subbanks. Do not count these as independent human recordings, independent singers or distinct DiffSinger model checkpoints. The exact DiffSinger model checkpoint(s), inference seeds, shared note/phoneme/duration inputs, and timbral conditioning controls are **not established** by the ZIP files or this confirmation.
+
+This pilot's target population is **DiffSinger-generated audio for subsequent concatenative voicebank construction**. It is useful for synthesis-to-concatenation adaptation and controlled pitch/style stress tests, not direct inference about natural singer coarticulation.
 
 ## What was audited
 
@@ -7,7 +13,7 @@ Mang G3 / D4 / G4 / D5 and Lu C4 / B4 / F4. The integrated Lu archive also conta
 
 ## Most important factual result: copied OTO time templates
 
-After removing the pitch prefix, the exact source WAV / alias / five OTO time-field tuple matches Mang D4 for 99.1% to 100% of rows per other subbank. Across the 25 common WAV names, the median seven-bank duration spread is **8.48ms** and the maximum is **11.38ms**. This is a highly synchronized timing layout; it is not evidence of independent repeated phonation. The decoded PCM hashes of the source WAVs used for our 42 candidate excerpts are *different* across banks. Different hashes do not prove independent takes, because signal processing can also alter PCM.
+After removing the pitch prefix, the exact source WAV / alias / five OTO time-field tuple matches Mang D4 for 99.1% to 100% of rows per other subbank. Across the 25 common WAV names, the median seven-bank duration spread is **8.48ms** and the maximum is **11.38ms**. This is a highly synchronized timing layout consistent with shared DiffSinger conditioning or export templates, but the precise cause has **not** been established. The decoded PCM hashes of the source WAVs used for our 42 candidate excerpts are *different* across banks. Different hashes do not prove independent takes or different generative seeds, because the renderer may differ in pitch/style settings.
 
 ## Pilot: six VC labels per pitch
 
@@ -20,15 +26,17 @@ This **supports the gross distinction between /sh/-like frication and /m/-like n
 
 ## Critical negative/uncertain result
 
-For each pitch and right-hand context, we compared five equal normalized positions inside the D4-human-annotated interval. For other banks these intervals were *transferred by OTO anchor* and are **not human-validated**. Log-band distance ranks among i/ir/i0 are **not stable** across all subbanks. All three possible nearest pairs occur across the 7 subbanks for both /m/ and /sh/. Thus **the data do not support one fixed “share these two labels” decision**. Differences may be due to pitch, voicing style, exact timing, session or microphone, not just phoneme identity. This is descriptive pilot data, not an inferential test.
+For each pitch and right-hand context, we compared five equal normalized positions inside the D4-human-annotated interval. For other banks these intervals were *transferred by OTO anchor* and are **not human-validated**. Log-band distance ranks among i/ir/i0 are **not stable** across all subbanks. All three possible nearest pairs occur across the 7 subbanks for both /m/ and /sh/. Thus **the data do not support one fixed “share these two labels” decision**. Differences may be due to pitch or timbral conditioning, generator behavior, spectral tilt, exact timing and transferred boundary error, not just phoneme identity. This is descriptive pilot data, not an inferential test.
 
 ## Decision and next research step
 
 **GO:** the existing multi-pitch audio is valuable as a retrospective *stress test* for representation and segmentation. **NO-GO:** treat these seven subbanks as seven independent replications, report a split/merge efficacy effect size, tune policy on all subbanks and then call one held-out.
 
-Before any stronger test, obtain the bank-production provenance: were pitch subbanks independently sung, time-aligned to one guide track, pitch-shifted, or derived by voice conversion? This matters because the WAV durations and OTO time fields are extraordinarily synchronized.
+Production method is now confirmed as **DiffSinger direct rendering**. Do not request 36 human re-recordings for this synthetic-audio pilot.
 
-With provenance clarified, verify boundaries on selected new subbanks (a small targeted human check, not thousands of rows). Then compare actual resampler synthesis under equal available recording costs and frozen evaluations. New 36-take recording protocol is *optional*, not a prerequisite to this retrospective audit.
+**Next decisive experiment (frozen render benchmark):** take an unchanged set of DiffSinger source WAVs as the *only* allowed unit inventory, compare two genuinely executable concatenative renderers/policies—(A) preserve author-defined separate VC classes and (B) selectively pool/share candidate VC classes—under matched source-sample or recording-duration budgets. Keep pitch, voice style, downstream note targets, resampler and wavtool fixed per pair. Evaluate on **unseen syllable sequences** with separately rendered DiffSinger reference vocals; do not merely replay or splice a training-reference passage. Freeze source/target membership before optimizing policy; use actual objective continuity/alignment and blinded listening tests. In this setting, DiffSinger references are a **teacher-generated target**, not human ground truth. The answer is whether unit reuse preserves teacher-output quality, *not* whether it reproduces natural human singer behavior.
+
+Before a strong claim, confirm whether bank generation reused the same MIDI/phoneme duration templates and whether Mang/Lu share any underlying model/checkpoint; this matters for generalization and train-test contamination. Manually check representative non-D4 boundaries before spectral policy learning. The 36-take human-session protocol remains a distinct, optional later external-validation study.
 
 ## Reproduce
 

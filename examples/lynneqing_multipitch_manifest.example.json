@@ -57,5 +57,16 @@
       "prefix": "F4",
       "reference": false
     }
-  ]
+  ],
+  "source_provenance": {
+    "generation_method": "diffsinger_direct_render",
+    "attestation": "author_confirmed",
+    "voice_styles": [
+      "mang",
+      "lu"
+    ],
+    "model_checkpoint_identity": "unknown",
+    "shared_input_score_or_timing": "unknown",
+    "independent_render_seeds": "unknown"
+  }
 }

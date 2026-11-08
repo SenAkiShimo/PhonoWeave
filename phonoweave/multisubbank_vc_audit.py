@@ -1,9 +1,12 @@
 """Read-only cross-subbank VC audit on existing UTAU ZIP archives.
 
 A style is not assumed to be an independent speaker. A pitch subbank is not
-assumed to be an independently recorded take. Manual D4 transition intervals
-are transferred to other banks as *unverified candidates* only. Nothing here
-is a split/share or synthesis efficacy decision.
+assumed to be an independently recorded take. The user has confirmed this
+particular seven-subbank LynneQing set was directly generated with DiffSinger.
+An optional source-provenance declaration distinguishes generated samples
+from human recordings, without inferring model checkpoint or shared prompts.
+Manual D4 transition intervals are transferred to other banks as *unverified
+candidates* only. Nothing here is a split/share or synthesis efficacy decision.
 """
 from __future__ import annotations
 import argparse
@@ -159,6 +162,14 @@ def _one_features(x,rate,anchor,manual_rel):
 
 def build_audit(config: dict)->dict:
     if config.get('schema')!='phonoweave.multisubbank_input.v1':raise ValueError('unsupported input schema')
+    source_provenance = config.get('source_provenance', {'generation_method':'unknown','attestation':'not_provided'})
+    if (not isinstance(source_provenance,dict) or
+        source_provenance.get('generation_method') not in ('unknown','diffsinger_direct_render','human_recorded') or
+        source_provenance.get('attestation') not in ('not_provided','author_confirmed')):
+        raise ValueError('unsupported or missing source provenance declaration')
+    if (source_provenance['generation_method']=='diffsinger_direct_render'
+        and source_provenance['attestation']!='author_confirmed'):
+        raise ValueError('DiffSinger generation claim requires author confirmation')
     banks=[make_bank(item) for item in config.get('banks',[])]
     if not banks or len({b.id for b in banks})!=len(banks):raise ValueError('missing or duplicate banks')
     if sum(b.reference for b in banks)!=1:raise ValueError('exactly one D4 reviewed reference required')
@@ -264,14 +275,22 @@ def build_audit(config: dict)->dict:
        'summary':summary,'subbanks':metadata,
        'duration_alignment':spreads,'targets':cliprows,'pairwise':pairwise,
        'limitations':[
-         'Four Mang pitches and three Lu pitches are voice styles, not seven independent speakers.',
+         'Four Mang pitches and three Lu pitches are two source voice styles, not seven independent speakers.',
+         'If author-confirmed DiffSinger rendered, these are synthetic model outputs, not human singing sessions or independent human repetitions. Checkpoint, prompt and inference settings are not determined from the WAVs.',
          'Most OTO timings are identical across pitch; transferred D4 manually marked intervals are NOT verified boundaries in the other six banks.',
          'Matched fixed-length recordings across subbanks may reflect a recording template, synchronized capture, reuse or audio processing; different PCM hashes cannot prove independent takes.',
          'Spectral distances retain pitch/timbre and alias boundary alignment confounds, so they cannot establish share/split utility.',
          'No held-out independent session, real resampler render, pitch-adjusted control or perception test.',
          'No original WAV, alias, OTO or existing bank is altered.',
        ],
-       'independent_recording_status':'unknown','approved_split_or_share_decisions':0,
+       'source_provenance':source_provenance,
+       'independent_recording_status':('not_human_recording_repeats_synthetic_output'
+           if source_provenance['generation_method']=='diffsinger_direct_render'
+           else 'unknown'),
+       'evaluation_population':('diffsinger_generated_voicebank_audio'
+           if source_provenance['generation_method']=='diffsinger_direct_render'
+           else 'undetermined'),
+       'approved_split_or_share_decisions':0,
        'speaker_generalization':'not_evaluated','actual_synthesis_gain':'not_evaluated'
     }
 
