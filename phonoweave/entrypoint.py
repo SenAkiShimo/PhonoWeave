@@ -434,6 +434,10 @@ def main() -> int:
         from .reviewed_vc_probe import main as reviewed_vc_probe_main
         return reviewed_vc_probe_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "vc36":
+        from .vc36_capture import main as vc36_main
+        return vc36_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
