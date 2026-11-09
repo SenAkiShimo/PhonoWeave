@@ -450,6 +450,10 @@ def main() -> int:
         from .diffsinger_phrase_listening import main as phrase_blind_main
         return phrase_blind_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "diffsinger-teacher":
+        from .diffsinger_teacher_benchmark import main as teacher_benchmark_main
+        return teacher_benchmark_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
