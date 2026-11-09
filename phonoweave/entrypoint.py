@@ -458,6 +458,10 @@ def main() -> int:
         from .phone_core_segmentation import main as segment_phone_cores_main
         return segment_phone_cores_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "mandarin-align":
+        from .whole_utterance_mfa_bridge import main as mandarin_align_main
+        return mandarin_align_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
