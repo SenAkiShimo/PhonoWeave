@@ -221,3 +221,59 @@ def test_sustained_extra_note_or_long_overhang_not_accepted(tmp_path):
         report=audit_and_compare(root,receipt)
         assert report['reference_verified_slots']==0
         assert report['blocked'][0]['reason']=='teacher_score_duration_mismatch_align_externally'
+
+
+def _declare_author_attested_partial(receipt, bank=None, phrase=None):
+    data=json.loads(receipt.read_text())
+    target=next(x for x in data['teacher_reference_slots']
+                if (bank is None or x['bank']==bank) and (phrase is None or x['phrase']==phrase))
+    target.update(model_or_checkpoint_identifier=None,
+        settings_or_project_reference=None,
+        author_attested_partial_provenance=True,
+        unrecorded_technical_provenance=[
+           'exact_model_checkpoint','inference_settings_or_editor_project'],
+        author_attestation={'source':'author_confirmed_in_conversation',
+                            'assertion':'Direct teacher from frozen score',
+                            'attestation_is_cryptographic_proof':False})
+    receipt.write_text(json.dumps(data))
+
+
+def test_attested_reference_without_checkpoint_eligible_for_diagnostics_not_verified(tmp_path):
+    root,receipt,_=_fixture(tmp_path)
+    _provide_one(tmp_path,root,receipt)
+    _declare_author_attested_partial(receipt)
+    report=audit_and_compare(root,receipt)
+    assert report['status']=='partial_descriptive_reference_diagnostics_provenance_incomplete'
+    assert report['reference_verified_slots']==0
+    assert report['reference_provisional_author_attested_slots']==1
+    assert report['reference_diagnostic_eligible_slots']==1
+    assert len(report['diagnostics'])==3
+    assert all(r['reference_provenance_tier']=='author_attested_model_version_and_settings_unrecorded'
+               for r in report['diagnostics'])
+    assert not report['complete_teacher_set']
+    assert not report['split_share_efficacy_established']
+
+
+def test_unattested_or_forged_partial_fails_closed(tmp_path):
+    root,receipt,_=_fixture(tmp_path)
+    _provide_one(tmp_path,root,receipt)
+    _declare_author_attested_partial(receipt)
+    for key,value in [('author_attested_partial_provenance',False),
+                      ('unrecorded_technical_provenance',['other']),
+                      ('author_attestation',{'source':'unknown'})]:
+        data=json.loads(receipt.read_text());s=data['teacher_reference_slots'][0]
+        original=s[key];s[key]=value;receipt.write_text(json.dumps(data))
+        assert audit_and_compare(root,receipt)['reference_diagnostic_eligible_slots']==0
+        s[key]=original;receipt.write_text(json.dumps(data))
+
+
+def test_partial_requires_operator_confirmation_of_midi_and_no_splicing(tmp_path):
+    root,receipt,_=_fixture(tmp_path)
+    _provide_one(tmp_path,root,receipt)
+    _declare_author_attested_partial(receipt)
+    obj=json.loads(receipt.read_text())
+    obj['teacher_reference_slots'][0]['source_wav_reused_or_spliced']=None
+    receipt.write_text(json.dumps(obj))
+    report=audit_and_compare(root,receipt)
+    assert report['reference_diagnostic_eligible_slots']==0
+    assert report['diagnostics']==[]

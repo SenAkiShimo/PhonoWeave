@@ -291,7 +291,7 @@ def audit_and_compare(render_root: Path, receipt: Path, *,
     root = reference_root.expanduser().resolve(strict=True) if reference_root else receipt.parent
     all_render_hashes={r['wav_sha256'] for pols in groups.values() for r in pols.values()}
     seen=set();seen_pcm=set()
-    verified=[];blocked=[];diagnostics=[]
+    verified=[];provisional=[];blocked=[];diagnostics=[]
     for row in rows:
         key=row.get('bank'),row.get('phrase')
         if key not in groups or key in seen:
@@ -321,15 +321,27 @@ def audit_and_compare(render_root: Path, receipt: Path, *,
             blocked.append({'bank':bank,'phrase':phrase,'reason':'identical_teacher_pcm_in_multiple_conditions'})
             continue
         seen_pcm.add(pcm_sha)
-        if not (row.get('new_generation_from_frozen_score') is True
+        operator_flags = (row.get('new_generation_from_frozen_score') is True
             and row.get('source_wav_reused_or_spliced') is False
             and row.get('style_verified_by_operator') is True
             and row.get('note_and_lyric_sequence_verified') is True
-            and row.get('onset_alignment_verified') is True
-            and isinstance(row.get('model_or_checkpoint_identifier'),str)
-            and row['model_or_checkpoint_identifier'].strip()
+            and row.get('onset_alignment_verified') is True)
+        reproducible_metadata = (isinstance(row.get('model_or_checkpoint_identifier'),str)
+            and bool(row['model_or_checkpoint_identifier'].strip())
             and isinstance(row.get('settings_or_project_reference'),str)
-            and row['settings_or_project_reference'].strip()):
+            and bool(row['settings_or_project_reference'].strip()))
+        attestation=row.get('author_attestation')
+        explicitly_partial = (row.get('author_attested_partial_provenance') is True
+            and row.get('model_or_checkpoint_identifier') is None
+            and row.get('settings_or_project_reference') is None
+            and row.get('unrecorded_technical_provenance') ==
+                ['exact_model_checkpoint','inference_settings_or_editor_project']
+            and isinstance(attestation,dict)
+            and attestation.get('source')=='author_confirmed_in_conversation'
+            and attestation.get('attestation_is_cryptographic_proof') is False
+            and isinstance(attestation.get('assertion'),str)
+            and bool(attestation['assertion'].strip()))
+        if not operator_flags or not (reproducible_metadata or explicitly_partial):
             blocked.append({'bank':bank,'phrase':phrase,'reason':'fresh_render_identity_or_alignment_unattested'})
             continue
         onset=row.get('onset_shift_ms')
@@ -362,30 +374,41 @@ def audit_and_compare(render_root: Path, receipt: Path, *,
             shifted=np.pad(teacher,(-nshift,0))[:len(teacher)]
         else:
             shifted=teacher
+        tier=('reproducible_metadata_declared' if reproducible_metadata
+              else 'author_attested_model_version_and_settings_unrecorded')
         for policy in EXPECTED_POLICIES:
             scores=_compare_spectra(shifted,sounds[policy][0],rate)
             diagnostics.append({'bank':bank,'phrase':phrase,'policy':policy,
-                                'source_budget_ms':2140,**scores})
-        verified.append({'bank':bank,'phrase':phrase,'reference_wav_sha256':teacher_hash,
-                         'reference_duration_ms':round(duration,2),'render_reference_role':'diffsinger_teacher_operator_attested_not_machine_proven'})
+                                'source_budget_ms':2140,'reference_provenance_tier':tier,
+                                **scores})
+        record={'bank':bank,'phrase':phrase,'reference_wav_sha256':teacher_hash,
+                'reference_duration_ms':round(duration,2),
+                'render_reference_role':'diffsinger_teacher_operator_attested_not_machine_proven',
+                'reference_provenance_tier':tier}
+        (verified if reproducible_metadata else provisional).append(record)
     if seen!=set(groups):
         raise ValueError('teacher receipt omitted frozen reference slots')
     return {
       'schema':REPORT_SCHEMA,
-      'status':'partial_descriptive_reference_diagnostics_not_efficacy'
-        if verified else 'blocked_no_independent_reference_comparisons',
+      'status':('partial_descriptive_reference_diagnostics_provenance_incomplete'
+        if provisional else ('partial_descriptive_reference_diagnostics_not_efficacy'
+        if verified else 'blocked_no_independent_reference_comparisons')),
       'score_sha256':data['score_sha256'],
       'render_manifest_sha256':render_sha,
       'expected_teacher_slots':len(groups),
       'reference_verified_slots':len(verified),
+      'reference_provisional_author_attested_slots':len(provisional),
+      'reference_diagnostic_eligible_slots':len(verified)+len(provisional),
       'complete_teacher_set':len(verified)==len(groups),
-      'verified':verified,'blocked':blocked,'diagnostics':diagnostics,
+      'verified':verified,'provisional':provisional,
+      'blocked':blocked,'diagnostics':diagnostics,
       'rankings_are_perceptual_quality_claims':False,
       'independent_source_generation_machine_proven':False,
       'split_share_efficacy_established':False,
       'K3_in_equal_budget_comparisons':False,
       'limitations':[
         'Teacher generation is operator-attested, not cryptographically proven from audio.',
+        'Partial provenance permits only explicitly labeled descriptive diagnostics; absent model checkpoint/settings bars independently reproducible evaluation.',
         'No unseen-phoneme or cross-speaker generalization.',
         'Framewise log-spectral divergence is sensitive to timing and formant differences; not an intelligibility or listener-preference score.',
         'The Rubber Band preview engine is not a full OpenUtau singing renderer.',
@@ -427,7 +450,8 @@ def main(argv: list[str] | None = None) -> int:
             with output.open('x',encoding='utf-8') as f:
                 json.dump(report,f,ensure_ascii=False,indent=2,allow_nan=False)
                 f.write('\n')
-            print(f"Independent teacher slots checked: {report['reference_verified_slots']}/{report['expected_teacher_slots']}")
+            print(f"Teacher slots with technical metadata: {report['reference_verified_slots']}/{report['expected_teacher_slots']}")
+            print(f"Author-attested, metadata-incomplete slots: {report['reference_provisional_author_attested_slots']}")
             print(f"Status: {report['status']}; evidence for quality gain: NOT established")
     except (OSError,ValueError,KeyError,TypeError,OverflowError) as exc:
         parser.error(str(exc))
