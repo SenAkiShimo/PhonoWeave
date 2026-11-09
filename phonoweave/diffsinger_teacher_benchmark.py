@@ -210,6 +210,25 @@ def _read_pcm(path: Path) -> tuple[np.ndarray, int, float, str]:
     return a, sr, n / sr * 1000, sha256(raw).hexdigest()
 
 
+def _trailing_release_compatible(teacher: np.ndarray, rate: int, *, expected_ms: float, observed_ms: float) -> bool:
+    """Allow a small *decaying final release*, not arbitrary extra note time.
+
+    This only changes acceptance of 100-150 ms positive overhang. Comparison
+    remains pinned to the first frozen-preview frames; the trailing release is
+    never an extra training source or a policy-specific alignment parameter.
+    """
+    extra = observed_ms - expected_ms
+    if not 100 < extra <= 150:
+        return False
+    first = round(expected_ms * rate / 1000)
+    n = round(.020 * rate)
+    if first < 0 or len(teacher) - first < 3 * n:
+        return False
+    begin = float(np.sqrt(np.mean(teacher[first:first+n] ** 2)))
+    end = float(np.sqrt(np.mean(teacher[-n:] ** 2)))
+    return begin > 1e-5 and end < .005 and end < .25 * begin
+
+
 def _compare_spectra(teacher: np.ndarray, arm: np.ndarray, rate: int) -> dict:
     """Coarse fixed-time spectral diagnostics, not a singing quality metric.
 
@@ -328,7 +347,10 @@ def audit_and_compare(render_root: Path, receipt: Path, *,
             blocked.append({'bank':bank,'phrase':phrase,'reason':'teacher_sample_rate_mismatch_resample_externally'})
             continue
         expected_duration=sounds[EXPECTED_POLICIES[0]][2]
-        if abs(duration-expected_duration)>100:
+        if (abs(duration-expected_duration)>100
+            and not _trailing_release_compatible(
+                teacher, rate, expected_ms=expected_duration, observed_ms=duration
+            )):
             blocked.append({'bank':bank,'phrase':phrase,'reason':'teacher_score_duration_mismatch_align_externally'})
             continue
         nshift=round(onset*rate/1000)

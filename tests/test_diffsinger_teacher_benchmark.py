@@ -182,3 +182,42 @@ def test_hash_scan_does_not_auto_attest_source(tmp_path):
     check=audit_and_compare(root,scanned_file)
     assert check['reference_verified_slots']==0
     assert check['blocked'][0]['reason']=='fresh_render_identity_or_alignment_unattested'
+
+def _write_release_tail(path, *, extra_ms=110, decays=True):
+    """1 s reference plus source-independent final release."""
+    sr=44100
+    extra=round(extra_ms*sr/1000)
+    t=np.arange(sr+extra,dtype=float)/sr
+    samples=.08*np.sin(2*np.pi*333*t+.5)
+    if decays:
+        samples[sr:]*=np.linspace(1,0,extra)**2
+    with wave.open(str(path),'wb') as f:
+        f.setnchannels(1);f.setsampwidth(2);f.setframerate(sr)
+        f.writeframes((samples*32767).astype('<i2').tobytes())
+
+
+def test_trailing_release_does_not_force_avoidable_re_render(tmp_path):
+    root,receipt,_=_fixture(tmp_path)
+    teacher=_provide_one(tmp_path,root,receipt)
+    _write_release_tail(teacher,extra_ms=110,decays=True)
+    data=json.loads(receipt.read_text())
+    data['teacher_reference_slots'][0]['wav_sha256']=_sha_file(teacher)
+    receipt.write_text(json.dumps(data))
+    result=audit_and_compare(root,receipt)
+    assert result['reference_verified_slots']==1
+    assert len(result['diagnostics'])==3
+    assert all(x['source_budget_ms']==2140 for x in result['diagnostics'])
+    assert not result['split_share_efficacy_established']
+
+
+def test_sustained_extra_note_or_long_overhang_not_accepted(tmp_path):
+    root,receipt,_=_fixture(tmp_path)
+    teacher=_provide_one(tmp_path,root,receipt)
+    data=json.loads(receipt.read_text())
+    for extra_ms,decays in ((110,False),(160,True)):
+        _write_release_tail(teacher,extra_ms=extra_ms,decays=decays)
+        data['teacher_reference_slots'][0]['wav_sha256']=_sha_file(teacher)
+        receipt.write_text(json.dumps(data))
+        report=audit_and_compare(root,receipt)
+        assert report['reference_verified_slots']==0
+        assert report['blocked'][0]['reason']=='teacher_score_duration_mismatch_align_externally'
