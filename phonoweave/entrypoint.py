@@ -462,6 +462,16 @@ def main() -> int:
         from .whole_utterance_mfa_bridge import main as mandarin_align_main
         return mandarin_align_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "silence-gated-mfa-corpus":
+        from .silence_gated_syllable_corpus import main as short_mfa_main
+        short_mfa_main(sys.argv[2:])
+        return 0
+
+    if len(sys.argv) > 1 and sys.argv[1] == "lift-syllable-mfa":
+        from .silence_gated_syllable_corpus import main as short_mfa_main
+        short_mfa_main(["lift", *sys.argv[2:]])
+        return 0
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
