@@ -454,6 +454,10 @@ def main() -> int:
         from .diffsinger_teacher_benchmark import main as teacher_benchmark_main
         return teacher_benchmark_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "segment-phone-cores":
+        from .phone_core_segmentation import main as segment_phone_cores_main
+        return segment_phone_cores_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
 
