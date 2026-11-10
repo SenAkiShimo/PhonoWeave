@@ -375,6 +375,26 @@ def _build_synthesis_inventory(argv: list[str]) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units":
+        from .orthography_native_units import main as native_discovery_main
+        return native_discovery_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units-batch":
+        from .user_native_batch import main as user_native_batch_main
+        return user_native_batch_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-unit-timecourse":
+        from .temporal_context_eval import main as temporal_context_main
+        return temporal_context_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "propose-acoustic-events":
+        from .independent_acoustic_events import main as event_main
+        return event_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "audit-acoustic-events":
+        from .acoustic_event_audit import main as event_audit_main
+        return event_audit_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
@@ -457,6 +477,20 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "segment-phone-cores":
         from .phone_core_segmentation import main as segment_phone_cores_main
         return segment_phone_cores_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "mandarin-align":
+        from .whole_utterance_mfa_bridge import main as mandarin_align_main
+        return mandarin_align_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "silence-gated-mfa-corpus":
+        from .silence_gated_syllable_corpus import main as short_mfa_main
+        short_mfa_main(sys.argv[2:])
+        return 0
+
+    if len(sys.argv) > 1 and sys.argv[1] == "lift-syllable-mfa":
+        from .silence_gated_syllable_corpus import main as short_mfa_main
+        short_mfa_main(["lift", *sys.argv[2:]])
+        return 0
 
     if len(sys.argv) > 1 and sys.argv[1] == "compile-recording-scheme":
         return compile_recording_scheme_main(sys.argv[2:])
