@@ -379,6 +379,10 @@ def main() -> int:
         from .orthography_native_units import main as native_discovery_main
         return native_discovery_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units-batch":
+        from .user_native_batch import main as user_native_batch_main
+        return user_native_batch_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
