@@ -387,6 +387,14 @@ def main() -> int:
         from .temporal_context_eval import main as temporal_context_main
         return temporal_context_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "propose-acoustic-events":
+        from .independent_acoustic_events import main as event_main
+        return event_main(sys.argv[2:])
+
+    if len(sys.argv) > 1 and sys.argv[1] == "audit-acoustic-events":
+        from .acoustic_event_audit import main as event_audit_main
+        return event_audit_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
