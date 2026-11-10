@@ -383,6 +383,10 @@ def main() -> int:
         from .user_native_batch import main as user_native_batch_main
         return user_native_batch_main(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-unit-timecourse":
+        from .temporal_context_eval import main as temporal_context_main
+        return temporal_context_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
