@@ -375,6 +375,10 @@ def _build_synthesis_inventory(argv: list[str]) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units":
+        from .orthography_native_units import main as native_discovery_main
+        return native_discovery_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":
