@@ -232,10 +232,13 @@ def build_native_recording_workflow(
                     # An unreadable/damaged WAV should be checked or restored
                     # before asking the singer to rerecord the same material.
                     status, reason = "invalid_audio", "unreadable_wav"
+                elif how in ("exact_oto_alias", "declared_prefix_oto_alias"):
+                    # The author supplied a concrete OTO association to a WAV
+                    # that is no longer present. The source file is missing;
+                    # this is stronger than an unverified long-WAV guess.
+                    status, reason = "missing_audio", "registered_source_wav_missing"
                 elif indexed[group]:
-                    # An OTO reference to a vanished path may be stale. Other
-                    # long-WAV material could still contain this realization.
-                    status, reason = "unverified_template_mapping", "referenced_wav_missing"
+                    status, reason = "unverified_template_mapping", "unconfirmed_long_wav_mapping"
                 else:
                     status, reason = "missing_audio", "subbank_has_no_wavs"
             elif path.parent != banks[group]:
