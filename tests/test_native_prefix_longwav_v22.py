@@ -39,15 +39,17 @@ def test_no_prefix_is_never_guessed(tmp_path):
     make_wav(sub/'a.wav')
     (sub/'oto.ini').write_text('a.wav=D4a shw,0,0,0,0,0\n',encoding='utf-8')
     data=build_native_recording_workflow(root,expected_reclist=manifest(tmp_path/'target.json'))
-    assert data['coverage']['template_states'][0]['banks'][0]['status']=='missing_audio'
-    assert data['recording_plan']['recording_lines']==['a shw']
+    assert data['coverage']['template_states'][0]['banks'][0]['status']=='unverified_template_mapping'
+    assert data['recording_plan']['recording_lines']==[]
+    assert data['recording_plan']['oto_review_without_rerecording']
 
 def test_wrong_prefix_does_not_match(tmp_path):
     root=tmp_path/'bank'; sub=root/'D4'
     make_wav(sub/'a.wav')
     (sub/'oto.ini').write_text('a.wav=D4a shw,0,0,0,0,0\n',encoding='utf-8')
     data=build_native_recording_workflow(root,expected_reclist=manifest(tmp_path/'target.json',prefix='G3'))
-    assert data['recording_plan']['recording_lines']==['a shw']
+    assert data['coverage']['template_states'][0]['banks'][0]['status']=='unverified_template_mapping'
+    assert data['recording_plan']['recording_lines']==[]
 
 def test_same_named_alias_in_two_long_wavs_is_review_not_rerecord(tmp_path):
     root=tmp_path/'bank'; sub=root/'D4'
