@@ -102,6 +102,11 @@ def summarize_existing_realizations(reports: list[dict[str, Any]]) -> dict[str, 
     """
     if not isinstance(reports, list) or not 1 <= len(reports) <= 5:
         raise ValueError("supply one to five existing-evidence reports")
+    # Repeated copies of one report are not repeated window sensitivity evidence.
+    fingerprints = [sha256(json.dumps(x, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+                    for x in reports]
+    if len(set(fingerprints)) != len(fingerprints):
+        raise ValueError("duplicate acoustic evidence content is not an independent sensitivity check")
     all_records = [_validate(x) for x in reports]
     first = reports[0]
     labels = first["user_realization_labels"]
