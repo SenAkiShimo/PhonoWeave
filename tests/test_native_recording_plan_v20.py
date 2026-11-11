@@ -127,8 +127,10 @@ def test_broken_pcm_is_not_recorded_evidence(tmp_path):
     root, template = example(tmp_path)
     (root / "D4" / "tɕi.wav").write_bytes(b"not a wave")
     report = build_native_recording_workflow(root, expected_reclist=template)
-    assert report["recording_plan"]["recording_lines"] == ["tɕi"]
+    assert report["recording_plan"]["recording_lines"] == []
     assert report["coverage"]["template_states"][1]["banks"][1]["status"] == "invalid_audio"
+    assert any(task["line"] == "tɕi" and task["category"] == "source_verification"
+               for task in report["recording_plan"]["review_tasks"])
 
 
 @pytest.mark.parametrize("bad", ["../a", "/foo", "a\\b", "", "a\x00b"])
