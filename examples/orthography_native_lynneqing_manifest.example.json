@@ -1,0 +1,114 @@
+{
+  "schema": "phonoweave.user_native_acoustic_contrast.v1",
+  "language_id": "zh-Mandarin-user-Pinyin",
+  "user_base_symbol": "i",
+  "user_realizations": [
+    "i",
+    "ir",
+    "i0"
+  ],
+  "contexts": [
+    "m",
+    "sh"
+  ],
+  "oto_relative_ms": [
+    -125,
+    -55
+  ],
+  "banks": [
+    {
+      "style": "mang",
+      "pitch": "D4",
+      "archive": "/path/to/your/voicebanks/LynneQingD4.zip",
+      "root": "LynneQingD4/",
+      "prefix": "D4",
+      "reference": true
+    },
+    {
+      "style": "mang",
+      "pitch": "G3",
+      "archive": "/path/to/your/voicebanks/LynneQingG3.zip",
+      "root": "LynneQingG3/",
+      "prefix": "G3",
+      "reference": false
+    },
+    {
+      "style": "mang",
+      "pitch": "G4",
+      "archive": "/path/to/your/voicebanks/lynneqing_G4.zip",
+      "root": "lynneqing_G4/",
+      "prefix": "G4",
+      "reference": false
+    },
+    {
+      "style": "mang",
+      "pitch": "D5",
+      "archive": "/path/to/your/voicebanks/LynneQingD5.zip",
+      "root": "LynneQingD5/",
+      "prefix": "D5",
+      "reference": false
+    },
+    {
+      "style": "lu",
+      "pitch": "C4",
+      "archive": "/path/to/your/voicebanks/LynneQing_CVVChn_Lu.zip",
+      "root": "LynneQing_CVVChn_Lu/LynneQingC4/",
+      "prefix": "C4",
+      "reference": false
+    },
+    {
+      "style": "lu",
+      "pitch": "B4",
+      "archive": "/path/to/your/voicebanks/LynneQing_CVVChn_Lu.zip",
+      "root": "LynneQing_CVVChn_Lu/LynneQingB4/",
+      "prefix": "B4",
+      "reference": false
+    },
+    {
+      "style": "lu",
+      "pitch": "F4",
+      "archive": "/path/to/your/voicebanks/LynneQing_CVVChn_Lu.zip",
+      "root": "LynneQing_CVVChn_Lu/LynneQingF4/",
+      "prefix": "F4",
+      "reference": false
+    }
+  ],
+  "observations": [
+    {
+      "user_symbol": "i",
+      "context_id": "m",
+      "source_wav": "vcsection2.wav",
+      "oto_alias_body": "i m"
+    },
+    {
+      "user_symbol": "ir",
+      "context_id": "m",
+      "source_wav": "vcsection2.wav",
+      "oto_alias_body": "ir m"
+    },
+    {
+      "user_symbol": "i0",
+      "context_id": "m",
+      "source_wav": "vcsection2.wav",
+      "oto_alias_body": "i0 m"
+    },
+    {
+      "user_symbol": "i",
+      "context_id": "sh",
+      "source_wav": "vcsection3.wav",
+      "oto_alias_body": "i sh"
+    },
+    {
+      "user_symbol": "ir",
+      "context_id": "sh",
+      "source_wav": "ingi0ir.wav",
+      "oto_alias_body": "ir sh"
+    },
+    {
+      "user_symbol": "i0",
+      "context_id": "sh",
+      "source_wav": "vcsection3.wav",
+      "oto_alias_body": "i0 sh"
+    }
+  ]
+}
