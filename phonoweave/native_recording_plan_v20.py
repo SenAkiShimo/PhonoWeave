@@ -215,7 +215,15 @@ def build_native_recording_workflow(
                 rows.append({"bank": group, "status": "ambiguous_oto_alias", "pcm_sha256": None})
                 continue
             else:
-                rows.append({"bank": group, "status": "missing_audio", "pcm_sha256": None})
+                # Opaque labels in a populated bank may refer to segments in
+                # long WAVs under an undeclared alias prefix. Failing to match
+                # is not proof that the singer must rerecord this sound.
+                if indexed[group]:
+                    rows.append({"bank": group,
+                                 "status": "unverified_template_mapping",
+                                 "pcm_sha256": None})
+                else:
+                    rows.append({"bank": group, "status": "missing_audio", "pcm_sha256": None})
                 continue
             digest = pcm(path)
             if digest is None:
@@ -235,7 +243,8 @@ def build_native_recording_workflow(
 
         missing = [r["bank"] for r in rows if r["status"] in ("missing_audio", "invalid_audio")]
         needs_review = [r["bank"] for r in rows if r["status"] in (
-            "audio_present_needs_oto_review", "ambiguous_oto_alias", "ambiguous_file_names")]
+            "audio_present_needs_oto_review", "ambiguous_oto_alias", "ambiguous_file_names",
+            "unverified_template_mapping")]
         digests = [r["pcm_sha256"] for r in rows if r["pcm_sha256"] is not None]
         item = {
             "line": target["line"], "expected_wav": target["wav"], "banks": rows,
@@ -283,7 +292,7 @@ def build_native_recording_workflow(
     if banks_missing_oto:
         warnings_text.append("Some explicitly selected subbanks lack oto.ini; WAV coverage and OTO registration must be checked separately.")
     if review or any(x["registration_review_banks"] for x in states):
-        warnings_text.append("Some files need OTO/ambiguous-source review, not automatic rerecording.")
+        warnings_text.append("Some files need alias/OTO/source mapping review, not automatic rerecording.")
     if not selected:
         warnings_text.append("No new recording line selected does not imply complete phonetic coverage.")
 
