@@ -13,7 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "phonoweave.user_native_recording_plan.v2.2"
+SCHEMA = "phonoweave.user_native_recording_plan.v2.3"
 TARGET_SCHEMA = "phonoweave.user_native_recording_targets.v1"
 
 
@@ -226,25 +226,35 @@ def build_native_recording_workflow(
                     rows.append({"bank": group, "status": "missing_audio", "pcm_sha256": None})
                 continue
             digest = pcm(path)
+            reason = None
             if digest is None:
-                status = "invalid_audio"
+                if path.is_file():
+                    # An unreadable/damaged WAV should be checked or restored
+                    # before asking the singer to rerecord the same material.
+                    status, reason = "invalid_audio", "unreadable_wav"
+                elif indexed[group]:
+                    # An OTO reference to a vanished path may be stale. Other
+                    # long-WAV material could still contain this realization.
+                    status, reason = "unverified_template_mapping", "referenced_wav_missing"
+                else:
+                    status, reason = "missing_audio", "subbank_has_no_wavs"
             elif path.parent != banks[group]:
-                # An OTO alias in one pitch subbank may reference a WAV in
-                # another. This proves accessible audio, not a distinct take
-                # in the requested subbank; review the source/registration.
-                status = "audio_present_needs_oto_review"
+                # Another pitch bank's source is accessible, but is not
+                # evidence that the requested bank has its own recorded take.
+                status, reason = "audio_present_needs_oto_review", "cross_bank_reference"
             elif (group, path) not in registered or path not in aliases.get((group, target["line"]), set()):
-                # A WAV registered under another alias does not prove that the
-                # author's requested opaque recording label is covered.
-                status = "audio_present_needs_oto_review"
+                status, reason = "audio_present_needs_oto_review", "oto_registration_missing"
             else:
                 status = "audio_present_registered"
-            rows.append({"bank": group, "status": status, "pcm_sha256": digest, "match": how})
+            row = {"bank": group, "status": status, "pcm_sha256": digest, "match": how}
+            if reason is not None:
+                row["reason"] = reason
+            rows.append(row)
 
         missing = [r["bank"] for r in rows if r["status"] in ("missing_audio", "invalid_audio")]
         needs_review = [r["bank"] for r in rows if r["status"] in (
             "audio_present_needs_oto_review", "ambiguous_oto_alias", "ambiguous_file_names",
-            "unverified_template_mapping")]
+            "unverified_template_mapping", "invalid_audio")]
         digests = [r["pcm_sha256"] for r in rows if r["pcm_sha256"] is not None]
         item = {
             "line": target["line"], "expected_wav": target["wav"], "banks": rows,
@@ -257,6 +267,28 @@ def build_native_recording_workflow(
             candidates.append(item)
         elif needs_review:
             review.append(item)
+
+    # Keep actionable rerecording separate from configuration and source
+    # verification. A corrupt WAV is not proof of a lost vocal performance.
+    review_tasks = []
+    for item in states:
+        for bank_row in item["banks"]:
+            status = bank_row["status"]
+            if status == "audio_present_needs_oto_review" and bank_row.get("reason") != "cross_bank_reference":
+                category = "oto_configuration"
+            elif status in ("audio_present_needs_oto_review", "invalid_audio",
+                            "ambiguous_oto_alias", "ambiguous_file_names",
+                            "unverified_template_mapping"):
+                category = "source_verification"
+            else:
+                continue
+            review_tasks.append({
+                "line": item["line"],
+                "bank": bank_row["bank"],
+                "category": category,
+                "status": status,
+                "reason": bank_row.get("reason", status),
+            })
 
     # Identical recorded text is one scheduling line, but may require many
     # pitch-subbank takes. Preserve original author order on equal priority.
@@ -315,6 +347,9 @@ def build_native_recording_workflow(
                            "recording_lines": [x["line"] for x in selected],
                            "selected": selected, "deferred_or_skipped": deferred,
                            "already_scheduled_count": sum(x["reason"] == "already_scheduled_not_verified_audio" for x in deferred),
+                           "review_tasks": review_tasks,
+                           "oto_configuration_count": sum(x["category"] == "oto_configuration" for x in review_tasks),
+                           "source_verification_count": sum(x["category"] == "source_verification" for x in review_tasks),
                            "oto_review_without_rerecording": [
                                {"line": x["line"], "banks": x["registration_review_banks"]}
                                for x in states if x["registration_review_banks"]]},
