@@ -13,7 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "phonoweave.user_native_recording_plan.v2.1"
+SCHEMA = "phonoweave.user_native_recording_plan.v2.2"
 TARGET_SCHEMA = "phonoweave.user_native_recording_targets.v1"
 
 
@@ -75,6 +75,35 @@ def read_targets(path: Path) -> list[dict[str, Any]]:
     return result
 
 
+def read_bank_alias_prefixes(path: Path) -> dict[str, str]:
+    """Only use prefixes explicitly declared by the voicebank author.
+
+    Automatic stripping from arbitrary sound names can create false matches.
+    A text reclist and older JSON manifests keep exact-alias matching.
+    """
+    path = Path(path)
+    if path.suffix.lower() != ".json":
+        return {}
+    obj = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(obj, dict) or obj.get("schema") != TARGET_SCHEMA:
+        raise ValueError("invalid user-native target JSON schema")
+    raw = obj.get("bank_alias_prefixes", {})
+    if not isinstance(raw, dict):
+        raise ValueError("bank_alias_prefixes must be a bank-to-prefix object")
+    result: dict[str, str] = {}
+    for name, value in raw.items():
+        bank = _bank(name)
+        if (not isinstance(value, str) or not value or len(value) > 80 or
+                any(c in value for c in ("/", "\\\\", "\\x00", "\\n", "\\r")) or
+                any(ord(c) < 32 for c in value)):
+            raise ValueError("invalid declared bank alias prefix")
+        prefix = unicodedata.normalize("NFC", value)
+        if bank in result:
+            raise ValueError("duplicate normalized bank alias prefix declaration")
+        result[bank] = prefix
+    return result
+
+
 def _subbanks(root: Path) -> dict[str, Path]:
     result = {}
     for p in sorted(root.rglob("*")):
@@ -102,10 +131,12 @@ def build_native_recording_workflow(
     if not root.is_dir():
         raise ValueError("voicebank must be an existing directory")
     targets = read_targets(expected_reclist)
+    bank_alias_prefixes = read_bank_alias_prefixes(expected_reclist)
     banks = _subbanks(root)
     # A valid, author-declared subbank may contain WAVs but no oto.ini at all.
     # Do not silently mark it complete merely because OTO-based discovery skipped it.
     declared = {_bank(b) for b in (bank_names or ())}
+    declared.update(bank_alias_prefixes)
     declared.update(bank for row in targets for bank in (row["subbanks"] or ()))
     for bank in sorted(declared):
         directory = (root if bank == "." else root / bank).resolve()
@@ -127,6 +158,7 @@ def build_native_recording_workflow(
 
     entries, warnings = load_voicebank(root)
     aliases: dict[tuple[str, str], set[Path]] = defaultdict(set)
+    prefix_aliases: dict[tuple[str, str], set[Path]] = defaultdict(set)
     registered: set[tuple[str, Path]] = set()
     for entry in entries:
         folder = entry.oto_path.parent.resolve()
@@ -135,7 +167,13 @@ def build_native_recording_workflow(
             continue
         group = folder.relative_to(root).as_posix() or "."
         if group in wanted:
-            aliases[(group, unicodedata.normalize("NFC", entry.alias))].add(path)
+            label = unicodedata.normalize("NFC", entry.alias)
+            aliases[(group, label)].add(path)
+            prefix = bank_alias_prefixes.get(group)
+            if prefix and label.startswith(prefix) and len(label) > len(prefix):
+                stripped = label[len(prefix):]
+                aliases[(group, stripped)].add(path)
+                prefix_aliases[(group, stripped)].add(path)
             registered.add((group, path))
 
     indexed: dict[str, dict[str, list[Path]]] = {}
@@ -170,7 +208,10 @@ def build_native_recording_workflow(
             if matches:
                 path, how = matches[0], "exact_wav_filename"
             elif len(alias_paths) == 1:
-                path, how = alias_paths[0], "exact_oto_alias"
+                path = alias_paths[0]
+                how = ("declared_prefix_oto_alias"
+                       if path in prefix_aliases.get((group, target["line"]), set())
+                       else "exact_oto_alias")
             elif len(alias_paths) > 1:
                 rows.append({"bank": group, "status": "ambiguous_oto_alias", "pcm_sha256": None})
                 continue
@@ -252,7 +293,8 @@ def build_native_recording_workflow(
         "scope": "explicit_user_native_recording_templates_no_language_inference",
         "voicebank": {"root": str(root), "subbank_count": len(wanted), "subbanks": wanted,
                       "oto_parse_warnings": len(warnings),
-                      "subbanks_missing_oto": banks_missing_oto},
+                      "subbanks_missing_oto": banks_missing_oto,
+                      "declared_alias_prefix_banks": sorted(bank_alias_prefixes)},
         "coverage": {"expected_template_count": len(targets),
                      "subbank_template_checks": sum(len(x["banks"]) for x in states),
                      "missing_audio_checks": sum(len(x["missing_audio_banks"]) for x in states),
