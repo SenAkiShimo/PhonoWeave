@@ -244,7 +244,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/recording-plan":
             self._send_bytes(RECORDING_PLAN_HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
-        if path == "/api/recording-plan/download/reclist" or path == "/api/recording-plan/download/report":
+        if path in ("/api/recording-plan/download/reclist",
+                    "/api/recording-plan/download/report",
+                    "/api/recording-plan/download/review"):
             with _STATE_LOCK:
                 report = _STATE.recording_report
             if report is None:
@@ -254,6 +256,11 @@ class _Handler(BaseHTTPRequestHandler):
                 body = "".join(line + "\n" for line in report["recording_plan"]["recording_lines"])
                 self._send_bytes(body.encode("utf-8"), "text/plain; charset=utf-8",
                                  headers={"Content-Disposition": 'attachment; filename="supplement_reclist.txt"'})
+            elif path.endswith("/review"):
+                from .recording_review_v23 import format_review_tasks
+                body = format_review_tasks(report)
+                self._send_bytes(body.encode("utf-8"), "text/plain; charset=utf-8",
+                                 headers={"Content-Disposition": 'attachment; filename="recording_review.txt"'})
             else:
                 body = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
                 self._send_bytes(body.encode("utf-8"), "application/json; charset=utf-8",
