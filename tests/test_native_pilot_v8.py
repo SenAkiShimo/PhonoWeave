@@ -11,16 +11,21 @@ from phonoweave.native_pilot_v8 import (
     _sha_bytes, SCHEMA, SEQUENCE_SCHEMA,
 )
 
-ARCHIVE_DIR = Path('/mnt/data/pw_real_v8')
+import os
+
+ARCHIVE_DIR = Path(os.environ.get('PHONOWEAVE_V8_TEST_ARCHIVES', '/mnt/data/pw_real_v8'))
 
 
 def archive_args():
-    return [ARCHIVE_DIR / n for n in [
+    paths = [ARCHIVE_DIR / n for n in [
         'PhonoWeave_User_Native_Batch_Discovery_v2.zip',
         'PhonoWeave_User_Native_Temporal_Context_v3.zip',
         'PhonoWeave_WholeAudio_Unanchored_Events_v4.zip',
         'PhonoWeave_UserNative_EventLink_v5.zip',
     ]]
+    if not all(path.is_file() for path in paths):
+        pytest.skip('Optional private v2-v5 archives are not installed in CI')
+    return paths
 
 
 def test_real_artifacts_v4_v5_identity_and_preflight(tmp_path):
