@@ -13,7 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "phonoweave.user_native_recording_plan.v2.0"
+SCHEMA = "phonoweave.user_native_recording_plan.v2.1"
 TARGET_SCHEMA = "phonoweave.user_native_recording_targets.v1"
 
 
@@ -83,8 +83,6 @@ def _subbanks(root: Path) -> dict[str, Path]:
         folder = p.parent.resolve()
         if folder.is_relative_to(root):
             result[folder.relative_to(root).as_posix() or "."] = folder
-    if not result:
-        raise ValueError("no oto.ini subbanks found; cannot infer target pitch banks")
     return result
 
 
@@ -105,9 +103,24 @@ def build_native_recording_workflow(
         raise ValueError("voicebank must be an existing directory")
     targets = read_targets(expected_reclist)
     banks = _subbanks(root)
+    # A valid, author-declared subbank may contain WAVs but no oto.ini at all.
+    # Do not silently mark it complete merely because OTO-based discovery skipped it.
+    declared = {_bank(b) for b in (bank_names or ())}
+    declared.update(bank for row in targets for bank in (row["subbanks"] or ()))
+    for bank in sorted(declared):
+        directory = (root if bank == "." else root / bank).resolve()
+        if not directory.is_dir() or not directory.is_relative_to(root):
+            raise ValueError("declared subbank directory is missing or outside the voicebank: " + bank)
+        banks.setdefault(bank, directory)
+    if not banks:
+        raise ValueError("cannot infer target subbanks; supply explicit existing subbank names")
     wanted = sorted(banks) if bank_names is None else list(dict.fromkeys(_bank(b) for b in bank_names))
     if not wanted or any(name not in banks for name in wanted):
-        raise ValueError("requested subbank not found in existing oto.ini directories")
+        raise ValueError("requested subbank does not exist in this voicebank")
+    banks_missing_oto = sorted(
+        bank for bank in wanted
+        if not any(p.is_file() and p.name.lower() == "oto.ini" for p in banks[bank].iterdir())
+    )
 
     from .oto import load_voicebank
     from .source_aware_recording_v17 import pcm_identity
@@ -222,6 +235,8 @@ def build_native_recording_workflow(
         warnings_text.append("Identical PCM in multiple subbanks is not evidence of independent recordings.")
     if warnings:
         warnings_text.append(f"{len(warnings)} oto.ini parse warnings may affect source coverage.")
+    if banks_missing_oto:
+        warnings_text.append("Some explicitly selected subbanks lack oto.ini; WAV coverage and OTO registration must be checked separately.")
     if review or any(x["registration_review_banks"] for x in states):
         warnings_text.append("Some files need OTO/ambiguous-source review, not automatic rerecording.")
     if not selected:
@@ -231,7 +246,8 @@ def build_native_recording_workflow(
         "schema": SCHEMA,
         "scope": "explicit_user_native_recording_templates_no_language_inference",
         "voicebank": {"root": str(root), "subbank_count": len(wanted), "subbanks": wanted,
-                      "oto_parse_warnings": len(warnings)},
+                      "oto_parse_warnings": len(warnings),
+                      "subbanks_missing_oto": banks_missing_oto},
         "coverage": {"expected_template_count": len(targets),
                      "subbank_template_checks": sum(len(x["banks"]) for x in states),
                      "missing_audio_checks": sum(len(x["missing_audio_banks"]) for x in states),
