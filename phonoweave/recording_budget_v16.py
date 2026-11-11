@@ -162,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
                    help='maximum NEW recording-script lines (not per-pitch takes), default 8')
     p.add_argument('--existing-reclist', type=Path,
                    help='optional already-scheduled lines to avoid proposing twice')
+    p.add_argument('--source-aware', action='store_true',
+                   help='rank by distinct underlying PCM recordings, not duplicate OTO aliases')
     p.add_argument('--write-reclist', type=Path,
                    help='write new lines (never overwrite); omit to preview')
     p.add_argument('--write-report', type=Path,
@@ -174,8 +176,13 @@ def main(argv: list[str] | None = None) -> int:
         p.error('output files must not already exist or point to the same path')
     if not 0 <= args.max_lines <= 10000:
         p.error('--max-lines must be between 0 and 10000')
-    result = plan_voicebank(args.voicebank, max_lines=args.max_lines,
-                            existing_reclist=args.existing_reclist)
+    if args.source_aware:
+        from .source_aware_recording_v17 import plan_voicebank as source_plan_voicebank
+        result = source_plan_voicebank(args.voicebank, max_lines=args.max_lines,
+                                       existing_reclist=args.existing_reclist)
+    else:
+        result = plan_voicebank(args.voicebank, max_lines=args.max_lines,
+                                existing_reclist=args.existing_reclist)
     for path in outputs:
         path.parent.mkdir(parents=True, exist_ok=True)
     if args.write_reclist:
