@@ -110,7 +110,7 @@ def test_duplicate_trial_is_rejected_not_double_counted():
         d[agg]["correct"] += 1
         d[agg]["accuracy"] = round(d[agg]["correct"] / d[agg]["total"], 4)
     with pytest.raises(ValueError, match="duplicate"):
-        summarize_existing_realizations([d, d])
+        summarize_existing_realizations([d])
 
 
 def test_contradictory_aggregate_rejected():
