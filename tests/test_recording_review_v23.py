@@ -145,3 +145,26 @@ def test_gui_review_download_returns_only_review_tasks(tmp_path):
         server.server_close()
         with gui._STATE_LOCK:
             gui._STATE.recording_report = None
+
+
+def test_explicit_registered_missing_wav_is_a_gap_even_if_other_wavs_exist(tmp_path):
+    root = tmp_path / "voicebank"
+    d4 = root / "D4"
+    d4.mkdir(parents=True)
+    make_wav(d4 / "other.wav")
+    (d4 / "oto.ini").write_text(
+        "absent.wav=确实缺源,0,0,0,0,0\n"
+        "other.wav=其他,0,0,0,0,0\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "targets.json"
+    manifest.write_text(json.dumps({
+        "schema": TARGET_SCHEMA,
+        "targets": [{"line": "确实缺源", "wav": "absent.wav", "subbanks": ["D4"]}],
+    }, ensure_ascii=False), encoding="utf-8")
+    report = build_native_recording_workflow(root, expected_reclist=manifest)
+    assert report["recording_plan"]["recording_lines"] == ["确实缺源"]
+    state = report["coverage"]["template_states"][0]["banks"][0]
+    assert state["status"] == "missing_audio"
+    assert state["reason"] == "registered_source_wav_missing"
+    assert report["recording_plan"]["review_tasks"] == []
