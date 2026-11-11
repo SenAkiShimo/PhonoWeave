@@ -180,6 +180,11 @@ def build_native_recording_workflow(
             digest = pcm(path)
             if digest is None:
                 status = "invalid_audio"
+            elif path.parent != banks[group]:
+                # An OTO alias in one pitch subbank may reference a WAV in
+                # another. This proves accessible audio, not a distinct take
+                # in the requested subbank; review the source/registration.
+                status = "audio_present_needs_oto_review"
             elif (group, path) not in registered or path not in aliases.get((group, target["line"]), set()):
                 # A WAV registered under another alias does not prove that the
                 # author's requested opaque recording label is covered.
