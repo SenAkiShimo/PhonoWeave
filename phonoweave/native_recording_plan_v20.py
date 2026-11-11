@@ -143,7 +143,7 @@ def build_native_recording_workflow(
             raise ValueError("declared subbank directory is missing or outside the voicebank: " + bank)
         banks.setdefault(bank, directory)
     if not banks:
-        raise ValueError("cannot infer target subbanks; supply explicit existing subbank names")
+        raise ValueError("no oto.ini subbanks found; cannot infer target subbanks; supply explicit existing subbank names")
     wanted = sorted(banks) if bank_names is None else list(dict.fromkeys(_bank(b) for b in bank_names))
     if not wanted or any(name not in banks for name in wanted):
         raise ValueError("requested subbank does not exist in this voicebank")
