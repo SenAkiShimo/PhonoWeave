@@ -17,6 +17,9 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 <h1>录音规划 / Recording Plan</h1><p>基于现有音频来源和发音覆盖缺口，生成少量补录建议。不会改动原始声库。</p>
 <section><div class="row"><div class="grow"><label for="voicebank">声库文件夹 / Voicebank directory</label><input id="voicebank" placeholder="/Users/.../OpenUtau/Singers/Voicebank"></div><button type="button" id="browse">选择文件夹…</button></div>
 <div class="row"><div class="small"><label for="budget">最多录音行 / Max lines</label><input type="number" id="budget" min="0" max="10000" step="1" value="8"></div><div class="grow"><label for="existing">已有计划表路径（可选） / Scheduled reclist path</label><input id="existing" placeholder="/path/to/scheduled.txt"></div></div>
+<label for="native-reclist">原有录音模板文件（可选） / Existing native recording template (optional)</label>
+<input id="native-reclist" placeholder="/path/to/existing_reclist.txt or targets.json">
+<p class="note">填写后按原始音节/录音名检查各音高子库缺失的 WAV/OTO；留空继续使用普通话分析。不会推断新音素。</p>
 <button class="primary" type="button" id="preview">分析并预览 / Preview</button><p id="status" role="status" aria-live="polite">请先选择声库。</p></section>
 <section id="result" hidden><h2>建议摘要 / Summary</h2><div id="metrics"></div>
 <a class="download" href="/api/recording-plan/download/reclist">下载补录表 (.txt)</a>
@@ -24,25 +27,25 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 <h2>补录内容 / Suggested recording lines</h2><div style="overflow:auto"><table><thead><tr><th>录音行</th><th>上下文</th><th>理由</th><th>已有 PCM</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p id="empty" hidden>暂时没有足够证据要求新增录音；这并不代表声库已完整。</p>
 <h2>注意事项 / Warnings</h2><div id="warnings"></div>
-<p class="note">当前仅支持现有普通话 OTO 分析。PCM 来源数不等于独立演唱次数。补录表仅供核对；不会生成新音素、alias 或修改 oto.ini。</p></section></main>
+<p class="note">默认使用普通话 OTO 分析；填写原有录音模板后，保留原始名称进行文件覆盖检查。PCM 来源数不等于独立演唱次数。不会生成新音素、alias 或修改 oto.ini。</p></section></main>
 <script>
 const $=id=>document.getElementById(id);let busy=false;
 function status(text,err=false){$('status').textContent=text;$('status').classList.toggle('error',err)}
 function node(parent,tag,text){const n=document.createElement(tag);n.textContent=String(text??'');parent.appendChild(n);return n}
 function reset(){ $('result').hidden=true }
-for(const id of ['voicebank','budget','existing'])$(id).addEventListener('input',reset);
+for(const id of ['voicebank','budget','existing','native-reclist'])$(id).addEventListener('input',reset);
 async function send(url,payload){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw Error(d.error||'请求失败');return d}
 $('browse').onclick=async()=>{if(busy)return;try{const x=await send('/api/pick-folder',{lang:'zh'});if(x.path){$('voicebank').value=x.path;reset();status('声库已选择')}else status('已取消')}catch(e){status(e.message,true)}};
 function render(d){const plan=d.recording_plan||{},coverage=d.coverage||{},evidence=d.evidence||{};for(const id of ['metrics','rows','warnings'])$(id).replaceChildren();
-for(const [k,v] of [['音节观测',coverage.recognized_syllable_observations],['补录证据缺口',evidence.diagnostic_recording_gaps],['建议新行数',plan.selected_count],['已安排的行数',plan.already_scheduled_count]]){const box=node($('metrics'),'div',k+': '+(v??0));box.className='metric'}
+for(const [k,v] of [[d.scope==='explicit_user_native_recording_templates_no_language_inference'?'原有录音模板':'音节观测',coverage.expected_template_count??coverage.recognized_syllable_observations],['待补录模板',evidence.diagnostic_recording_gaps],['建议新行数',plan.selected_count],['已安排的行数',plan.already_scheduled_count]]){const box=node($('metrics'),'div',k+': '+(v??0));box.className='metric'}
 const rows=Array.isArray(plan.selected)?plan.selected:[];$('empty').hidden=rows.length>0;
 for(const x of rows){const tr=node($('rows'),'tr','');for(const cell of [x.line,(x.base_unit??'')+' / '+(x.context_family??''),x.gap_type??'',x.existing_distinct_pcm_sources??'—'])node(tr,'td',cell)}
 for(const w of (d.warnings||[])){const row=node($('warnings'),'p',w);row.className='warning'}
 $('result').hidden=false}
-$('preview').onclick=async()=>{if(busy)return;const path=$('voicebank').value.trim(),raw=$('budget').value,max=Number(raw),existing=$('existing').value.trim();
+$('preview').onclick=async()=>{if(busy)return;const path=$('voicebank').value.trim(),raw=$('budget').value,max=Number(raw),existing=$('existing').value.trim(),native=$('native-reclist').value.trim();
 if(!path){status('先选择声库',true);return}
 if(!raw||!Number.isSafeInteger(max)||max<0||max>10000){status('录音行数必须是 0–10000 的整数',true);return}
 busy=true;$('preview').disabled=true;reset();status('正在检查声库…');
-try{render(await send('/api/recording-plan/preview',{path,max_lines:max,existing_reclist:existing}));status('已完成，可下载补录表和解释报告')}
+try{render(await send('/api/recording-plan/preview',{path,max_lines:max,existing_reclist:existing,native_reclist:native}));status('已完成，可下载补录表和解释报告')}
 catch(e){status(e.message,true)}finally{busy=false;$('preview').disabled=false}};
 </script></body></html>'''
