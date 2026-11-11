@@ -98,3 +98,19 @@ def test_existing_registered_bank_is_still_covered_without_changes(tmp_path):
     assert report["voicebank"]["subbanks_missing_oto"] == []
     assert report["coverage"]["template_states"][0]["banks"][0]["status"] == "audio_present_registered"
     assert report["recording_plan"]["recording_lines"] == []
+
+
+def test_cross_bank_oto_reference_is_a_review_not_a_verified_pitch_take(tmp_path):
+    root = tmp_path / "voicebank"
+    pcm(root / "A3" / "ŋa.wav")
+    d4 = root / "D4"
+    d4.mkdir()
+    (d4 / "oto.ini").write_text(
+        "../A3/ŋa.wav=ŋa,0,0,0,0,0\\n", encoding="utf-8"
+    )
+    report = build_native_recording_workflow(
+        root, expected_reclist=manifest(tmp_path),
+        bank_names=("D4",),
+    )
+    assert report["coverage"]["template_states"][0]["banks"][0]["status"] == "audio_present_needs_oto_review"
+    assert report["recording_plan"]["recording_lines"] == []
