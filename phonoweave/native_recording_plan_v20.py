@@ -167,7 +167,9 @@ def build_native_recording_workflow(
             digest = pcm(path)
             if digest is None:
                 status = "invalid_audio"
-            elif (group, path) not in registered:
+            elif (group, path) not in registered or path not in aliases.get((group, target["line"]), set()):
+                # A WAV registered under another alias does not prove that the
+                # author's requested opaque recording label is covered.
                 status = "audio_present_needs_oto_review"
             else:
                 status = "audio_present_registered"
