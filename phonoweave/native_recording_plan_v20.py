@@ -94,8 +94,7 @@ def read_bank_alias_prefixes(path: Path) -> dict[str, str]:
     for name, value in raw.items():
         bank = _bank(name)
         if (not isinstance(value, str) or not value or len(value) > 80 or
-                any(c in value for c in ("/", "\\\\", "\\x00", "\\n", "\\r")) or
-                any(ord(c) < 32 for c in value)):
+                "/" in value or chr(92) in value or any(ord(c) < 32 for c in value)):
             raise ValueError("invalid declared bank alias prefix")
         prefix = unicodedata.normalize("NFC", value)
         if bank in result:
