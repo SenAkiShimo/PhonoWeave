@@ -24,8 +24,12 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 <section id="result" hidden><h2>建议摘要 / Summary</h2><div id="metrics"></div>
 <a class="download" href="/api/recording-plan/download/reclist">下载补录表 (.txt)</a>
 <a class="download" href="/api/recording-plan/download/report">下载解释报告 (.json)</a>
+<a class="download" href="/api/recording-plan/download/review">下载待检查清单 (.txt)</a>
 <h2>补录内容 / Suggested recording lines</h2><div style="overflow:auto"><table><thead><tr><th>录音行</th><th>上下文</th><th>理由</th><th>已有 PCM</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p id="empty" hidden>暂时没有足够证据要求新增录音；这并不代表声库已完整。</p>
+<h2>检查 OTO / OTO configuration review</h2><div style="overflow:auto"><table><thead><tr><th>录音名</th><th>子声库</th><th>原因</th></tr></thead><tbody id="oto-review"></tbody></table></div>
+<h2>核对来源或音频 / Source verification</h2><div style="overflow:auto"><table><thead><tr><th>录音名</th><th>子声库</th><th>原因</th></tr></thead><tbody id="source-review"></tbody></table></div>
+<p class="note">损坏的 WAV 先检查或恢复原始文件，不会自动要求重新演唱。配置问题和不确定来源均不会进入补录 TXT。</p>
 <h2>注意事项 / Warnings</h2><div id="warnings"></div>
 <p class="note">默认使用普通话 OTO 分析；填写原有录音模板后，保留原始名称进行文件覆盖检查。PCM 来源数不等于独立演唱次数。不会生成新音素、alias 或修改 oto.ini。</p></section></main>
 <script>
@@ -36,10 +40,11 @@ function reset(){ $('result').hidden=true }
 for(const id of ['voicebank','budget','existing','native-reclist'])$(id).addEventListener('input',reset);
 async function send(url,payload){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw Error(d.error||'请求失败');return d}
 $('browse').onclick=async()=>{if(busy)return;try{const x=await send('/api/pick-folder',{lang:'zh'});if(x.path){$('voicebank').value=x.path;reset();status('声库已选择')}else status('已取消')}catch(e){status(e.message,true)}};
-function render(d){const plan=d.recording_plan||{},coverage=d.coverage||{},evidence=d.evidence||{};for(const id of ['metrics','rows','warnings'])$(id).replaceChildren();
+function render(d){const plan=d.recording_plan||{},coverage=d.coverage||{},evidence=d.evidence||{};for(const id of ['metrics','rows','warnings','oto-review','source-review'])$(id).replaceChildren();
 for(const [k,v] of [[d.scope==='explicit_user_native_recording_templates_no_language_inference'?'原有录音模板':'音节观测',coverage.expected_template_count??coverage.recognized_syllable_observations],['待补录模板',evidence.diagnostic_recording_gaps],['建议新行数',plan.selected_count],['已安排的行数',plan.already_scheduled_count]]){const box=node($('metrics'),'div',k+': '+(v??0));box.className='metric'}
 const rows=Array.isArray(plan.selected)?plan.selected:[];$('empty').hidden=rows.length>0;
 for(const x of rows){const tr=node($('rows'),'tr','');for(const cell of [x.line,(x.base_unit??'')+' / '+(x.context_family??''),x.gap_type??'',x.existing_distinct_pcm_sources??'—'])node(tr,'td',cell)}
+for(const task of (plan.review_tasks||[])){const id=task.category==='oto_configuration'?'oto-review':'source-review';const tr=node($(id),'tr','');for(const v of [task.line,task.bank,(task.reason||task.status)])node(tr,'td',v)}
 for(const w of (d.warnings||[])){const row=node($('warnings'),'p',w);row.className='warning'}
 $('result').hidden=false}
 $('preview').onclick=async()=>{if(busy)return;const path=$('voicebank').value.trim(),raw=$('budget').value,max=Number(raw),existing=$('existing').value.trim(),native=$('native-reclist').value.trim();
