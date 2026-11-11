@@ -391,6 +391,10 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
         return _build_synthesis_inventory(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "plan-bounded-reclist":
+        from .recording_budget_v16 import main as recording_budget_main
+        return recording_budget_main(sys.argv[2:])
+
     if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units":
         from .orthography_native_units import main as native_main
         return native_main(sys.argv[2:])
