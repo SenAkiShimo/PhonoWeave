@@ -1,0 +1,12 @@
+{
+  "schema": "phonoweave.native_sequences.v1",
+  "entries": [
+    {
+      "bank": "s_C4",
+      "source_wav": "EXAMPLE_replace_with_real_wav.wav",
+      "source_pcm_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "provenance": "independent_recording_script",
+      "units": ["i", "i0", "i2", "自定义"]
+    }
+  ]
+}

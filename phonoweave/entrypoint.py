@@ -391,6 +391,28 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
         return _build_synthesis_inventory(sys.argv[2:])
 
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units":
+        from .orthography_native_units import main as native_main
+        return native_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "discover-user-units-batch":
+        from .user_native_batch import main as native_main
+        return native_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "evaluate-user-native-temporal":
+        from .temporal_context_eval import main as native_main
+        return native_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "propose-acoustic-events":
+        from .independent_acoustic_events import main as native_main
+        return native_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "link-user-units-to-events":
+        from .event_unit_bridge import main as native_main
+        return native_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "align-user-native-sequence":
+        from .native_sequence_alignment import main as native_main
+        return native_main(["align", *sys.argv[2:]])
+    if len(sys.argv) > 1 and sys.argv[1] == "evaluate-user-native-sequence":
+        from .native_sequence_alignment import main as native_main
+        return native_main(["evaluate", *sys.argv[2:]])
+
     from .cli import main as legacy_main
 
     return legacy_main()
