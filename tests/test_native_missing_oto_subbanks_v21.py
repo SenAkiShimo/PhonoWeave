@@ -106,7 +106,7 @@ def test_cross_bank_oto_reference_is_a_review_not_a_verified_pitch_take(tmp_path
     d4 = root / "D4"
     d4.mkdir()
     (d4 / "oto.ini").write_text(
-        "../A3/ŋa.wav=ŋa,0,0,0,0,0\\n", encoding="utf-8"
+        "../A3/ŋa.wav=ŋa,0,0,0,0,0\n", encoding="utf-8"
     )
     report = build_native_recording_workflow(
         root, expected_reclist=manifest(tmp_path),
