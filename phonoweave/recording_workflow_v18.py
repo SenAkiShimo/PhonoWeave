@@ -209,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--existing-reclist", type=Path, help="scheduled lines to exclude from new work")
     parser.add_argument("--native-reclist", type=Path, help="existing user-native recording templates (no Mandarin parsing)")
     parser.add_argument("--native-bank", action="append", help="target subbank in native mode; repeatable")
+    parser.add_argument("--unit-evidence", action="append", type=Path,
+                        help="optional existing user-native acoustic evidence.json; repeat 2+ times for sensitivity audit")
     parser.add_argument("--export", type=Path, help="create a NEW directory containing reclist and JSON report")
     parser.add_argument("--json", action="store_true", help="print full JSON report to stdout")
     args = parser.parse_args(argv)
@@ -234,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
             result = build_recording_workflow(
                 args.voicebank, max_lines=args.max_lines, existing_reclist=args.existing_reclist,
             )
+        if args.unit_evidence:
+            from .native_unit_review_v24 import attach_existing_unit_review
+            result = attach_existing_unit_review(result, args.unit_evidence)
         if args.export is not None:
             export_recording_workflow(result, args.export, voicebank=args.voicebank)
     except (ValueError, FileNotFoundError, FileExistsError, PermissionError) as exc:
@@ -251,6 +256,12 @@ def main(argv: list[str] | None = None) -> int:
                 print("Warning:", warning)
         else:
             _print_preview(result)
+        if args.unit_evidence:
+            review = result["existing_sound_unit_review"]
+            print("Existing user-native realization audit (not new phonemes):")
+            for row in review["realizations"]:
+                print(f"  {row['original_user_label']}: {row['review_status']}")
+            print("No new recordings or aliases authorized by these acoustic reports.")
         if args.export is not None:
             print(f"Exported: {args.export.expanduser().resolve()}")
     return 0
