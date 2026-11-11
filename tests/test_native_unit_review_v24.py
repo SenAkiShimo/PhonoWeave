@@ -18,7 +18,7 @@ from phonoweave.native_unit_review_v24 import (
 
 def evidence(*, errors_for_y=0, context_suffix=""):
     labels = ["字", "字0"]
-    banks = [("sA", "G3"), ("sA", "B4"), ("sB", "D4")]
+    banks = [("sA", "G3"), ("sA", "B4"), ("sB", "D4"), ("sB", "G4")]
     original = []
     for style, pitch in banks:
         for context in ("m", "sh"):
@@ -38,8 +38,8 @@ def evidence(*, errors_for_y=0, context_suffix=""):
         "original_user_base_symbol": "字",
         "user_realization_labels": labels,
         "pitch_context_origin": SOURCE_ORIGIN,
-        "candidate_windows": 12,
-        "per_label_count": {k: 6 for k in labels},
+        "candidate_windows": 16,
+        "per_label_count": {k: 8 for k in labels},
         "unit_decision": "insufficient_independent_sources_for_auto_alias_change",
         "recommended_new_user_aliases": [],
         "source_audio_modified": False,
@@ -63,7 +63,7 @@ def evidence(*, errors_for_y=0, context_suffix=""):
 
 
 def test_two_consistent_reports_preserve_existing_user_labels():
-    x = summarize_existing_realizations([evidence(), evidence()])
+    x = summarize_existing_realizations([evidence(), evidence(errors_for_y=1)])
     assert x["schema"] == SCHEMA
     assert x["original_user_labels"] == ["字", "字0"]
     assert x["same_trial_identities_across_reports"]
@@ -185,3 +185,8 @@ def test_no_independent_phone_claim_even_when_all_green():
     assert "not unknown phoneme discovery" in result["limitations"][0]
     assert result["automatic_alias_edits"] == []
     assert all(r["new_phoneme_authorized"] is False for r in result["realizations"])
+
+
+def test_identical_copied_reports_are_not_separate_windows():
+    with pytest.raises(ValueError, match="duplicate acoustic evidence content"):
+        summarize_existing_realizations([evidence(), evidence()])
