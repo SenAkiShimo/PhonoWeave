@@ -342,8 +342,17 @@ class _Handler(BaseHTTPRequestHandler):
                 if not isinstance(raw_existing, str):
                     raise ValueError("existing_reclist must be a path string.")
                 existing = Path(raw_existing.strip()).expanduser() if raw_existing.strip() else None
-                report = build_recording_workflow(Path(raw_path.strip()),
-                                                  max_lines=budget, existing_reclist=existing)
+                native = payload.get("native_reclist", "")
+                if not isinstance(native, str):
+                    raise ValueError("native_reclist must be a path string.")
+                if native.strip():
+                    from .native_recording_plan_v20 import build_native_recording_workflow
+                    report = build_native_recording_workflow(
+                        Path(raw_path.strip()), expected_reclist=Path(native.strip()).expanduser(),
+                        max_lines=budget, existing_reclist=existing)
+                else:
+                    report = build_recording_workflow(Path(raw_path.strip()),
+                                                      max_lines=budget, existing_reclist=existing)
                 with _STATE_LOCK:
                     _STATE.recording_report = report
                 self._json(report)
