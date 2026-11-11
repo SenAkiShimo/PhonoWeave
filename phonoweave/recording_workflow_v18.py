@@ -164,9 +164,14 @@ def export_recording_workflow(report: dict[str, Any], target: Path, *, voicebank
             json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
         )
+        if "review_tasks" in report.get("recording_plan", {}):
+            from .recording_review_v23 import format_review_tasks
+            (destination / "recording_review.txt").write_text(
+                format_review_tasks(report), encoding="utf-8",
+            )
     except Exception:
         # Do not recursively delete unrelated files that might have appeared.
-        for filename in ("supplement_reclist.txt", "recording_plan.json"):
+        for filename in ("supplement_reclist.txt", "recording_plan.json", "recording_review.txt"):
             (destination / filename).unlink(missing_ok=True)
         try:
             destination.rmdir()
