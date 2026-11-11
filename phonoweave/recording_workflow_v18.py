@@ -202,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("voicebank", type=Path, help="existing unpacked voicebank directory")
     parser.add_argument("--max-lines", type=int, default=8)
     parser.add_argument("--existing-reclist", type=Path, help="scheduled lines to exclude from new work")
+    parser.add_argument("--native-reclist", type=Path, help="existing user-native recording templates (no Mandarin parsing)")
+    parser.add_argument("--native-bank", action="append", help="target subbank in native mode; repeatable")
     parser.add_argument("--export", type=Path, help="create a NEW directory containing reclist and JSON report")
     parser.add_argument("--json", action="store_true", help="print full JSON report to stdout")
     args = parser.parse_args(argv)
@@ -213,9 +215,20 @@ def main(argv: list[str] | None = None) -> int:
         if target.exists():
             parser.error("export directory already exists")
     try:
-        result = build_recording_workflow(
-            args.voicebank, max_lines=args.max_lines, existing_reclist=args.existing_reclist,
-        )
+        if args.native_reclist is not None:
+            from .native_recording_plan_v20 import build_native_recording_workflow
+            result = build_native_recording_workflow(
+                args.voicebank, expected_reclist=args.native_reclist,
+                max_lines=args.max_lines,
+                bank_names=tuple(args.native_bank) if args.native_bank else None,
+                existing_reclist=args.existing_reclist,
+            )
+        else:
+            if args.native_bank:
+                parser.error("--native-bank requires --native-reclist")
+            result = build_recording_workflow(
+                args.voicebank, max_lines=args.max_lines, existing_reclist=args.existing_reclist,
+            )
         if args.export is not None:
             export_recording_workflow(result, args.export, voicebank=args.voicebank)
     except (ValueError, FileNotFoundError, FileExistsError, PermissionError) as exc:
@@ -223,7 +236,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result, indent=2, ensure_ascii=False, allow_nan=False))
     else:
-        _print_preview(result)
+        if args.native_reclist is not None:
+            plan = result["recording_plan"]
+            print("PhonoWeave | User-native template coverage (no IPA or phoneme inference)")
+            print(f"Checked {result['coverage']['expected_template_count']} existing templates; proposed {plan['selected_count']} new lines")
+            for item in plan["selected"]:
+                print(f"  {item['line']}: missing in {', '.join(item['missing_audio_banks'])}")
+            for warning in result["warnings"]:
+                print("Warning:", warning)
+        else:
+            _print_preview(result)
         if args.export is not None:
             print(f"Exported: {args.export.expanduser().resolve()}")
     return 0
