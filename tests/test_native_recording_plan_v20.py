@@ -171,3 +171,18 @@ def test_existing_gui_and_cli_native_routes_present():
     assert 'id="native-reclist"' in HTML
     assert "native_reclist" in getsource(gui._Handler.do_POST)
     assert "--native-reclist" in getsource(recording_workflow_v18.main)
+
+
+def test_wav_used_by_another_alias_is_review_not_verified(tmp_path):
+    root, template = example(tmp_path)
+    sub = root / "D4"
+    wav(sub / "another.wav", 38)
+    with (sub / "oto.ini").open("a", encoding="utf-8") as out:
+        out.write("another.wav=not_the_target,0,0,0,0,0\n")
+    obj = {"schema": TARGET_SCHEMA, "targets": [
+        {"line": "required_custom_alias", "wav": "another.wav", "subbanks": ["D4"]}]}
+    spec = tmp_path / "targets.json"
+    spec.write_text(json.dumps(obj), encoding="utf-8")
+    result = build_native_recording_workflow(root, expected_reclist=spec)
+    assert result["recording_plan"]["recording_lines"] == []
+    assert result["coverage"]["template_states"][0]["banks"][0]["status"] == "audio_present_needs_oto_review"
