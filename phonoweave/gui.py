@@ -27,6 +27,8 @@ from .calibration_negative_controls import save_negative_recording
 from .calibration_protocol import live_calibration_protocol
 from .gui_model import GuiAnalysisSnapshot, analyze_for_gui
 from .gui_page_remake import HTML
+from .recording_plan_page_v19 import HTML as RECORDING_PLAN_HTML
+from .recording_workflow_v18 import build_recording_workflow
 from .profile import profile_yaml
 from .synthesis_inventory import synthesis_inventory_yaml
 
@@ -34,6 +36,7 @@ from .synthesis_inventory import synthesis_inventory_yaml
 @dataclass
 class _GuiState:
     snapshot: GuiAnalysisSnapshot | None = None
+    recording_report: dict[str, Any] | None = None
     calibration_root: Path = Path.home() / "Downloads" / "PhonoWeaveCalibration"
     calibration_session_dir: Path | None = None
 
@@ -46,6 +49,9 @@ def _main_page_html() -> str:
     marker = '<button class="toolbtn primary" id="analyze"></button>'
     calibration = (
         marker
+        + '<a class="toolbtn" href="/recording-plan" '
+          'title="Preview minimal recording recommendations">'
+          'Recording Plan / 补录方案</a>'
         + '<a class="toolbtn" href="/calibration" '
         + 'title="Record a live speaker calibration">'
         + 'Live Calibration / 现场校准</a>'
@@ -235,6 +241,24 @@ class _Handler(BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
+        if path == "/recording-plan":
+            self._send_bytes(RECORDING_PLAN_HTML.encode("utf-8"), "text/html; charset=utf-8")
+            return
+        if path == "/api/recording-plan/download/reclist" or path == "/api/recording-plan/download/report":
+            with _STATE_LOCK:
+                report = _STATE.recording_report
+            if report is None:
+                self._json({"error": "Preview a recording plan first."}, HTTPStatus.CONFLICT)
+                return
+            if path.endswith("/reclist"):
+                body = "".join(line + "\n" for line in report["recording_plan"]["recording_lines"])
+                self._send_bytes(body.encode("utf-8"), "text/plain; charset=utf-8",
+                                 headers={"Content-Disposition": 'attachment; filename="supplement_reclist.txt"'})
+            else:
+                body = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+                self._send_bytes(body.encode("utf-8"), "application/json; charset=utf-8",
+                                 headers={"Content-Disposition": 'attachment; filename="recording_plan.json"'})
+            return
         if path == "/negative-controls":
             self._send_bytes(NEGATIVE_HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
@@ -295,6 +319,50 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if path == "/api/recording-plan/preview":
+            with _STATE_LOCK:
+                _STATE.recording_report = None  # Never serve a previous bank's report after a failed preview.
+            try:
+                # Browser requests must originate from this loopback GUI, not an unrelated webpage.
+                origin = self.headers.get("Origin")
+                expected = f"http://127.0.0.1:{self.server.server_address[1]}"
+                if origin is not None and origin != expected:
+                    raise PermissionError("Cross-origin recording-plan requests are not allowed.")
+                size = int(self.headers.get("Content-Length", "0"))
+                if not 1 <= size <= 8192:
+                    raise ValueError("Invalid recording-plan request size.")
+                payload = self._read_json()
+                raw_path = payload.get("path")
+                budget = payload.get("max_lines", 8)
+                raw_existing = payload.get("existing_reclist", "")
+                if not isinstance(raw_path, str) or not raw_path.strip():
+                    raise ValueError("Choose a voicebank first.")
+                if type(budget) is not int or not 0 <= budget <= 10000:
+                    raise ValueError("max_lines must be an integer from 0 through 10000.")
+                if not isinstance(raw_existing, str):
+                    raise ValueError("existing_reclist must be a path string.")
+                existing = Path(raw_existing.strip()).expanduser() if raw_existing.strip() else None
+                native = payload.get("native_reclist", "")
+                if not isinstance(native, str):
+                    raise ValueError("native_reclist must be a path string.")
+                if native.strip():
+                    from .native_recording_plan_v20 import build_native_recording_workflow
+                    report = build_native_recording_workflow(
+                        Path(raw_path.strip()), expected_reclist=Path(native.strip()).expanduser(),
+                        max_lines=budget, existing_reclist=existing)
+                else:
+                    report = build_recording_workflow(Path(raw_path.strip()),
+                                                      max_lines=budget, existing_reclist=existing)
+                with _STATE_LOCK:
+                    _STATE.recording_report = report
+                self._json(report)
+            except PermissionError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+            except (ValueError, FileNotFoundError, IsADirectoryError, UnicodeError, json.JSONDecodeError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
         if path == "/api/pick-folder":
             try:
                 payload = self._read_json()
