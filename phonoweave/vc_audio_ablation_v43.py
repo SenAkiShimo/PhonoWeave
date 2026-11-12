@@ -252,6 +252,11 @@ def _prepare(case:Case,root:Path):
     rv,vrv,rvspan=_cut(case.right,"right_vowel")
     if len({lr,vr,rr,vrv})!=1:
         raise ValueError("source sample rates differ")
+    # Disallow donor and target from the same decoded PCM. Multiple OTO
+    # labels from one long WAV are not independent acoustic sources.
+    provenance=[pcm_identity(e.wav_path) for e in (case.left,case.vc,case.right)]
+    if len(set(provenance))!=3:
+        raise ValueError("VC and CV donors reuse the same decoded PCM source")
     if (_overlap(case.left,lvspan,case.vc,trspan)
             or _overlap(case.right,crspan,case.vc,trspan)
             or _overlap(case.left,lvspan,case.right,crspan)):
