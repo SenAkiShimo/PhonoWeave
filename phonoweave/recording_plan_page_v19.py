@@ -34,7 +34,7 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 <p class="note">默认使用普通话 OTO 分析；填写原有录音模板后，保留原始名称进行文件覆盖检查。PCM 来源数不等于独立演唱次数。不会生成新音素、alias 或修改 oto.ini。</p></section>
 <section id="asset-input">
 <h2>已有音频素材 / Existing source assets</h2>
-<p>默认直接扫描上方选择的当前声库 WAV/OTO，查看 alias、来源文件和重复或缺失状态；也可改用历史研究 ZIP。两种模式都不会改动声库。</p>
+<p>默认直接扫描上方选择的当前声库 WAV/OTO，查看 alias、来源文件和重复或缺失状态；也可切换到历史归档 ZIP。历史归档不是当前声库的实时检测；两种模式都不会改动声库。</p>
 <label for="asset-mode">数据来源 / Source</label>
 <select id="asset-mode"><option value="live" selected>当前声库 WAV / OTO（推荐）</option><option value="historical">历史来源索引 ZIP</option></select>
 <p id="live-asset-note" class="note">当前声库模式直接使用上方的声库目录。未提供显式映射时，保留原始 alias，不猜测发音标签。</p>
