@@ -45,10 +45,6 @@ def test_source_disjoint_with_exact_expected_denominators():
     assert report["automatic_unit_merges_or_splits"] == []
     for b in report["per_bank"]:
         for f in b["heldout_source_fold_details"]:
-            assert f["heldout_source_wav"] not in {
-                w["heldout_source_wav"] for w in b["heldout_source_fold_details"]
-                if w is f
-            } if False else True
             assert f["training_distinct_wav_templates"] == 2
             assert f["heldout_source_pcm_count"] == 1
 
@@ -82,7 +78,7 @@ def test_source_pcm_conflict_in_same_wav_is_rejected():
 
 def test_duplicate_pcm_copied_to_different_wav_is_rejected():
     data = fixture()
-    data[9]["source_pcm_sha256"] = data[0]["source_pcm_sha256"]
+    data[27]["source_pcm_sha256"] = data[0]["source_pcm_sha256"]
     with pytest.raises(ValueError, match="conflicting PCM|share decoded PCM"):
         evaluate_existing_labels(data, LABELS)
 
