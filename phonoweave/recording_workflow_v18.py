@@ -217,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="two existing user-native labels to compare at equal donor budget")
     parser.add_argument("--donor-budget-per-label", type=int, default=1,
                         help="frozen per-label donor count for feasible source-disjoint comparisons")
+    parser.add_argument("--asset-routing-archive", type=Path,
+                        help="optional existing source-index ZIP for original alias-to-WAV routing ledger")
+    parser.add_argument("--asset-routing-label", action="append",
+                        help="original author label in source routing ledger; repeatable")
     parser.add_argument("--export", type=Path, help="create a NEW directory containing reclist and JSON report")
     parser.add_argument("--json", action="store_true", help="print full JSON report to stdout")
     args = parser.parse_args(argv)
@@ -253,6 +257,12 @@ def main(argv: list[str] | None = None) -> int:
                 result, args.unit_budget_archive, [tuple(p) for p in args.unit_pair],
                 budget_per_label=args.donor_budget_per_label,
             )
+        if (args.asset_routing_archive is None) != (not args.asset_routing_label):
+            parser.error("--asset-routing-archive and at least two --asset-routing-label values must be given together")
+        if args.asset_routing_archive is not None:
+            from .native_asset_routing_v29 import attach_asset_routing_ledger
+            result = attach_asset_routing_ledger(
+                result, args.asset_routing_archive, args.asset_routing_label)
         if args.export is not None:
             export_recording_workflow(result, args.export, voicebank=args.voicebank)
     except (ValueError, FileNotFoundError, FileExistsError, PermissionError) as exc:
@@ -282,6 +292,12 @@ def main(argv: list[str] | None = None) -> int:
             for row in comparison["compared_existing_label_pairs"]:
                 pair = " / ".join(row["labels"])
                 print(f"  {pair}: {row['status']}; eligible source targets={row['eligible_independent_target_sources']}")
+        if args.asset_routing_archive is not None:
+            ledger = result["existing_source_asset_routing"]
+            print("Existing alias-to-WAV inventory (NOT unit substitution):")
+            print(f"  {ledger['total_existing_alias_context_routes']} original label-context routes, "
+                  f"{ledger['distinct_existing_bank_PCM_source_containers']} existing PCM source containers, "
+                  f"{ledger['routes_requiring_source_choice_review']} multiple-source reviews")
         if args.export is not None:
             print(f"Exported: {args.export.expanduser().resolve()}")
     return 0
