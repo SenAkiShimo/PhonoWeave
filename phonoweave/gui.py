@@ -428,8 +428,8 @@ class _Handler(BaseHTTPRequestHandler):
                 if not isinstance(native, str):
                     raise ValueError("native_reclist must be a path string.")
                 if native.strip():
-                    from .native_recording_plan_v20 import build_native_recording_workflow
-                    report = build_native_recording_workflow(
+                    from .native_live_reconcile_v32 import build_reconciled_native_plan
+                    report = build_reconciled_native_plan(
                         Path(raw_path.strip()), expected_reclist=Path(native.strip()).expanduser(),
                         max_lines=budget, existing_reclist=existing)
                 else:
