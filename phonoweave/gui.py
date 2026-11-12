@@ -37,6 +37,7 @@ from .synthesis_inventory import synthesis_inventory_yaml
 class _GuiState:
     snapshot: GuiAnalysisSnapshot | None = None
     recording_report: dict[str, Any] | None = None
+    asset_routing_report: dict[str, Any] | None = None
     calibration_root: Path = Path.home() / "Downloads" / "PhonoWeaveCalibration"
     calibration_session_dir: Path | None = None
 
@@ -266,6 +267,27 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_bytes(body.encode("utf-8"), "application/json; charset=utf-8",
                                  headers={"Content-Disposition": 'attachment; filename="recording_plan.json"'})
             return
+        if path in ("/api/recording-plan/assets/download/json",
+                    "/api/recording-plan/assets/download/csv"):
+            with _STATE_LOCK:
+                ledger = _STATE.asset_routing_report
+            if ledger is None:
+                self._json({"error": "Preview an existing asset ledger first."},
+                           HTTPStatus.CONFLICT)
+                return
+            if path.endswith("/csv"):
+                from .native_asset_gui_v30 import asset_routes_csv
+                body = asset_routes_csv(ledger).encode("utf-8")
+                self._send_bytes(body, "text/csv; charset=utf-8",
+                                 headers={"Content-Disposition":
+                                          'attachment; filename="existing_asset_routes.csv"'})
+            else:
+                body = (json.dumps(ledger, ensure_ascii=False, indent=2,
+                                   allow_nan=False) + "\n").encode("utf-8")
+                self._send_bytes(body, "application/json; charset=utf-8",
+                                 headers={"Content-Disposition":
+                                          'attachment; filename="existing_asset_routes.json"'})
+            return
         if path == "/negative-controls":
             self._send_bytes(NEGATIVE_HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
@@ -326,6 +348,40 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if path == "/api/recording-plan/assets/preview":
+            with _STATE_LOCK:
+                _STATE.asset_routing_report = None  # Failed preview invalidates prior downloads.
+            try:
+                origin = self.headers.get("Origin")
+                expected = f"http://127.0.0.1:{self.server.server_address[1]}"
+                if origin is not None and origin != expected:
+                    raise PermissionError("Cross-origin asset previews are not allowed.")
+                size = int(self.headers.get("Content-Length", "0"))
+                if not 1 <= size <= 8192:
+                    raise ValueError("Invalid asset preview request size.")
+                payload = self._read_json()
+                archive = payload.get("archive")
+                labels = payload.get("labels")
+                if not isinstance(archive, str) or not archive.strip():
+                    raise ValueError("Select an existing source-index ZIP archive.")
+                if (not isinstance(labels, list) or not 2 <= len(labels) <= 5
+                        or any(not isinstance(x, str) or not x.strip() for x in labels)
+                        or len(set(labels)) != len(labels)):
+                    raise ValueError("Enter two to five distinct original author labels.")
+                from .native_asset_routing_v29 import run_archive
+                from .native_asset_gui_v30 import asset_ledger_summary
+                ledger = run_archive(Path(archive.strip()).expanduser(), labels)
+                with _STATE_LOCK:
+                    _STATE.asset_routing_report = ledger
+                self._json(asset_ledger_summary(ledger))
+            except PermissionError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+            except (ValueError, FileNotFoundError, IsADirectoryError,
+                    UnicodeError, json.JSONDecodeError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
         if path == "/api/recording-plan/preview":
             with _STATE_LOCK:
                 _STATE.recording_report = None  # Never serve a previous bank's report after a failed preview.
