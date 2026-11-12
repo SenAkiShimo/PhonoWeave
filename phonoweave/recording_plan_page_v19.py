@@ -34,15 +34,19 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 <p class="note">默认使用普通话 OTO 分析；填写原有录音模板后，保留原始名称进行文件覆盖检查。PCM 来源数不等于独立演唱次数。不会生成新音素、alias 或修改 oto.ini。</p></section>
 <section id="asset-input">
 <h2>已有音频素材 / Existing source assets</h2>
-<p>可选：读取以前保存的来源索引，查看哪些原始 alias 指向已有 WAV，以及哪些路径有歧义。这是<b>历史归档</b>，不会重新检查当前声库的 WAV。</p>
+<p>默认直接扫描上方选择的当前声库 WAV/OTO，查看 alias、来源文件和重复或缺失状态；也可改用历史研究 ZIP。两种模式都不会改动声库。</p>
+<label for="asset-mode">数据来源 / Source</label>
+<select id="asset-mode"><option value="live" selected>当前声库 WAV / OTO（推荐）</option><option value="historical">历史来源索引 ZIP</option></select>
+<p id="live-asset-note" class="note">当前声库模式直接使用上方的声库目录。未提供显式映射时，保留原始 alias，不猜测发音标签。</p>
+<div id="historic-asset-input">
 <label for="asset-archive">来源索引 ZIP / Historical source-index archive</label>
-<input id="asset-archive" placeholder="/path/to/PhonoWeave_User_Native_Batch_Discovery_v2.zip">
-<label for="asset-labels">原始发音名称（2–5 个，以逗号分隔） / Original labels</label>
+<input id="asset-archive" placeholder="/path/to/PhonoWeave_User_Native_Batch_Discovery_v2.zip"></div>
+<label for="asset-labels">原始发音名称（逗号分隔；当前声库可留空） / Original labels (optional in live mode)</label>
 <input id="asset-labels" value="i, ir, i0">
 <button type="button" id="asset-preview">查看已有素材 / Show existing assets</button>
 <p id="asset-status" role="status" aria-live="polite">尚未载入来源索引。</p>
 <div id="asset-result" hidden>
-<p class="note">以下为旧来源索引中已观察到的关联：并非当前声库的实时检测，不意味着可以合并发音单元或跳过真正的录音需求。</p>
+<p id="asset-provenance" class="note">原始 alias 的 WAV 文件关联不代表发音单元可以互相替代。</p>
 <div id="asset-metrics"></div>
 <a class="download" href="/api/recording-plan/assets/download/csv">下载映射 CSV</a>
 <a class="download" href="/api/recording-plan/assets/download/json">下载完整来源 JSON</a>
@@ -54,7 +58,7 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 </div>
 <p id="asset-visible-count" class="note"></p>
 <div style="overflow:auto"><table><thead><tr><th>子声库</th><th>原始单元</th><th>后续环境</th><th>原始 alias</th><th>已有 WAV 来源</th><th>判定</th></tr></thead><tbody id="asset-rows"></tbody></table></div>
-<p class="note">为保持页面流畅，只显示当前筛选结果的前 80 项；下载文件包含完整历史映射。</p>
+<p class="note">为保持页面流畅，只显示当前筛选结果的前 80 项；下载文件包含全部映射。来源检查不改变补录表。</p>
 </div>
 </section></main>
 <script>
@@ -80,8 +84,10 @@ try{render(await send('/api/recording-plan/preview',{path,max_lines:max,existing
 catch(e){status(e.message,true)}finally{busy=false;$('preview').disabled=false}};
 
 let assetReport=null, assetGeneration=0, assetBusy=false;
-const assetIds=['asset-archive','asset-labels'];
-function invalidateAssets(){assetGeneration++;assetReport=null;$('asset-result').hidden=true;$('asset-status').textContent='输入已修改，请重新载入历史索引。'}
+const assetIds=['asset-archive','asset-labels','asset-mode','voicebank','native-reclist'];
+function updateAssetMode(){const live=$('asset-mode').value==='live';$('historic-asset-input').hidden=live;$('live-asset-note').hidden=!live;}
+updateAssetMode();
+function invalidateAssets(){assetGeneration++;assetReport=null;$('asset-result').hidden=true;$('asset-status').textContent='输入已修改，请重新检查来源。';updateAssetMode();}
 for(const id of assetIds)$(id).addEventListener('input',invalidateAssets);
 function assetOptions(id,values){const el=$(id);el.replaceChildren();const opt=node(el,'option','全部');opt.value='';for(const value of [...new Set(values)].sort()){const child=node(el,'option',value);child.value=value}}
 function renderAssetRows(){
@@ -90,7 +96,7 @@ function renderAssetRows(){
   const list=assetReport.original_alias_routes.filter(x=>
     (!bank||x.bank===bank)&&(!unit||x.original_unit_label===unit)&&
     (!context||x.following_context.includes(context))&&
-    (!only||x.routing_status==='multiple_observed_source_options_review'));
+    (!only||x.routing_status!=='single_current_oto_source'&&x.routing_status!=='single_observed_source_in_filtered_index'));
   $('asset-rows').replaceChildren();
   for(const x of list.slice(0,80)){
     const tr=node($('asset-rows'),'tr','');
@@ -102,27 +108,32 @@ function renderAssetRows(){
 for(const id of ['asset-bank','asset-context','asset-unit','asset-only-ambiguous'])$(id).addEventListener('input',renderAssetRows);
 $('asset-preview').onclick=async()=>{
   if(assetBusy)return;
+  const mode=$('asset-mode').value;
   const archive=$('asset-archive').value.trim();
   const labels=$('asset-labels').value.split(',').map(x=>x.trim()).filter(Boolean);
-  if(!archive||labels.length<2||labels.length>5||new Set(labels).size!==labels.length){
-    $('asset-status').textContent='请填写 ZIP 路径以及 2–5 个不同的原始发音标签。';return;
+  const voicebank=$('voicebank').value.trim();
+  if((mode==='live'&&!voicebank)||(mode==='historical'&&!archive)||
+     labels.length>5||new Set(labels).size!==labels.length||
+     (mode==='historical'&&labels.length<2)){
+    $('asset-status').textContent='请选择声库（或历史 ZIP），并填写有效的原始发音标签。';return;
   }
   const request=++assetGeneration;
   assetBusy=true;$('asset-preview').disabled=true;$('asset-result').hidden=true;
-  $('asset-status').textContent='正在读取历史来源索引…';
+  $('asset-status').textContent=mode==='live'?'正在读取当前 WAV/OTO…':'正在读取历史来源索引…';
   try{
-    const report=await send('/api/recording-plan/assets/preview',{archive,labels});
+    const report=await send('/api/recording-plan/assets/preview',{mode,archive,labels,voicebank,native_reclist:$('native-reclist').value.trim()});
     if(request!==assetGeneration)return;
     assetReport=report;
     $('asset-metrics').replaceChildren();
-    for(const [name,value] of [['发音—环境映射',report.total_existing_alias_context_routes],['现有音频来源',report.distinct_existing_bank_PCM_source_containers],['多来源待核实',report.routes_requiring_source_choice_review]]){
+    for(const [name,value] of [['原始 alias / 环境映射',report.total_existing_alias_context_routes],['已识别 PCM 来源',report.distinct_existing_bank_PCM_source_containers],['待核实来源',report.routes_requiring_source_choice_review]]){
       const el=node($('asset-metrics'),'div',name+': '+value);el.className='metric';
     }
     assetOptions('asset-bank',report.per_bank.map(x=>x.bank));
-    assetOptions('asset-unit',report.original_user_labels);
+    assetOptions('asset-unit',report.original_user_labels.length?report.original_user_labels:report.original_alias_routes.map(x=>x.original_unit_label));
     $('asset-context').value='';$('asset-only-ambiguous').checked=false;
     $('asset-result').hidden=false;renderAssetRows();
-    $('asset-status').textContent='历史来源映射已载入；不会修改补录建议。';
+    $('asset-provenance').textContent=report.live_voicebank_scan?'已扫描当前声库 WAV/OTO；未解析标签保留为原始 alias，来源检查不等于发音正确性验证。':'历史来源索引，仅用于检查先前记录的素材关系，不代表当前声库状况。';
+    $('asset-status').textContent=report.live_voicebank_scan?'已完成当前声库来源检查；补录建议不变。':'历史来源映射已载入；补录建议不变。';
   }catch(e){if(request===assetGeneration){assetReport=null;$('asset-status').textContent=e.message;$('asset-result').hidden=true}}
   finally{assetBusy=false;$('asset-preview').disabled=false}
 };
