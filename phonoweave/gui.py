@@ -362,15 +362,34 @@ class _Handler(BaseHTTPRequestHandler):
                 payload = self._read_json()
                 archive = payload.get("archive")
                 labels = payload.get("labels")
-                if not isinstance(archive, str) or not archive.strip():
-                    raise ValueError("Select an existing source-index ZIP archive.")
-                if (not isinstance(labels, list) or not 2 <= len(labels) <= 5
-                        or any(not isinstance(x, str) or not x.strip() for x in labels)
-                        or len(set(labels)) != len(labels)):
-                    raise ValueError("Enter two to five distinct original author labels.")
-                from .native_asset_routing_v29 import run_archive
+                mode = payload.get("mode", "historical")
+                if mode not in ("historical", "live"):
+                    raise ValueError("Unknown asset source mode.")
+                if mode == "live":
+                    root = payload.get("voicebank")
+                    native = payload.get("native_reclist", "")
+                    if not isinstance(root, str) or not root.strip():
+                        raise ValueError("Choose an existing voicebank directory for live WAV/OTO scan.")
+                    if not isinstance(native, str):
+                        raise ValueError("native_reclist must be a path string.")
+                    if labels is not None and (not isinstance(labels, list) or len(labels) > 5
+                            or any(not isinstance(x, str) or not x.strip() for x in labels)
+                            or len(set(labels)) != len(labels)):
+                        raise ValueError("Enter up to five distinct author-original labels.")
+                    from .native_live_assets_v31 import scan_live_voicebank
+                    ledger = scan_live_voicebank(
+                        Path(root.strip()), labels=labels,
+                        native_reclist=Path(native.strip()).expanduser() if native.strip() else None)
+                else:
+                    if not isinstance(archive, str) or not archive.strip():
+                        raise ValueError("Select an existing source-index ZIP archive.")
+                    if (not isinstance(labels, list) or not 2 <= len(labels) <= 5
+                            or any(not isinstance(x, str) or not x.strip() for x in labels)
+                            or len(set(labels)) != len(labels)):
+                        raise ValueError("Enter two to five distinct original author labels.")
+                    from .native_asset_routing_v29 import run_archive
+                    ledger = run_archive(Path(archive.strip()).expanduser(), labels)
                 from .native_asset_gui_v30 import asset_ledger_summary
-                ledger = run_archive(Path(archive.strip()).expanduser(), labels)
                 with _STATE_LOCK:
                     _STATE.asset_routing_report = ledger
                 self._json(asset_ledger_summary(ledger))
