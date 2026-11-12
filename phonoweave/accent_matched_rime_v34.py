@@ -175,11 +175,12 @@ def _clip(root: Path, bank: str, filename: str, alias: str, row_number: int,
 
 
 def _write_pcm16(path: Path, audio: np.ndarray, rate: int) -> None:
-    with wave.open(str(path), "xb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
+    with path.open("xb") as exclusive:
+        with wave.open(exclusive, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
 
 
 def export(report: dict, output: Path, root: Path,
