@@ -181,7 +181,7 @@ def test_boolean_count_rejected():
 
 
 def test_no_independent_phone_claim_even_when_all_green():
-    result = summarize_existing_realizations([evidence(), evidence()])
+    result = summarize_existing_realizations([evidence(), evidence(errors_for_y=1)])
     assert "not unknown phoneme discovery" in result["limitations"][0]
     assert result["automatic_alias_edits"] == []
     assert all(r["new_phoneme_authorized"] is False for r in result["realizations"])
