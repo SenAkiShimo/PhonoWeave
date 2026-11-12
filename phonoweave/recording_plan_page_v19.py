@@ -25,6 +25,10 @@ th{background:#f4f6f3}td:first-child{font-family:monospace}#status.error{color:#
 <a class="download" href="/api/recording-plan/download/reclist">下载补录表 (.txt)</a>
 <a class="download" href="/api/recording-plan/download/report">下载解释报告 (.json)</a>
 <a class="download" href="/api/recording-plan/download/review">下载待检查清单 (.txt)</a>
+<h2>实时 WAV/OTO 一致性检查 / Live source reconciliation</h2>
+<p class="note">仅对使用原有录音模板的声库进行核对。已确认来源、文件缺失、需检查配置与规划矛盾分别展示；不自动更改补录行。</p>
+<div id="consistency-metrics"></div>
+<div style="overflow:auto"><table><thead><tr><th>录音名</th><th>子声库</th><th>规划状态</th><th>实时核对结果</th><th>说明</th></tr></thead><tbody id="consistency-rows"></tbody></table></div>
 <h2>补录内容 / Suggested recording lines</h2><div style="overflow:auto"><table><thead><tr><th>录音行</th><th>上下文</th><th>理由</th><th>已有 PCM</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p id="empty" hidden>暂时没有足够证据要求新增录音；这并不代表声库已完整。</p>
 <h2>检查 OTO / OTO configuration review</h2><div style="overflow:auto"><table><thead><tr><th>录音名</th><th>子声库</th><th>原因</th></tr></thead><tbody id="oto-review"></tbody></table></div>
@@ -69,10 +73,20 @@ function reset(){ $('result').hidden=true }
 for(const id of ['voicebank','budget','existing','native-reclist'])$(id).addEventListener('input',reset);
 async function send(url,payload){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw Error(d.error||'请求失败');return d}
 $('browse').onclick=async()=>{if(busy)return;try{const x=await send('/api/pick-folder',{lang:'zh'});if(x.path){$('voicebank').value=x.path;reset();invalidateAssets();status('声库已选择')}else status('已取消')}catch(e){status(e.message,true)}};
-function render(d){const plan=d.recording_plan||{},coverage=d.coverage||{},evidence=d.evidence||{};for(const id of ['metrics','rows','warnings','oto-review','source-review'])$(id).replaceChildren();
+function render(d){const plan=d.recording_plan||{},coverage=d.coverage||{},evidence=d.evidence||{};for(const id of ['metrics','rows','warnings','oto-review','source-review','consistency-metrics','consistency-rows'])$(id).replaceChildren();
 for(const [k,v] of [[d.scope==='explicit_user_native_recording_templates_no_language_inference'?'原有录音模板':'音节观测',coverage.expected_template_count??coverage.recognized_syllable_observations],['待补录模板',evidence.diagnostic_recording_gaps],['建议新行数',plan.selected_count],['已安排的行数',plan.already_scheduled_count]]){const box=node($('metrics'),'div',k+': '+(v??0));box.className='metric'}
 const rows=Array.isArray(plan.selected)?plan.selected:[];$('empty').hidden=rows.length>0;
 for(const x of rows){const tr=node($('rows'),'tr','');for(const cell of [x.line,(x.base_unit??'')+' / '+(x.context_family??''),x.gap_type??'',x.existing_distinct_pcm_sources??'—'])node(tr,'td',cell)}
+const consistency=d.source_consistency_review;
+if(consistency){
+  const stats=[['文件级已核对',consistency.file_level_agreement_count],['待检查或来源缺失',consistency.open_review_or_missing_source_count],['结果不一致',consistency.possible_inconsistency_count]];
+  for(const [name,value] of stats){const el=node($('consistency-metrics'),'div',name+': '+value);el.className='metric'}
+  for(const check of (consistency.checks||[]).filter(x=>x.result!=='source_verified_file_level').slice(0,80)){
+    const tr=node($('consistency-rows'),'tr','');
+    for(const val of [check.original_recording_line,check.bank,check.plan_status,check.result,check.reason])node(tr,'td',val);
+  }
+  if(consistency.possible_inconsistency_count)node($('consistency-metrics'),'p','警告：文件级来源判断存在矛盾，请核对后再安排录音。');
+}
 for(const task of (plan.review_tasks||[])){const id=task.category==='oto_configuration'?'oto-review':'source-review';const tr=node($(id),'tr','');for(const v of [task.line,task.bank,(task.reason||task.status)])node(tr,'td',v)}
 for(const w of (d.warnings||[])){const row=node($('warnings'),'p',w);row.className='warning'}
 $('result').hidden=false}
