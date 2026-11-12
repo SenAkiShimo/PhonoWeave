@@ -68,7 +68,7 @@ function node(parent,tag,text){const n=document.createElement(tag);n.textContent
 function reset(){ $('result').hidden=true }
 for(const id of ['voicebank','budget','existing','native-reclist'])$(id).addEventListener('input',reset);
 async function send(url,payload){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw Error(d.error||'请求失败');return d}
-$('browse').onclick=async()=>{if(busy)return;try{const x=await send('/api/pick-folder',{lang:'zh'});if(x.path){$('voicebank').value=x.path;reset();status('声库已选择')}else status('已取消')}catch(e){status(e.message,true)}};
+$('browse').onclick=async()=>{if(busy)return;try{const x=await send('/api/pick-folder',{lang:'zh'});if(x.path){$('voicebank').value=x.path;reset();invalidateAssets();status('声库已选择')}else status('已取消')}catch(e){status(e.message,true)}};
 function render(d){const plan=d.recording_plan||{},coverage=d.coverage||{},evidence=d.evidence||{};for(const id of ['metrics','rows','warnings','oto-review','source-review'])$(id).replaceChildren();
 for(const [k,v] of [[d.scope==='explicit_user_native_recording_templates_no_language_inference'?'原有录音模板':'音节观测',coverage.expected_template_count??coverage.recognized_syllable_observations],['待补录模板',evidence.diagnostic_recording_gaps],['建议新行数',plan.selected_count],['已安排的行数',plan.already_scheduled_count]]){const box=node($('metrics'),'div',k+': '+(v??0));box.className='metric'}
 const rows=Array.isArray(plan.selected)?plan.selected:[];$('empty').hidden=rows.length>0;
