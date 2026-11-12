@@ -81,6 +81,9 @@ def _read_archive(path: Path) -> tuple[list[dict], str]:
         merged.append({
             "bank": row["bank"], "symbol": row["symbol"], "context": row["context"],
             "source_pcm_sha256": pcm, "features": positions[key],
+            "source_wav": row["source_wav"],
+            "source_alias": row.get("source_alias", ""),
+            "style": row.get("style", ""),
         })
     if len(seen) != len(positions):
         raise ValueError("acoustic features lack corresponding source-index rows")
