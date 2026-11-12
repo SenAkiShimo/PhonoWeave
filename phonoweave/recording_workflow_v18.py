@@ -233,8 +233,8 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("export directory already exists")
     try:
         if args.native_reclist is not None:
-            from .native_recording_plan_v20 import build_native_recording_workflow
-            result = build_native_recording_workflow(
+            from .native_live_reconcile_v32 import build_reconciled_native_plan
+            result = build_reconciled_native_plan(
                 args.voicebank, expected_reclist=args.native_reclist,
                 max_lines=args.max_lines,
                 bank_names=tuple(args.native_bank) if args.native_bank else None,
@@ -278,6 +278,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {item['line']}: missing in {', '.join(item['missing_audio_banks'])}")
             for warning in result["warnings"]:
                 print("Warning:", warning)
+            consistency = result.get("source_consistency_review")
+            if consistency is not None:
+                print("Live WAV/OTO consistency: "
+                      f"{consistency['file_level_agreement_count']} verified, "
+                      f"{consistency['possible_inconsistency_count']} conflicts, "
+                      f"{consistency['open_review_or_missing_source_count']} reviews/missing sources")
         else:
             _print_preview(result)
         if args.unit_evidence:
