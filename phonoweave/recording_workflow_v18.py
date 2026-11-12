@@ -211,6 +211,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--native-bank", action="append", help="target subbank in native mode; repeatable")
     parser.add_argument("--unit-evidence", action="append", type=Path,
                         help="optional existing user-native acoustic evidence.json; repeat 2+ times for sensitivity audit")
+    parser.add_argument("--unit-budget-archive", type=Path,
+                        help="frozen source_index plus feature_vectors ZIP; feasibility only, no WAV edits")
+    parser.add_argument("--unit-pair", action="append", nargs=2, metavar=("LABEL_A", "LABEL_B"),
+                        help="two existing user-native labels to compare at equal donor budget")
+    parser.add_argument("--donor-budget-per-label", type=int, default=1,
+                        help="frozen per-label donor count for feasible source-disjoint comparisons")
     parser.add_argument("--export", type=Path, help="create a NEW directory containing reclist and JSON report")
     parser.add_argument("--json", action="store_true", help="print full JSON report to stdout")
     args = parser.parse_args(argv)
@@ -239,6 +245,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.unit_evidence:
             from .native_unit_review_v24 import attach_existing_unit_review
             result = attach_existing_unit_review(result, args.unit_evidence)
+        if (args.unit_budget_archive is None) != (not args.unit_pair):
+            parser.error("--unit-budget-archive and at least one --unit-pair must be given together")
+        if args.unit_budget_archive is not None:
+            from .native_unit_budget_v25 import attach_unit_budget_feasibility
+            result = attach_unit_budget_feasibility(
+                result, args.unit_budget_archive, [tuple(p) for p in args.unit_pair],
+                budget_per_label=args.donor_budget_per_label,
+            )
         if args.export is not None:
             export_recording_workflow(result, args.export, voicebank=args.voicebank)
     except (ValueError, FileNotFoundError, FileExistsError, PermissionError) as exc:
@@ -262,6 +276,12 @@ def main(argv: list[str] | None = None) -> int:
             for row in review["realizations"]:
                 print(f"  {row['original_user_label']}: {row['review_status']}")
             print("No new recordings or aliases authorized by these acoustic reports.")
+        if args.unit_budget_archive is not None:
+            comparison = result["existing_unit_budget_feasibility"]
+            print("Equal-donor-budget feasibility (NOT singing quality or new recordings):")
+            for row in comparison["compared_existing_label_pairs"]:
+                pair = " / ".join(row["labels"])
+                print(f"  {pair}: {row['status']}; eligible source targets={row['eligible_independent_target_sources']}")
         if args.export is not None:
             print(f"Exported: {args.export.expanduser().resolve()}")
     return 0
