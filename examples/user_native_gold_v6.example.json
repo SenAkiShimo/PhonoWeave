@@ -1,0 +1,17 @@
+{
+  "schema": "phonoweave.independent_boundaries.v1",
+  "entries": [
+    {
+      "bank": "s_C4",
+      "source_wav": "EXAMPLE_replace_with_real_wav.wav",
+      "source_pcm_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "provenance": "independent_manual_annotation",
+      "units": [
+        {"unit_index": 0, "symbol": "i", "start_ms": 100, "end_ms": 250},
+        {"unit_index": 1, "symbol": "i0", "start_ms": 250, "end_ms": 370},
+        {"unit_index": 2, "symbol": "i2", "start_ms": 370, "end_ms": 520},
+        {"unit_index": 3, "symbol": "自定义", "start_ms": 520, "end_ms": 680}
+      ]
+    }
+  ]
+}
