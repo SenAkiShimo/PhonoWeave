@@ -14,6 +14,7 @@ from .lateral_timecourse_cli import main as lateral_timecourse_main
 from .nasal_cli import main as nasal_main
 from .nasal_relevance_cli import main as nasal_relevance_main
 from .profile import write_speaker_profile
+from .reclist_cli import main as reclist_main
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
 
@@ -390,6 +391,8 @@ def main() -> int:
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
         return _build_synthesis_inventory(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "build-reclist":
+        return reclist_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 

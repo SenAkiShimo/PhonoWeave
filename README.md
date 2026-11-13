@@ -64,6 +64,15 @@ Compile the profile into synthesis units:
 phonoweave build-synthesis-inventory /path/to/voicebank -o synthesis_inventory.yaml
 ```
 
+Generate a continuous recording list from the speaker's synthesis units:
+
+```bash
+phonoweave build-reclist /path/to/voicebank -o reclist.txt
+phonoweave build-reclist /path/to/voicebank --inventory synthesis_inventory.yaml -o reclist.txt
+```
+
+Without `--inventory` the speaker analysis is run first. The command writes the recording list and a `reclist.report.json` file with requirement counts, the line-count lower bound and a one-unit-per-onset baseline for comparison. See `docs/reclist-compiler.md`.
+
 Lower-level diagnostic commands remain available for supported Mandarin contrasts:
 
 ```bash
@@ -123,7 +132,8 @@ Not implemented yet:
 
 - final UTAU/OpenUtau alias compilation
 - adaptive `oto.ini` suggestions
-- supplementary reclist generation
+- merging supplementary diagnostic items into the compiled reclist
+- evidence-based removal of VC connections
 - broad cross-speaker validation
 - formal perceptual validation
 - general language-module support beyond the current Mandarin path
