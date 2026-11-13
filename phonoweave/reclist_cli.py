@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .final_classes import derive_final_classes
 from .reclist import (
+    STOP_ONSETS,
     Reclist,
     Syllable,
     UnitMap,
@@ -44,9 +45,11 @@ def compile_reclist(
     restarts: int = 40,
     seed: int = 0,
     unresolved: str = "collapse",
+    stop_vc: str = "shared",
 ) -> CompiledReclist:
     collapse = unresolved == "collapse"
-    units = UnitMap(inventory, collapse_unresolved=collapse)
+    shared = STOP_ONSETS if stop_vc == "shared" else frozenset()
+    units = UnitMap(inventory, collapse_unresolved=collapse, shared_connection=shared)
     reclist = build_reclist(syllables, units, max_syllables, restarts, seed)
     missing = missing_requirements(reclist.lines, reclist.requirements, units)
     if any(missing.values()):
@@ -55,7 +58,7 @@ def compile_reclist(
     baseline = build_reclist(syllables, UnitMap(None), max_syllables, restarts, seed)
     alternative = build_reclist(
         syllables,
-        UnitMap(inventory, collapse_unresolved=not collapse),
+        UnitMap(inventory, collapse_unresolved=not collapse, shared_connection=shared),
         max_syllables,
         restarts,
         seed,
@@ -107,6 +110,13 @@ def print_summary(compiled: CompiledReclist, syllables: int, unresolved: str) ->
 
 
 def add_reclist_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--stop-vc",
+        choices=("shared", "split"),
+        default="shared",
+        help="shared: a vowel-to-stop connection is recorded once per stop whatever "
+        "vowel follows; split: one per context unit of the stop",
+    )
     parser.add_argument(
         "--finals-from-bank",
         action="store_true",
@@ -164,6 +174,7 @@ def main(argv: list[str]) -> int:
             args.restarts,
             args.seed,
             args.unresolved,
+            args.stop_vc,
         )
     except ValueError as error:
         print(error, file=sys.stderr)

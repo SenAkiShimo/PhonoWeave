@@ -9,11 +9,17 @@ from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 
 
+_RETROFLEX = {"zh", "ch", "sh", "r"}
+_DENTAL = {"z", "c", "s"}
+
+
 def derive_final_classes(root: Path) -> dict[tuple[str, str], str]:
     """Map each (onset, final) to the VC final class the voicebank itself uses.
 
     The class is the WAV file name that holds the syllable's CV entries, kept only
     when it is one of the finals appearing in the voicebank's VC and end entries.
+    The apical vowels after zh/ch/sh/r and z/c/s fall back to the voicebank's `ir`
+    and `i0` classes when their WAV grouping does not name them.
     """
     root = root.expanduser().resolve()
     vc_finals = set(audit_bank(root)["finals"])
@@ -21,18 +27,27 @@ def derive_final_classes(root: Path) -> dict[tuple[str, str], str]:
     affixes = affix_pairs(load_prefix_maps(root))
 
     votes: dict[tuple[str, str], Counter] = defaultdict(Counter)
+    seen: set[tuple[str, str]] = set()
     for entry in entries:
         observation = classify_alias(entry, affixes)
         if observation is None:
             continue
         structure = structure_for(observation)
         stem = entry.wav_path.stem.lower()
+        seen.add((structure.onset or "", structure.final))
         if stem in vc_finals:
             votes[(structure.onset or "", structure.final)][stem] += 1
 
     mapping: dict[tuple[str, str], str] = {
         key: counter.most_common(1)[0][0] for key, counter in votes.items()
     }
+    for onset, final in seen:
+        if final != "i" or (onset, final) in mapping:
+            continue
+        if onset in _RETROFLEX and "ir" in vc_finals:
+            mapping[(onset, final)] = "ir"
+        elif onset in _DENTAL and "i0" in vc_finals:
+            mapping[(onset, final)] = "i0"
     return mapping
 
 

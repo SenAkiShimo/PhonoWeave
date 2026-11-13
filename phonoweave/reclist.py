@@ -13,6 +13,7 @@ from .prefixmap import affix_pairs, load_prefix_maps
 from .synthesis_inventory import SynthesisInventory, SynthesisUnit
 
 ZERO_ONSET = "0"
+STOP_ONSETS = frozenset({"b", "p", "d", "t", "g", "k"})
 _ROLES = ("initial", "internal")
 _UNBOUNDED = 10**9
 
@@ -112,7 +113,9 @@ class UnitMap:
         self,
         inventory: SynthesisInventory | None = None,
         collapse_unresolved: bool = False,
+        shared_connection: frozenset[str] = frozenset(),
     ) -> None:
+        self.shared_connection = shared_connection
         self._by_base: dict[str, list[SynthesisUnit]] = {}
         self.collapsed: set[str] = set()
         if inventory is not None:
@@ -123,6 +126,12 @@ class UnitMap:
                 self._by_base.setdefault(unit.base_unit, []).append(unit)
         self._cache: dict[tuple[str, str, str], str] = {}
         self.unmapped: set[tuple[str, str]] = set()
+
+    def connection(self, syllable: Syllable) -> str:
+        """Unit that a preceding VC connects to; shared onsets ignore context splits."""
+        if syllable.onset in self.shared_connection:
+            return syllable.onset
+        return self.unit(syllable, "internal")
 
     def unit(self, syllable: Syllable, role: str) -> str:
         key = (syllable.onset, syllable.final, role)
@@ -152,7 +161,7 @@ def build_requirements(
     units: UnitMap,
     waived_vc: frozenset[tuple[str, str]] = frozenset(),
 ) -> Requirements:
-    internal = {units.unit(item, "internal") for item in syllables}
+    internal = {units.connection(item) for item in syllables}
     initial = {units.unit(item, "initial") for item in syllables}
     finals = {item.tail for item in syllables}
     return Requirements(
@@ -188,7 +197,7 @@ def line_coverage(
         unit = units.unit(item, role)
         cv.add((item.text, unit))
         if index:
-            vc.add((line[index - 1].tail, unit))
+            vc.add((line[index - 1].tail, units.connection(item)))
     return cv, vc, units.unit(line[0], "initial"), line[-1].tail
 
 
@@ -284,7 +293,7 @@ def _plan(
     requirements: Requirements,
 ) -> _Plan:
     initial = [units.unit(item, "initial") for item in syllables]
-    internal = [units.unit(item, "internal") for item in syllables]
+    internal = [units.connection(item) for item in syllables]
     unit_ids = {name: number for number, name in enumerate(sorted(set(internal)))}
     final_names = sorted({item.tail for item in syllables})
     count = len(unit_ids)
@@ -558,6 +567,7 @@ def reclist_report(
         },
         "unmapped_contexts": sorted(f"{base}+{final}" for base, final in units.unmapped),
         "collapsed_unresolved": sorted(units.collapsed),
+        "vc_shared_onsets": sorted(units.shared_connection),
     }
     classes: dict[str, set[str]] = {}
     for item in syllables:

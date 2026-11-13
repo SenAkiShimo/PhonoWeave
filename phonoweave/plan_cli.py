@@ -59,6 +59,7 @@ def main(argv: list[str]) -> int:
             args.restarts,
             args.seed,
             args.unresolved,
+            args.stop_vc,
         )
     except ValueError as error:
         print(error, file=sys.stderr)

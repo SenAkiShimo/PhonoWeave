@@ -52,3 +52,13 @@ The report gives a lower bound computed from the requirement counts and the line
 With more than one onset, the report also repeats the test on the residual difference between two onsets recorded on the same final in the same pitch layer. Vowel effects shared by both onsets cancel in the difference, so a remaining family structure means the two onsets depend on the vowel context differently. It does not say which of the two needs a split.
 
 Limits: the residual still depends on the vowel through the non-linear shape of the path; samples from one session are not independent; the result is not a perceptual measurement and does not by itself justify merging or splitting contexts.
+
+## Stops and VC connections
+
+For b, p, d, t, g and k a vowel-to-consonant connection ends in the closure, so it carries little of the following vowel's influence; the burst and the context-dependent part of the consonant belong to the CV entry that follows. By default (`--stop-vc shared`) the VC requirement for a stop is therefore one per final whatever vowel follows, even when the stop's context groups are split. The split still applies to CV and line-start requirements. `--stop-vc split` restores one VC requirement per context unit.
+
+This is a phonetic argument, not a measured result.
+
+## Final classes taken from the voicebank
+
+`--finals-from-bank` groups finals by the WAV file that holds their CV entries, keeping a group only when its name is one of the finals used by the voicebank's own VC and end entries. After zh/ch/sh/r and z/c/s the final `i` falls back to the voicebank's `ir` and `i0` classes when present.
