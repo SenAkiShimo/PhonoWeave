@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .bank_audit import audit_bank, format_audit
+from .bank_concordance import compare_with_bank, format_concordance
 from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
@@ -66,6 +67,12 @@ def main(argv: list[str]) -> int:
         json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
+    concordance_path = directory / "bank_concordance.txt"
+    concordance_path.write_text(
+        format_concordance(compare_with_bank(audit, inventory, syllables)) + "\n",
+        encoding="utf-8",
+    )
+
     gaps = build_evidence_completion_plan(analysis)
     supplement_path = directory / "supplement_reclist.txt"
     gaps_path = directory / "evidence_gaps.json"
@@ -92,6 +99,7 @@ def main(argv: list[str]) -> int:
     )
     print(f"Inventory: {inventory_path}")
     print(f"Bank audit: {audit_path}")
+    print(f"Comparison with the voicebank's own splits: {concordance_path}")
     if supplement_reclist is not None:
         print(f"Supplement reclist lines: {len(supplement_reclist.lines)}")
         print(f"Supplement reclist: {supplement_path}")

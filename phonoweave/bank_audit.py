@@ -110,7 +110,7 @@ def format_audit(audit: dict, limit: int = 30) -> str:
         lines.append(f"  Unrecognized aliases: {audit['unrecognized']}")
 
     lines.append("")
-    lines.append(f"Finals seen in VC or end entries: {len(audit['finals'])}")
+    lines.append(f"Finals seen in VC or end entries ({len(audit['finals'])}): {' '.join(audit['finals'])}")
     lines.append("VC labels covering at least half of the finals:")
     for row in audit["systematic_labels"]:
         missing = row["missing_finals"]

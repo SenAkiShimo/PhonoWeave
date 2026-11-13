@@ -77,6 +77,14 @@ Audit the entries an existing voicebank already has (plain CV, initial CV, VC, e
 phonoweave audit-bank /path/to/voicebank
 ```
 
+Compare the onset units chosen from the acoustic analysis with the context variants the voicebank's own VC labels already distinguish (plain, `y` before i-series finals, `w` before u-series finals):
+
+```bash
+phonoweave compare-bank /path/to/voicebank
+```
+
+`plan` writes the same comparison to `bank_concordance.txt`.
+
 Generate a continuous recording list from the speaker's synthesis units:
 
 ```bash
