@@ -116,3 +116,17 @@ def test_reclist_entrypoint(monkeypatch) -> None:
 
     assert entrypoint.main() == 0
     assert called["argv"] == ["/tmp/voicebank"]
+
+
+def test_plan_entrypoint(monkeypatch) -> None:
+    called = {}
+
+    def fake_main(argv):
+        called["argv"] = argv
+        return 0
+
+    monkeypatch.setattr(entrypoint, "plan_main", fake_main)
+    monkeypatch.setattr(sys, "argv", ["phonoweave", "plan", "/tmp/voicebank", "-o", "/tmp/plan"])
+
+    assert entrypoint.main() == 0
+    assert called["argv"] == ["/tmp/voicebank", "-o", "/tmp/plan"]

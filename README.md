@@ -64,6 +64,12 @@ Compile the profile into synthesis units:
 phonoweave build-synthesis-inventory /path/to/voicebank -o synthesis_inventory.yaml
 ```
 
+Run the whole chain in one pass. The speaker analysis is computed once and the command writes the synthesis inventory, the main reclist, the supplementary diagnostic reclist and the evidence-gap report into one directory:
+
+```bash
+phonoweave plan /path/to/voicebank -o plan_output
+```
+
 Generate a continuous recording list from the speaker's synthesis units:
 
 ```bash
