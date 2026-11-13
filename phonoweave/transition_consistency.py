@@ -27,9 +27,11 @@ LEVELS = (0.25, 0.5, 0.75)
 
 FRAME_MS = 25.0
 HOP_MS = 5.0
-CONSONANT_WINDOW_MS = (-50.0, -25.0)
-TRANSITION_WINDOW_MS = (-25.0, 60.0)
+CONSONANT_CORE = (0.2, 0.5)
+LEAD_FRACTION = 0.9
+TRANSITION_END_MS = 60.0
 VOWEL_WINDOW_MS = (60.0, 100.0)
+MIN_CONSONANT_MS = 50.0
 LIFTER_MS = 1.2
 MIN_CONTRAST_DB = 3.0
 MIN_PER_FAMILY_LAYER = 3
@@ -67,8 +69,6 @@ class TransitionReport:
     skipped: int
     skip_reasons: dict[str, int]
     pairs: tuple[TransitionPairResult, ...]
-    same_final_distance: float | None
-    different_final_distance: float | None
     verdict: str
 
 
@@ -100,15 +100,22 @@ def transition_residuals(
     samples: np.ndarray,
     sample_rate: int,
     boundary_ms: float,
+    consonant_ms: float,
     levels: tuple[float, ...] = LEVELS,
 ) -> tuple[dict[float, np.ndarray] | None, str | None]:
     """Off-axis envelope residual at fixed degrees of consonant-to-vowel progress.
 
     Each sample is projected onto the line between its own consonant state and
     its own vowel state, so vowel identity and level are removed by construction.
+    The consonant state is read from the core of the sample's own consonant
+    region, so short and long consonants are treated alike.
     """
+    if consonant_ms < MIN_CONSONANT_MS:
+        return None, "short_consonant"
     half = int(round(FRAME_MS * sample_rate / 2000.0))
-    offsets = np.arange(CONSONANT_WINDOW_MS[0], VOWEL_WINDOW_MS[1] + 1e-9, HOP_MS)
+    offsets = np.arange(
+        -LEAD_FRACTION * consonant_ms, VOWEL_WINDOW_MS[1] + 1e-9, HOP_MS
+    )
     envelopes: list[np.ndarray] = []
     for offset in offsets:
         center = int(round((boundary_ms + offset) * sample_rate / 1000.0))
@@ -117,17 +124,20 @@ def transition_residuals(
         envelopes.append(frame_envelope(samples[center - half : center + half], sample_rate))
     env = np.array(envelopes)
 
-    def window(bounds: tuple[float, float]) -> np.ndarray:
-        return (offsets >= bounds[0]) & (offsets <= bounds[1])
-
-    consonant = env[window(CONSONANT_WINDOW_MS)].mean(axis=0)
-    vowel = env[window(VOWEL_WINDOW_MS)].mean(axis=0)
+    core_start = -consonant_ms * (1.0 - CONSONANT_CORE[0])
+    core_end = -consonant_ms * (1.0 - CONSONANT_CORE[1])
+    core = (offsets >= core_start) & (offsets <= core_end)
+    vowel_mask = (offsets >= VOWEL_WINDOW_MS[0]) & (offsets <= VOWEL_WINDOW_MS[1])
+    if core.sum() < 2:
+        return None, "short_consonant"
+    consonant = env[core].mean(axis=0)
+    vowel = env[vowel_mask].mean(axis=0)
     axis = vowel - consonant
     norm2 = float(np.dot(axis, axis))
     if np.sqrt(norm2 / len(axis)) < MIN_CONTRAST_DB:
         return None, "weak_contrast"
 
-    mask = window(TRANSITION_WINDOW_MS)
+    mask = (offsets >= core_end) & (offsets <= TRANSITION_END_MS)
     path = env[mask] - consonant
     progress = path @ axis / norm2
     residual = path - np.outer(progress, axis)
@@ -219,25 +229,6 @@ def _pair_level(
     )
 
 
-def _vowel_sensitivity(samples: list[TransitionSample]) -> tuple[float | None, float | None]:
-    level = LEVELS[1]
-    same: list[float] = []
-    different: list[float] = []
-    by_layer: dict[tuple[str, str], list[TransitionSample]] = defaultdict(list)
-    for sample in samples:
-        by_layer[(sample.oto_set, sample.family)].append(sample)
-    for rows in by_layer.values():
-        for left, right in combinations(rows, 2):
-            value = float(
-                np.sqrt(np.mean((left.residuals[level] - right.residuals[level]) ** 2))
-            )
-            (same if left.final == right.final else different).append(value)
-    return (
-        float(np.mean(same)) if same else None,
-        float(np.mean(different)) if different else None,
-    )
-
-
 def _verdict(pairs: tuple[TransitionPairResult, ...]) -> str:
     tested = [pair for pair in pairs if pair.p is not None]
     if not tested:
@@ -301,7 +292,7 @@ def _build_samples(root: Path, base_unit: str) -> tuple[list[TransitionSample], 
             skipped["sample_rate_too_low"] += 1
             continue
         residuals, reason = transition_residuals(
-            audio, rate, entry.offset + entry.preutterance
+            audio, rate, entry.offset + entry.preutterance, entry.preutterance
         )
         if residuals is None:
             skipped[reason or "unknown"] += 1
@@ -344,7 +335,6 @@ def analyze_samples(
         )
         for pair, holm in zip(pairs, adjusted)
     ]
-    same, different = _vowel_sensitivity(samples)
     reasons = dict(skipped or {})
     result_pairs = tuple(pairs)
     return TransitionReport(
@@ -353,10 +343,50 @@ def analyze_samples(
         skipped=sum(reasons.values()),
         skip_reasons=reasons,
         pairs=result_pairs,
-        same_final_distance=same,
-        different_final_distance=different,
         verdict=_verdict(result_pairs),
     )
+
+
+def paired_difference_reports(
+    samples_by_onset: dict[str, list[TransitionSample]],
+    permutations: int = 4000,
+    seed: int = 57011,
+) -> list[TransitionReport]:
+    """Family structure of the residual difference between two onsets on the same finals.
+
+    Vowel effects shared by both onsets cancel in the difference, so a family
+    structure that remains means the two onsets depend on the vowel context
+    differently.
+    """
+    reports: list[TransitionReport] = []
+    for left, right in combinations(sorted(samples_by_onset), 2):
+        def keyed(rows: list[TransitionSample]) -> dict[tuple[str, str], list[TransitionSample]]:
+            grouped: dict[tuple[str, str], list[TransitionSample]] = defaultdict(list)
+            for row in rows:
+                grouped[(row.oto_set, row.final)].append(row)
+            return grouped
+
+        a = keyed(samples_by_onset[left])
+        b = keyed(samples_by_onset[right])
+        diffs: list[TransitionSample] = []
+        for key in sorted(set(a) & set(b)):
+            residuals = {
+                level: np.mean([r.residuals[level] for r in a[key]], axis=0)
+                - np.mean([r.residuals[level] for r in b[key]], axis=0)
+                for level in LEVELS
+            }
+            first = a[key][0]
+            diffs.append(
+                TransitionSample(first.oto_set, first.family, first.final, first.alias, residuals)
+            )
+        reports.append(
+            analyze_samples(f"{left}-{right}", diffs, Counter(), permutations, seed)
+        )
+    return reports
+
+
+def collect_samples(root: Path, base_unit: str) -> tuple[list[TransitionSample], Counter]:
+    return _build_samples(root.expanduser().resolve(), base_unit)
 
 
 def transition_consistency(

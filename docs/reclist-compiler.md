@@ -43,10 +43,12 @@ The report gives a lower bound computed from the requirement counts and the line
 
 `phonoweave transition-report` compares consonant-to-vowel trajectories across context families (i_series, u_series, other) for one onset.
 
-- Frames of 25 ms every 5 ms, from 50 ms before to 100 ms after the preutterance boundary.
+- Frames of 25 ms every 5 ms, from 90% of the consonant region before the preutterance boundary to 100 ms after it.
 - Each frame is reduced to a cepstrally smoothed log envelope on 24 log-spaced bands (150 Hz to 4.5 kHz), with the frame mean removed, so harmonic spacing and level do not enter.
-- The consonant state is the mean envelope 50 to 25 ms before the boundary; the vowel state is the mean 60 to 100 ms after it. Samples with less than 3 dB RMS contrast between the two are skipped.
+- The consonant state is the mean envelope over 20% to 50% of the sample's own consonant region; the vowel state is the mean 60 to 100 ms after the boundary. Samples with less than 3 dB RMS contrast between the two, or a consonant region under 50 ms, are skipped.
 - Progress along the line from consonant state to vowel state is computed per frame. The component of the path off that line is read out where progress first reaches 0.25, 0.5 and 0.75.
 - Distances are compared within each pitch layer only. The statistic is the mean between-family distance minus the mean within-family distance; labels are permuted within layers, and Holm correction is applied across family pairs and progress levels.
 
-Limits: the residual still depends on the vowel through the non-linear shape of the path, so the same-final and different-final within-family distances are printed as a reference; samples from one session are not independent; the result is not a perceptual measurement and does not by itself justify merging contexts.
+With more than one onset, the report also repeats the test on the residual difference between two onsets recorded on the same final in the same pitch layer. Vowel effects shared by both onsets cancel in the difference, so a remaining family structure means the two onsets depend on the vowel context differently. It does not say which of the two needs a split.
+
+Limits: the residual still depends on the vowel through the non-linear shape of the path; samples from one session are not independent; the result is not a perceptual measurement and does not by itself justify merging or splitting contexts.

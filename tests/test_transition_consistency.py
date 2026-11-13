@@ -8,6 +8,7 @@ import numpy as np
 from phonoweave import entrypoint
 from phonoweave.transition_consistency import (
     TransitionSample,
+    paired_difference_reports,
     analyze_samples,
     frame_envelope,
     transition_residuals,
@@ -58,14 +59,14 @@ def test_envelope_is_pitch_independent() -> None:
 
 def test_transition_residuals_levels() -> None:
     audio = _synth(150, (250, 1000), (700, 1700), 0.0)
-    residuals, reason = transition_residuals(audio, RATE, BOUNDARY_MS)
+    residuals, reason = transition_residuals(audio, RATE, BOUNDARY_MS, 100.0)
     assert reason is None
     assert set(residuals) == {0.25, 0.5, 0.75}
 
 
 def test_weak_contrast_is_skipped() -> None:
     audio = _synth(150, (700, 1700), (700, 1700), 0.0)
-    residuals, reason = transition_residuals(audio, RATE, BOUNDARY_MS)
+    residuals, reason = transition_residuals(audio, RATE, BOUNDARY_MS, 100.0)
     assert residuals is None
     assert reason == "weak_contrast"
 
@@ -78,7 +79,7 @@ def _population(detour_a: float, detour_b: float, count: int = 10) -> list[Trans
             for k in range(count):
                 v = (rng.uniform(500, 800), rng.uniform(1500, 2400))
                 audio = _synth(f0, (250, 1000), v, detour, seed=int(rng.integers(1_000_000)))
-                residuals, _ = transition_residuals(audio, RATE, BOUNDARY_MS)
+                residuals, _ = transition_residuals(audio, RATE, BOUNDARY_MS, 100.0)
                 if residuals is None:
                     continue
                 samples.append(
@@ -124,3 +125,35 @@ def test_transition_report_entrypoint(monkeypatch) -> None:
     monkeypatch.setattr(sys, "argv", ["phonoweave", "transition-report", "/tmp/vb", "--base", "m"])
     assert entrypoint.main() == 0
     assert called["argv"] == ["/tmp/vb", "--base", "m"]
+
+
+def _paired_population(detour_m: float, detour_n: float) -> dict[str, list[TransitionSample]]:
+    rng = np.random.default_rng(11)
+    out: dict[str, list[TransitionSample]] = {"m": [], "n": []}
+    for layer, f0 in enumerate((130.0, 200.0, 310.0)):
+        for family, shift in (("u_series", 1.0), ("i_series", 0.0)):
+            for k in range(8):
+                v = (rng.uniform(500, 800), rng.uniform(1500, 2400))
+                for onset, base in (("m", detour_m), ("n", detour_n)):
+                    audio = _synth(f0, (250, 1000), v, base * shift, seed=int(rng.integers(10**6)))
+                    residuals, _ = transition_residuals(audio, RATE, BOUNDARY_MS, 100.0)
+                    if residuals is None:
+                        continue
+                    out[onset].append(
+                        TransitionSample(f"layer{layer}", family, f"{family[0]}{k}", "x", residuals)
+                    )
+    return out
+
+
+def test_paired_difference_cancels_shared_vowel_effect() -> None:
+    same = paired_difference_reports(_paired_population(500.0, 500.0), permutations=300)
+    assert same[0].verdict == "no_difference_detected"
+
+
+def test_paired_difference_detects_onset_specific_dependence() -> None:
+    different = paired_difference_reports(_paired_population(500.0, 0.0), permutations=300)
+    pair = next(
+        p for p in different[0].pairs
+        if {p.family_a, p.family_b} == {"i_series", "u_series"} and p.level == 0.5
+    )
+    assert pair.p is not None and pair.p < 0.01
