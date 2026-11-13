@@ -73,6 +73,14 @@ phonoweave build-reclist /path/to/voicebank --inventory synthesis_inventory.yaml
 
 Without `--inventory` the speaker analysis is run first. The command writes the recording list and a `reclist.report.json` file with requirement counts, the line-count lower bound and a one-unit-per-onset baseline for comparison. See `docs/reclist-compiler.md`.
 
+List the onsets whose decision is still unresolved, what evidence is missing, and a short supplementary diagnostic reclist for them:
+
+```bash
+phonoweave evidence-gaps /path/to/voicebank --write-reclist supplement_reclist.txt
+```
+
+Each supplementary line is meant to be recorded once at every pitch layer already present in the voicebank. After recording, re-run the analysis once; unresolved decisions stay frozen after that round.
+
 Lower-level diagnostic commands remain available for supported Mandarin contrasts:
 
 ```bash

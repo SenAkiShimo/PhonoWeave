@@ -8,6 +8,7 @@ from pathlib import Path
 from .context_audit import audit_contexts
 from .coverage import analyze_coverage
 from .inventory import analyze_voicebank_inventory
+from .evidence_gap_cli import main as evidence_gap_main
 from .lateral import analyze_lateral
 from .lateral_relevance_cli import main as lateral_relevance_main
 from .lateral_timecourse_cli import main as lateral_timecourse_main
@@ -393,6 +394,8 @@ def main() -> int:
         return _build_synthesis_inventory(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-reclist":
         return reclist_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "evidence-gaps":
+        return evidence_gap_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 
