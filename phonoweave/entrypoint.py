@@ -14,6 +14,7 @@ from .lateral_relevance_cli import main as lateral_relevance_main
 from .lateral_timecourse_cli import main as lateral_timecourse_main
 from .nasal_cli import main as nasal_main
 from .transition_cli import main as transition_main
+from .bank_audit_cli import main as audit_bank_main
 from .nasal_relevance_cli import main as nasal_relevance_main
 from .plan_cli import main as plan_main
 from .profile import write_speaker_profile
@@ -400,6 +401,8 @@ def main() -> int:
         return plan_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "evidence-gaps":
         return evidence_gap_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "audit-bank":
+        return audit_bank_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "transition-report":
         return transition_main(sys.argv[2:])
 

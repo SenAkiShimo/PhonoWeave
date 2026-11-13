@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from .bank_audit import audit_bank, format_audit
 from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
@@ -21,6 +22,11 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="phonoweave plan")
     parser.add_argument("voicebank", type=Path)
     parser.add_argument("-o", "--output-dir", type=Path, default=Path("phonoweave_plan"))
+    parser.add_argument(
+        "--with-supplement",
+        action="store_true",
+        help="also write the optional supplementary recording list and evidence gaps",
+    )
     add_reclist_arguments(parser)
     args = parser.parse_args(argv)
 
@@ -53,27 +59,41 @@ def main(argv: list[str]) -> int:
         print(error, file=sys.stderr)
         return 1
 
-    gaps = build_evidence_completion_plan(analysis)
-    supplement = build_supplement_plan(gaps)
-    selection = select_diagnostic_items(args.voicebank, supplement)
-    supplement_reclist = build_supplement_reclist(selection)
-    supplement_path = directory / "supplement_reclist.txt"
-    supplement_path.write_text(supplement_reclist.text(), encoding="utf-8")
-    gaps_path = directory / "evidence_gaps.json"
-    gaps_path.write_text(
-        json.dumps(
-            _payload(gaps, supplement, selection, supplement_reclist),
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    audit = audit_bank(args.voicebank)
+    audit_path = directory / "bank_audit.txt"
+    audit_path.write_text(format_audit(audit) + "\n", encoding="utf-8")
+    (directory / "bank_audit.json").write_text(
+        json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
+    gaps = build_evidence_completion_plan(analysis)
+    supplement_path = directory / "supplement_reclist.txt"
+    gaps_path = directory / "evidence_gaps.json"
+    supplement_reclist = None
+    if args.with_supplement:
+        supplement = build_supplement_plan(gaps)
+        selection = select_diagnostic_items(args.voicebank, supplement)
+        supplement_reclist = build_supplement_reclist(selection)
+        supplement_path.write_text(supplement_reclist.text(), encoding="utf-8")
+        gaps_path.write_text(
+            json.dumps(
+                _payload(gaps, supplement, selection, supplement_reclist),
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
     print_summary(compiled, len(syllables), args.unresolved)
-    print(f"Evidence gaps: {len(gaps.gaps)}")
-    print(f"Supplement reclist lines: {len(supplement_reclist.lines)}")
+    print(
+        f"Unresolved decisions: {len(gaps.gaps)} "
+        "(treated as one unit per onset; no recording needed)"
+    )
     print(f"Inventory: {inventory_path}")
-    print(f"Supplement reclist: {supplement_path}")
-    print(f"Evidence gaps: {gaps_path}")
+    print(f"Bank audit: {audit_path}")
+    if supplement_reclist is not None:
+        print(f"Supplement reclist lines: {len(supplement_reclist.lines)}")
+        print(f"Supplement reclist: {supplement_path}")
+        print(f"Evidence gaps: {gaps_path}")
     return 0
