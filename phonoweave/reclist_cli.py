@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from .final_classes import derive_final_classes
 from .reclist import (
     Reclist,
     Syllable,
@@ -106,6 +107,12 @@ def print_summary(compiled: CompiledReclist, syllables: int, unresolved: str) ->
 
 
 def add_reclist_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--finals-from-bank",
+        action="store_true",
+        help="use the VC final classes the voicebank itself uses (WAV grouping) "
+        "instead of one VC final per syllable final",
+    )
     parser.add_argument("--max-syllables", type=int, default=10)
     parser.add_argument("--restarts", type=int, default=40)
     parser.add_argument("--seed", type=int, default=0)
@@ -118,6 +125,16 @@ def add_reclist_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def load_syllables(args: argparse.Namespace) -> tuple[Syllable, ...]:
+    classes = derive_final_classes(args.voicebank) if args.finals_from_bank else None
+    syllables = observed_syllables(args.voicebank, classes)
+    if classes is not None and syllables:
+        tails = {item.tail for item in syllables}
+        finals = {item.final for item in syllables}
+        print(f"VC final classes from the voicebank: {len(finals)} finals -> {len(tails)} classes")
+    return syllables
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="phonoweave build-reclist")
     parser.add_argument("voicebank", type=Path)
@@ -127,7 +144,7 @@ def main(argv: list[str]) -> int:
     add_reclist_arguments(parser)
     args = parser.parse_args(argv)
 
-    syllables = observed_syllables(args.voicebank)
+    syllables = load_syllables(args)
     if not syllables:
         print("No Mandarin syllables recognized in the voicebank.", file=sys.stderr)
         return 1

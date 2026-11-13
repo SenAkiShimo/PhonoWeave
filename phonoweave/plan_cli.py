@@ -12,8 +12,12 @@ from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
 from .inventory import analyze_voicebank_inventory
 from .profile import build_speaker_profile
-from .reclist import observed_syllables
-from .reclist_cli import add_reclist_arguments, compile_reclist, print_summary
+from .reclist_cli import (
+    add_reclist_arguments,
+    compile_reclist,
+    load_syllables,
+    print_summary,
+)
 from .supplement_plan import build_supplement_plan
 from .supplement_reclist import build_supplement_reclist
 from .synthesis_inventory import build_synthesis_inventory, synthesis_inventory_yaml
@@ -31,7 +35,7 @@ def main(argv: list[str]) -> int:
     add_reclist_arguments(parser)
     args = parser.parse_args(argv)
 
-    syllables = observed_syllables(args.voicebank)
+    syllables = load_syllables(args)
     if not syllables:
         print("No Mandarin syllables recognized in the voicebank.", file=sys.stderr)
         return 1

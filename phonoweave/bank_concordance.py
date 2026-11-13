@@ -35,13 +35,13 @@ def bank_variants(audit: dict) -> dict[str, set[str]]:
     return dict(found)
 
 
-def _family(final: str) -> str | None:
+def _family(base: str, final: str) -> str | None:
     if final.startswith("i"):
         return "i"
     if final.startswith("u"):
         return "u"
     if final.startswith(("v", "ü")):
-        return None
+        return "u" if base in {"j", "q", "x"} else None
     return "o"
 
 
@@ -54,7 +54,7 @@ def _our_units(
     for item in syllables:
         if item.onset != base:
             continue
-        family = _family(item.final)
+        family = _family(base, item.final)
         if family is not None:
             votes[family][units.unit(item, "internal")] += 1
     return {family: counter.most_common(1)[0][0] for family, counter in votes.items()}

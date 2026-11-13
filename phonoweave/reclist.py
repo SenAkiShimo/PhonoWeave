@@ -5,6 +5,7 @@ import random
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 from .mandarin import collect_observations, context_for, structure_for
 from .oto import load_voicebank
@@ -21,6 +22,11 @@ class Syllable:
     text: str
     onset: str
     final: str
+    vc_final: str = ""
+
+    @property
+    def tail(self) -> str:
+        return self.vc_final or self.final
 
 
 @dataclass(frozen=True)
@@ -42,7 +48,10 @@ class Reclist:
         return "".join("_".join(item.text for item in line) + "\n" for line in self.lines)
 
 
-def observed_syllables(root: Path) -> tuple[Syllable, ...]:
+def observed_syllables(
+    root: Path,
+    final_classes: Mapping[tuple[str, str], str] | None = None,
+) -> tuple[Syllable, ...]:
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
     affixes = affix_pairs(load_prefix_maps(root))
@@ -54,7 +63,10 @@ def observed_syllables(root: Path) -> tuple[Syllable, ...]:
         text = f"{observation.base_unit}{observation.final}"
         known = found.get(key)
         if known is None or text < known.text:
-            found[key] = Syllable(text=text, onset=onset, final=structure.final)
+            tail = (final_classes or {}).get(key, "")
+            found[key] = Syllable(
+                text=text, onset=onset, final=structure.final, vc_final=tail
+            )
     return tuple(sorted(found.values(), key=lambda item: item.text))
 
 
@@ -142,7 +154,7 @@ def build_requirements(
 ) -> Requirements:
     internal = {units.unit(item, "internal") for item in syllables}
     initial = {units.unit(item, "initial") for item in syllables}
-    finals = {item.final for item in syllables}
+    finals = {item.tail for item in syllables}
     return Requirements(
         cv=frozenset(
             (item.text, units.unit(item, role))
@@ -176,8 +188,8 @@ def line_coverage(
         unit = units.unit(item, role)
         cv.add((item.text, unit))
         if index:
-            vc.add((line[index - 1].final, unit))
-    return cv, vc, units.unit(line[0], "initial"), line[-1].final
+            vc.add((line[index - 1].tail, unit))
+    return cv, vc, units.unit(line[0], "initial"), line[-1].tail
 
 
 def missing_requirements(
@@ -274,7 +286,7 @@ def _plan(
     initial = [units.unit(item, "initial") for item in syllables]
     internal = [units.unit(item, "internal") for item in syllables]
     unit_ids = {name: number for number, name in enumerate(sorted(set(internal)))}
-    final_names = sorted({item.final for item in syllables})
+    final_names = sorted({item.tail for item in syllables})
     count = len(unit_ids)
     final_ids = {name: count + number for number, name in enumerate(final_names)}
     nodes = count + len(final_names)
@@ -284,7 +296,7 @@ def _plan(
     in_bound = [0] * nodes
     for position, item in enumerate(syllables):
         tail = unit_ids[internal[position]]
-        head = final_ids[item.final]
+        head = final_ids[item.tail]
         out_bound[tail] += 1
         in_bound[head] += 1
     for final, unit in requirements.vc:
@@ -297,7 +309,7 @@ def _plan(
     syllable_edges = []
     for position, item in enumerate(syllables):
         syllable_edges.append(
-            network.add(unit_ids[internal[position]], final_ids[item.final], _UNBOUNDED, 1)
+            network.add(unit_ids[internal[position]], final_ids[item.tail], _UNBOUNDED, 1)
         )
     connection_edges = {}
     for final in final_names:
@@ -320,7 +332,7 @@ def _plan(
     for position, edge in enumerate(syllable_edges):
         item = syllables[position]
         adjacency[unit_ids[internal[position]]].append(
-            [final_ids[item.final], 1 + network.flow_on(edge), position]
+            [final_ids[item.tail], 1 + network.flow_on(edge), position]
         )
     for (final, unit), edge in connection_edges.items():
         multiplicity = (1 if (final, unit) in requirements.vc else 0) + network.flow_on(edge)
@@ -376,11 +388,11 @@ def _cut(
 
     def gain(position: int) -> int:
         item = plan.syllables[ring[position]]
-        return (plan.initial[ring[position]] not in seen_start) + (item.final not in seen_end)
+        return (plan.initial[ring[position]] not in seen_start) + (item.tail not in seen_end)
 
     def mark(position: int) -> None:
         seen_start.add(plan.initial[ring[position]])
-        seen_end.add(plan.syllables[ring[position]].final)
+        seen_end.add(plan.syllables[ring[position]].tail)
 
     mark(0)
     cuts = [0]
@@ -426,7 +438,7 @@ def _repair(
             return (
                 ((item.text, plan.initial[position]) in need_cv)
                 + (plan.initial[position] in need_start)
-                + (item.final in need_end)
+                + (item.tail in need_end)
             )
 
         best = max(range(len(syllables)), key=single)
@@ -435,7 +447,7 @@ def _repair(
         elif missing["vc"]:
             final, unit = missing["vc"][0]
             before = next(
-                position for position, item in enumerate(syllables) if item.final == final
+                position for position, item in enumerate(syllables) if item.tail == final
             )
             after = [
                 position for position in range(len(syllables)) if plan.internal[position] == unit
@@ -547,6 +559,14 @@ def reclist_report(
         "unmapped_contexts": sorted(f"{base}+{final}" for base, final in units.unmapped),
         "collapsed_unresolved": sorted(units.collapsed),
     }
+    classes: dict[str, set[str]] = {}
+    for item in syllables:
+        if item.vc_final:
+            classes.setdefault(item.final, set()).add(item.vc_final)
+    if classes:
+        report["final_classes"] = {
+            final: sorted(tails) for final, tails in sorted(classes.items())
+        }
     if alternative is not None:
         report["alternative"] = {
             "unresolved": alternative_mode,

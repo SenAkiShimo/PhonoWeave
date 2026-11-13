@@ -44,11 +44,14 @@ def audit_bank(root: Path) -> dict:
         lambda: {kind: set() for kind in KINDS}
     )
     unrecognized: Counter = Counter()
+    examples: dict[str, list[str]] = defaultdict(list)
     for entry in entries:
         layer = _layer_name(root, entry.oto_path)
         parsed = classify(normalize_alias(entry.alias, affixes))
         if parsed is None:
             unrecognized[layer] += 1
+            if len(examples[layer]) < 3:
+                examples[layer].append(entry.alias)
             continue
         kind, key = parsed
         items[layer][kind].add(key)
@@ -83,6 +86,7 @@ def audit_bank(root: Path) -> dict:
         "layers": layers,
         "census": census,
         "unrecognized": dict(unrecognized),
+        "unrecognized_examples": dict(examples),
         "finals": sorted(finals),
         "systematic_labels": systematic,
         "partial_labels": [
@@ -108,6 +112,8 @@ def format_audit(audit: dict, limit: int = 30) -> str:
         )
     if audit["unrecognized"]:
         lines.append(f"  Unrecognized aliases: {audit['unrecognized']}")
+        for layer, found in audit["unrecognized_examples"].items():
+            lines.append(f"    {layer}: {found}")
 
     lines.append("")
     lines.append(f"Finals seen in VC or end entries ({len(audit['finals'])}): {' '.join(audit['finals'])}")

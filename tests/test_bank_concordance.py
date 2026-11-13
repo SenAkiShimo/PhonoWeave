@@ -30,6 +30,8 @@ def _syllables() -> tuple[Syllable, ...]:
     for base in ("sh", "l", "g", "m", "b"):
         for final in ("a", "i", "u"):
             rows.append(Syllable(f"{base}{final}", base, final))
+    for final in ("i", "v"):
+        rows.append(Syllable(f"x{final}", "x", final))
     return tuple(rows)
 
 
@@ -55,9 +57,11 @@ def test_concordance_statuses() -> None:
             _unit("g_rounded", "g", ("rounded",), "split_recommended"),
             _unit("m", "m", ("plain", "rounded"), "unresolved"),
             _unit("b", "b", ("plain", "rounded"), "unresolved"),
+            _unit("x_plain", "x", ("plain",), "split_recommended"),
+            _unit("x_rounded", "x", ("rounded",), "split_recommended"),
         ),
     )
-    audit = _audit(["sh", "shw", "l", "ly", "g", "m", "my", "b"])
+    audit = _audit(["sh", "shw", "l", "ly", "g", "m", "my", "b", "xy", "xw"])
 
     rows = {row.base: row for row in compare_with_bank(audit, inventory, _syllables())}
 
@@ -66,4 +70,5 @@ def test_concordance_statuses() -> None:
     assert rows["g"].status == "we split, voicebank does not"
     assert rows["m"].status == "voicebank splits, we have no evidence"
     assert rows["b"].status == "neither splits (ours unresolved)"
+    assert rows["x"].status == "same axis"
     assert "sh_plain:i,o | sh_rounded:u" in format_concordance(list(rows.values()))

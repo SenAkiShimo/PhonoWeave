@@ -92,7 +92,7 @@ phonoweave build-reclist /path/to/voicebank -o reclist.txt
 phonoweave build-reclist /path/to/voicebank --inventory synthesis_inventory.yaml -o reclist.txt
 ```
 
-Without `--inventory` the speaker analysis is run first. The command writes the recording list and a `reclist.report.json` file with requirement counts, the line-count lower bound and a one-unit-per-onset baseline for comparison. See `docs/reclist-compiler.md`.
+`--finals-from-bank` makes the VC requirements follow the final classes the voicebank itself uses (the WAV file grouping of its CV entries) instead of one VC final per syllable final; the mapping is written to the report as `final_classes`. Without `--inventory` the speaker analysis is run first. The command writes the recording list and a `reclist.report.json` file with requirement counts, the line-count lower bound and a one-unit-per-onset baseline for comparison. See `docs/reclist-compiler.md`.
 
 List the onsets whose decision is still unresolved, what evidence is missing, and a short supplementary diagnostic reclist for them:
 
