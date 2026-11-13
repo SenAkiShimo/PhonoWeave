@@ -64,7 +64,7 @@ Compile the profile into synthesis units:
 phonoweave build-synthesis-inventory /path/to/voicebank -o synthesis_inventory.yaml
 ```
 
-Without a voicebank, generate a starter recording list from general Mandarin rules (395 toneless syllables, the 22 VC final classes used by common CVVC banks, y/w context units for m, n, l, h, s, sh, j, q, x, and shared stop VC connections):
+Without a voicebank, generate a starter recording list from general Mandarin rules (396 toneless syllables, the 23 VC final classes used by common CVVC banks, y/w context units for m, n, l, h, s, sh, j, q, x, and shared stop VC connections):
 
 ```bash
 phonoweave starter-reclist -o starter_reclist.txt

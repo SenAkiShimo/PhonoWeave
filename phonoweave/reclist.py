@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from .mandarin import MandarinObservation, collect_observations, context_for, structure_for
+from .mandarin import (
+    MandarinObservation,
+    collect_observations,
+    context_for,
+    normalize_alias,
+    structure_for,
+)
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 from .synthesis_inventory import SynthesisInventory, SynthesisUnit
@@ -68,6 +74,21 @@ def syllables_from_observations(
     return tuple(sorted(found.values(), key=lambda item: item.text))
 
 
+def _has_token(alias: str, affixes, token: str) -> bool:
+    return token in normalize_alias(alias, affixes).lower().split()
+
+
+def _with_er(
+    syllables: tuple[Syllable, ...],
+    final_classes: Mapping[tuple[str, str], str] | None = None,
+) -> tuple[Syllable, ...]:
+    if any(item.text == "er" for item in syllables):
+        return syllables
+    tail = (final_classes or {}).get(("", "er"), "")
+    added = Syllable(text="er", onset="", final="er", vc_final=tail)
+    return tuple(sorted((*syllables, added), key=lambda item: item.text))
+
+
 def observed_syllables(
     root: Path,
     final_classes: Mapping[tuple[str, str], str] | None = None,
@@ -75,9 +96,12 @@ def observed_syllables(
     root = root.expanduser().resolve()
     entries, _ = load_voicebank(root)
     affixes = affix_pairs(load_prefix_maps(root))
-    return syllables_from_observations(
+    syllables = syllables_from_observations(
         collect_observations(entries, affixes), final_classes
     )
+    if any(_has_token(entry.alias, affixes, "er") for entry in entries):
+        syllables = _with_er(syllables, final_classes)
+    return syllables
 
 
 def _family(base: str, final: str) -> str:

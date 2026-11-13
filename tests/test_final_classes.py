@@ -103,3 +103,18 @@ def test_stop_connections_ignore_context_splits() -> None:
 
     assert len(split.requirements.vc) == 8
     assert len(shared.requirements.vc) == 6
+
+
+def test_er_is_added_when_the_voicebank_has_it(tmp_path) -> None:
+    bank = tmp_path / "er_bank"
+    bank.mkdir()
+    (bank / "oto.ini").write_text(
+        "a.wav=ba,0,0,0,0,0\ner.wav=er b,0,0,0,0,0\n", encoding="utf-8"
+    )
+    texts = {item.text for item in observed_syllables(bank)}
+    assert "er" in texts
+
+    plain = tmp_path / "plain_bank"
+    plain.mkdir()
+    (plain / "oto.ini").write_text("a.wav=ba,0,0,0,0,0\n", encoding="utf-8")
+    assert "er" not in {item.text for item in observed_syllables(plain)}

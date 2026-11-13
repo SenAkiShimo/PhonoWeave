@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .mandarin import classify_alias
 from .oto import OtoEntry
-from .reclist import Syllable, STOP_ONSETS, syllables_from_observations
+from .reclist import STOP_ONSETS, Syllable, _with_er, syllables_from_observations
 from .synthesis_inventory import SynthesisInventory, SynthesisUnit
 
 
@@ -67,7 +67,7 @@ def starter_syllables() -> tuple[Syllable, ...]:
         for entry in _entries()
         if (observation := classify_alias(entry)) is not None
     ]
-    base = syllables_from_observations(observations)
+    base = _with_er(syllables_from_observations(observations))
     return tuple(
         Syllable(item.text, item.onset, item.final, _final_class(item.onset, item.final))
         for item in base

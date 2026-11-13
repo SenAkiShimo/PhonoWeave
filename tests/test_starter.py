@@ -13,9 +13,9 @@ def test_starter_syllables_cover_standard_inventory() -> None:
     texts = {item.text for item in syllables}
 
     assert 380 <= len(syllables) <= 420
-    assert {"ba", "zhi", "zi", "ju", "xue", "nv", "lve", "wu", "yu"} <= texts
+    assert {"ba", "zhi", "zi", "ju", "xue", "nv", "lve", "wu", "yu", "er"} <= texts
     assert {item.tail for item in syllables} == {
-        "a", "ai", "an", "ang", "ao", "e", "e0", "ei", "en", "en0", "eng",
+        "a", "ai", "an", "ang", "ao", "e", "e0", "ei", "en", "en0", "eng", "er",
         "i", "i0", "in", "ing", "ir", "o", "ong", "ou", "u", "v", "vn",
     }
     zhi = next(item for item in syllables if item.text == "zhi")
