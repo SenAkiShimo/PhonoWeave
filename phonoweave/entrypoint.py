@@ -409,6 +409,10 @@ def main() -> int:
         return compare_bank_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "audit-bank":
         return audit_bank_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "shuffle-control":
+        from .shuffle_control_cli import main as shuffle_main
+
+        return shuffle_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "transition-report":
         return transition_main(sys.argv[2:])
 

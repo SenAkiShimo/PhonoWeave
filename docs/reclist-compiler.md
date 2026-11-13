@@ -39,6 +39,10 @@ The report gives a lower bound computed from the requirement counts and the line
 - Nasal and lateral split decisions are currently written to the profile as `plain` / `rounded` groups, which the compiler matches through the rounding context of the final.
 - Coverage of recognized symbols says nothing about untested acoustic variants or perceptual quality.
 
+## Label-shuffle control
+
+`phonoweave shuffle-control` writes a temporary copy of the voicebank in which the finals of CV aliases are permuted among entries with the same onset, pitch layer and alias pattern (audio files are linked, VC and end entries are untouched), then runs the inventory analysis on it. Repeated with different seeds, the share of runs that still return `split_recommended` estimates the false-split rate of the current thresholds.
+
 ## Transition consistency (exploratory)
 
 `phonoweave transition-report` compares consonant-to-vowel trajectories across context families (i_series, u_series, other) for one onset.

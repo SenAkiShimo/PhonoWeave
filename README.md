@@ -120,6 +120,14 @@ phonoweave transition-report /path/to/voicebank --base m n l r --json transition
 
 For each onset, the report extracts a pitch-independent spectral envelope around the consonant-vowel boundary, removes the vowel by projecting each sample onto the line between its own consonant and vowel states, and compares the remaining path at 25%, 50% and 75% progress between context families, within each pitch layer. It is exploratory and does not change any inventory decision.
 
+To check how often the split decisions fire on data with no real context information, permute the finals among the CV aliases of each onset and pitch layer and repeat the analysis:
+
+```bash
+phonoweave shuffle-control /path/to/voicebank --runs 5 -o shuffle_control.txt
+```
+
+The table lists, per unit, the real call and the number of shuffled runs that still call a split. Splits on shuffled data are false positives of the current thresholds.
+
 Lower-level diagnostic commands remain available for supported Mandarin contrasts:
 
 ```bash
