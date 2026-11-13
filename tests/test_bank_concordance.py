@@ -22,7 +22,10 @@ def _unit(unit_id: str, base: str, contexts: tuple[str, ...], decision: str) -> 
 
 
 def _audit(labels: list[str]) -> dict:
-    return {"systematic_labels": [{"label": label, "finals": 20} for label in labels]}
+    return {
+        "systematic_labels": [{"label": label, "finals": 20} for label in labels],
+        "finals": [f"f{i}" for i in range(20)],
+    }
 
 
 def _syllables() -> tuple[Syllable, ...]:
@@ -72,3 +75,29 @@ def test_concordance_statuses() -> None:
     assert rows["b"].status == "neither splits (ours unresolved)"
     assert rows["x"].status == "same axis"
     assert "sh_plain:i,o | sh_rounded:u" in format_concordance(list(rows.values()))
+
+
+def test_suggested_additions_use_voicebank_labels() -> None:
+    inventory = SynthesisInventory(
+        speaker_id="s",
+        language="zh",
+        source_voicebank=Path("."),
+        units=(
+            _unit("l_plain", "l", ("plain",), "split_recommended"),
+            _unit("l_rounded", "l", ("rounded",), "split_recommended"),
+            _unit("g_plain", "g", ("plain",), "split_recommended"),
+            _unit("g_rounded", "g", ("rounded",), "split_recommended"),
+            _unit("sh_plain", "sh", ("plain",), "split_recommended"),
+            _unit("sh_rounded", "sh", ("rounded",), "split_recommended"),
+        ),
+    )
+    audit = _audit(["sh", "shw", "l", "ly", "g"])
+
+    rows = {row.base: row for row in compare_with_bank(audit, inventory, _syllables())}
+
+    assert rows["l"].suggested == ("lw",) and rows["l"].suggested_vc == 20
+    assert rows["g"].suggested == ("gw",) and rows["g"].suggested_vc == 0
+    assert rows["sh"].suggested == ()
+    text = format_concordance(list(rows.values()))
+    assert "l: add lw -> 20 VC entries" in text
+    assert "g: add gw -> no VC entries" in text

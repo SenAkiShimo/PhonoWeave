@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from itertools import combinations
 
 from .mandarin import _BASES
-from .reclist import Syllable, UnitMap
+from .reclist import STOP_ONSETS, Syllable, UnitMap
 from .synthesis_inventory import SynthesisInventory
 
 
@@ -19,6 +19,8 @@ class ConcordanceRow:
     ours: str
     bank: str
     status: str
+    suggested: tuple[str, ...] = ()
+    suggested_vc: int = 0
 
 
 def bank_variants(audit: dict) -> dict[str, set[str]]:
@@ -90,6 +92,25 @@ def _groups(units: dict[str, str]) -> str:
     return " | ".join(f"{name}:{','.join(families)}" for name, families in grouped.items())
 
 
+def _suggested_labels(base: str, ours: dict[str, str], variants: set[str]) -> tuple[str, ...]:
+    grouped: dict[str, set[str]] = defaultdict(set)
+    for family, unit in ours.items():
+        grouped[unit].add(family)
+    labels: list[str] = []
+    for families in grouped.values():
+        if "o" in families:
+            continue
+        if "u" in families and "i" not in families:
+            variant = "w"
+        elif "i" in families and "u" not in families:
+            variant = "y"
+        else:
+            continue
+        if variant not in variants:
+            labels.append(f"{base}{variant}")
+    return tuple(sorted(labels))
+
+
 def compare_with_bank(
     audit: dict,
     inventory: SynthesisInventory,
@@ -123,12 +144,19 @@ def compare_with_bank(
             )
         else:
             status = "neither splits" + (" (ours unresolved)" if base in unresolved else "")
+        suggested = (
+            _suggested_labels(base, ours, variants.get(base, set())) if ours_split else ()
+        )
         rows.append(
             ConcordanceRow(
                 base=base,
                 ours=_groups(ours) if ours_split else ("unresolved" if base in unresolved else "single"),
                 bank=_groups(bank) if bank_split else "single",
                 status=status,
+                suggested=suggested,
+                suggested_vc=(
+                    0 if base in STOP_ONSETS else len(suggested) * len(audit.get("finals", []))
+                ),
             )
         )
     return rows
@@ -142,4 +170,12 @@ def format_concordance(rows: list[ConcordanceRow]) -> str:
     lines.append("")
     for status, count in sorted(counts.items()):
         lines.append(f"  {status}: {count}")
+
+    extra = [row for row in rows if row.suggested]
+    if extra:
+        lines.append("")
+        lines.append("Splits recommended here that the voicebank does not have (VC entries per pitch layer):")
+        for row in extra:
+            note = f"{row.suggested_vc} VC entries" if row.suggested_vc else "no VC entries (stop connections are shared); CV entries already exist"
+            lines.append(f"  {row.base}: add {', '.join(row.suggested)} -> {note}")
     return "\n".join(lines)
