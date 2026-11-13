@@ -20,6 +20,7 @@ from .reclist_cli import (
 )
 from .supplement_plan import build_supplement_plan
 from .supplement_reclist import build_supplement_reclist
+from .tolerance import apply_tolerance
 from .synthesis_inventory import build_synthesis_inventory, synthesis_inventory_yaml
 
 
@@ -43,6 +44,7 @@ def main(argv: list[str]) -> int:
     analysis = analyze_voicebank_inventory(args.voicebank)
     profile = build_speaker_profile(args.voicebank, analysis)
     inventory = build_synthesis_inventory(args.voicebank, profile)
+    inventory, merged = apply_tolerance(inventory, args.tolerance)
 
     directory = args.output_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
@@ -74,7 +76,7 @@ def main(argv: list[str]) -> int:
 
     concordance_path = directory / "bank_concordance.txt"
     concordance_path.write_text(
-        format_concordance(compare_with_bank(audit, inventory, syllables)) + "\n",
+        format_concordance(compare_with_bank(audit, inventory, syllables, args.tolerance)) + "\n",
         encoding="utf-8",
     )
 
@@ -97,6 +99,8 @@ def main(argv: list[str]) -> int:
             encoding="utf-8",
         )
 
+    if merged:
+        print(f"Merged under tolerance {args.tolerance}: {' '.join(merged)}")
     print_summary(compiled, len(syllables), args.unresolved)
     print(
         f"Unresolved decisions: {len(gaps.gaps)} "

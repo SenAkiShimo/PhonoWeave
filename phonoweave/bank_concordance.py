@@ -7,6 +7,7 @@ from itertools import combinations
 from .mandarin import _BASES
 from .reclist import STOP_ONSETS, Syllable, UnitMap
 from .synthesis_inventory import SynthesisInventory
+from .tolerance import COLLAPSIBLE, MERGED
 
 
 _FAMILY_ORDER = ("i", "u", "o")
@@ -21,6 +22,8 @@ class ConcordanceRow:
     status: str
     suggested: tuple[str, ...] = ()
     suggested_vc: int = 0
+    merge_labels: tuple[str, ...] = ()
+    merge_saving: int = 0
 
 
 def bank_variants(audit: dict) -> dict[str, set[str]]:
@@ -115,10 +118,14 @@ def compare_with_bank(
     audit: dict,
     inventory: SynthesisInventory,
     syllables: tuple[Syllable, ...],
+    tolerance: str = "strict",
 ) -> list[ConcordanceRow]:
     variants = bank_variants(audit)
     effective = UnitMap(inventory, collapse_unresolved=True)
-    unresolved = {unit.base_unit for unit in inventory.units if unit.decision == "unresolved"}
+    unresolved = {unit.base_unit for unit in inventory.units if unit.decision in COLLAPSIBLE}
+    tolerated = {unit.base_unit for unit in inventory.units if unit.decision == MERGED}
+    evidence = {unit.base_unit: unit.acoustic_evidence for unit in inventory.units}
+    finals = len(audit.get("finals", []))
     onsets = sorted({item.onset for item in syllables if item.onset})
 
     rows: list[ConcordanceRow] = []
@@ -138,15 +145,32 @@ def compare_with_bank(
             status = "we split, voicebank does not"
         elif bank_split:
             status = (
-                "voicebank splits, we have no evidence"
+                "voicebank splits, we merge under tolerance"
+                if base in tolerated
+                else "voicebank splits, we have no evidence"
                 if base in unresolved
                 else "voicebank splits, we do not"
             )
         else:
-            status = "neither splits" + (" (ours unresolved)" if base in unresolved else "")
+            status = "neither splits" + (
+                " (ours merged by tolerance)"
+                if base in tolerated
+                else " (ours unresolved)"
+                if base in unresolved
+                else ""
+            )
         suggested = (
             _suggested_labels(base, ours, variants.get(base, set())) if ours_split else ()
         )
+        merge_labels: tuple[str, ...] = ()
+        if bank_split and base in unresolved and tolerance != "strict":
+            weak = evidence.get(base) == "weak_or_inconsistent"
+            if tolerance == "loose" or weak:
+                merge_labels = tuple(
+                    f"{base}{suffix}" if suffix != "plain" else base
+                    for suffix in sorted(variants.get(base, set()))
+                    if suffix != "plain"
+                ) or (base,)
         rows.append(
             ConcordanceRow(
                 base=base,
@@ -154,6 +178,10 @@ def compare_with_bank(
                 bank=_groups(bank) if bank_split else "single",
                 status=status,
                 suggested=suggested,
+                merge_labels=merge_labels,
+                merge_saving=(
+                    max(len(variants.get(base, set())) - 1, 0) * finals if merge_labels else 0
+                ),
                 suggested_vc=(
                     0 if base in STOP_ONSETS else len(suggested) * len(audit.get("finals", []))
                 ),
@@ -178,4 +206,16 @@ def format_concordance(rows: list[ConcordanceRow]) -> str:
         for row in extra:
             note = f"{row.suggested_vc} VC entries" if row.suggested_vc else "no VC entries (stop connections are shared); CV entries already exist"
             lines.append(f"  {row.base}: add {', '.join(row.suggested)} -> {note}")
+
+    merges = [row for row in rows if row.merge_labels]
+    if merges:
+        lines.append("")
+        lines.append(
+            "Voicebank splits that could be merged at this tolerance "
+            "(VC entries saved per pitch layer; a tolerance, not evidence of equivalence):"
+        )
+        for row in merges:
+            lines.append(
+                f"  {row.base}: merge {', '.join(row.merge_labels)} -> saves {row.merge_saving} VC entries"
+            )
     return "\n".join(lines)

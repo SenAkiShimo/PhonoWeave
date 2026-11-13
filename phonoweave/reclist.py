@@ -17,6 +17,7 @@ from .mandarin import (
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 from .synthesis_inventory import SynthesisInventory, SynthesisUnit
+from .tolerance import COLLAPSIBLE
 
 ZERO_ONSET = "0"
 STOP_ONSETS = frozenset({"b", "p", "d", "t", "g", "k"})
@@ -153,7 +154,7 @@ class UnitMap:
         self.collapsed: set[str] = set()
         if inventory is not None:
             for unit in inventory.units:
-                if collapse_unresolved and unit.decision == "unresolved":
+                if collapse_unresolved and unit.decision in COLLAPSIBLE:
                     self.collapsed.add(unit.base_unit)
                     continue
                 self._by_base.setdefault(unit.base_unit, []).append(unit)

@@ -17,6 +17,7 @@ from .reclist import (
     observed_syllables,
     reclist_report,
 )
+from .tolerance import apply_tolerance
 from .synthesis_inventory import (
     SynthesisInventory,
     build_synthesis_inventory,
@@ -111,6 +112,13 @@ def print_summary(compiled: CompiledReclist, syllables: int, unresolved: str) ->
 
 def add_reclist_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
+        "--tolerance",
+        choices=("strict", "balanced", "loose"),
+        default="strict",
+        help="strict keeps every recommended split; balanced also merges splits that "
+        "are not high-confidence; loose merges every split without strong acoustic evidence",
+    )
+    parser.add_argument(
         "--stop-vc",
         choices=("shared", "split"),
         default="shared",
@@ -163,6 +171,9 @@ def main(argv: list[str]) -> int:
         inventory = load_synthesis_inventory(args.inventory)
     else:
         inventory = build_synthesis_inventory(args.voicebank)
+    inventory, merged = apply_tolerance(inventory, args.tolerance)
+    if merged:
+        print(f"Merged under tolerance {args.tolerance}: {' '.join(merged)}")
 
     try:
         compiled = compile_reclist(

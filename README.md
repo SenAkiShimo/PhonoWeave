@@ -93,6 +93,8 @@ phonoweave compare-bank /path/to/voicebank
 
 `plan` writes the same comparison to `bank_concordance.txt`.
 
+`--tolerance` (strict, balanced, loose) on `plan` and `build-reclist` sets how readily splits are merged: strict keeps every recommended split, balanced also merges splits that are not high-confidence, loose merges every split without strong acoustic evidence. At balanced and loose the comparison also lists the voicebank's own splits that could be merged and the VC entries that would save. A tolerance is a choice, not evidence that two contexts are equivalent.
+
 Generate a continuous recording list from the speaker's synthesis units:
 
 ```bash
