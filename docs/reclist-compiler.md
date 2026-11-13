@@ -38,3 +38,15 @@ The report gives a lower bound computed from the requirement counts and the line
 - No VC connection is removed on acoustic grounds yet. Doing so needs a transition analysis that the profile does not contain; `build_reclist` accepts a `waived_vc` set for when that evidence exists.
 - Nasal and lateral split decisions are currently written to the profile as `plain` / `rounded` groups, which the compiler matches through the rounding context of the final.
 - Coverage of recognized symbols says nothing about untested acoustic variants or perceptual quality.
+
+## Transition consistency (exploratory)
+
+`phonoweave transition-report` compares consonant-to-vowel trajectories across context families (i_series, u_series, other) for one onset.
+
+- Frames of 25 ms every 5 ms, from 50 ms before to 100 ms after the preutterance boundary.
+- Each frame is reduced to a cepstrally smoothed log envelope on 24 log-spaced bands (150 Hz to 4.5 kHz), with the frame mean removed, so harmonic spacing and level do not enter.
+- The consonant state is the mean envelope 50 to 25 ms before the boundary; the vowel state is the mean 60 to 100 ms after it. Samples with less than 3 dB RMS contrast between the two are skipped.
+- Progress along the line from consonant state to vowel state is computed per frame. The component of the path off that line is read out where progress first reaches 0.25, 0.5 and 0.75.
+- Distances are compared within each pitch layer only. The statistic is the mean between-family distance minus the mean within-family distance; labels are permuted within layers, and Holm correction is applied across family pairs and progress levels.
+
+Limits: the residual still depends on the vowel through the non-linear shape of the path, so the same-final and different-final within-family distances are printed as a reference; samples from one session are not independent; the result is not a perceptual measurement and does not by itself justify merging contexts.

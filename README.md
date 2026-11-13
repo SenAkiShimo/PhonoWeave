@@ -87,6 +87,14 @@ phonoweave evidence-gaps /path/to/voicebank --write-reclist supplement_reclist.t
 
 Each supplementary line is meant to be recorded once at every pitch layer already present in the voicebank. After recording, re-run the analysis once; unresolved decisions stay frozen after that round.
 
+Transition consistency between vowel contexts can be inspected without listening:
+
+```bash
+phonoweave transition-report /path/to/voicebank --base m n l r --json transition.json
+```
+
+For each onset, the report extracts a pitch-independent spectral envelope around the consonant-vowel boundary, removes the vowel by projecting each sample onto the line between its own consonant and vowel states, and compares the remaining path at 25%, 50% and 75% progress between context families, within each pitch layer. It is exploratory and does not change any inventory decision.
+
 Lower-level diagnostic commands remain available for supported Mandarin contrasts:
 
 ```bash
