@@ -44,12 +44,13 @@ def main(argv: list[str]) -> int:
     analysis = analyze_voicebank_inventory(args.voicebank)
     profile = build_speaker_profile(args.voicebank, analysis)
     inventory = build_synthesis_inventory(args.voicebank, profile)
+    raw_inventory = inventory
     inventory, merged = apply_tolerance(inventory, args.tolerance)
 
     directory = args.output_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
     inventory_path = directory / "synthesis_inventory.yaml"
-    inventory_path.write_text(synthesis_inventory_yaml(inventory), encoding="utf-8")
+    inventory_path.write_text(synthesis_inventory_yaml(raw_inventory), encoding="utf-8")
 
     try:
         compiled = compile_reclist(

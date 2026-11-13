@@ -40,7 +40,7 @@ def test_final_classes_follow_wav_grouping(tmp_path) -> None:
     assert mapping[("d", "uan")] == "an"
     assert mapping[("zh", "i")] == "ir"
     assert mapping[("z", "i")] == "i0"
-    assert ("b", "i") not in mapping
+    assert mapping[("b", "i")] == "i"
     assert summarize_final_classes(mapping)["ua"] == ["a"]
 
     syllables = {item.text: item for item in observed_syllables(bank, mapping)}

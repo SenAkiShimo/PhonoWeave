@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .final_table import standard_final_class
 from .mandarin import classify_alias
 from .oto import OtoEntry
 from .reclist import STOP_ONSETS, Syllable, _with_er, syllables_from_observations
@@ -34,15 +35,6 @@ _TABLE = {
     "w": "a o ai ei an en ang eng u",
 }
 
-_CLASSES = {
-    "ia": "a", "ua": "a", "uai": "ai", "uan": "an", "iang": "ang", "uang": "ang",
-    "iao": "ao", "ie": "e0", "ve": "e0", "ue": "e0", "ui": "ei", "un": "en",
-    "ian": "en0", "van": "en0", "ueng": "eng", "uo": "o", "iong": "ong", "iu": "ou",
-}
-_RETROFLEX = {"zh", "ch", "sh", "r"}
-_DENTAL = {"z", "c", "s"}
-
-
 def _entries() -> list[OtoEntry]:
     path = Path(".")
     return [
@@ -50,15 +42,6 @@ def _entries() -> list[OtoEntry]:
         for onset, finals in _TABLE.items()
         for final in finals.split()
     ]
-
-
-def _final_class(onset: str, final: str) -> str:
-    if final == "i":
-        if onset in _RETROFLEX:
-            return "ir"
-        if onset in _DENTAL:
-            return "i0"
-    return _CLASSES.get(final, final)
 
 
 def starter_syllables() -> tuple[Syllable, ...]:
@@ -69,7 +52,7 @@ def starter_syllables() -> tuple[Syllable, ...]:
     ]
     base = _with_er(syllables_from_observations(observations))
     return tuple(
-        Syllable(item.text, item.onset, item.final, _final_class(item.onset, item.final))
+        Syllable(item.text, item.onset, item.final, standard_final_class(item.onset, item.final))
         for item in base
     )
 
