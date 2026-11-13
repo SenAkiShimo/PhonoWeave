@@ -21,6 +21,7 @@ from .reclist_cli import (
 from .supplement_plan import build_supplement_plan
 from .supplement_reclist import build_supplement_reclist
 from .tolerance import apply_tolerance
+from .transition_evidence import apply_transition_evidence, collect_reports
 from .synthesis_inventory import build_synthesis_inventory, synthesis_inventory_yaml
 
 
@@ -33,6 +34,12 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="also write the optional supplementary recording list and evidence gaps",
     )
+    parser.add_argument(
+        "--transition-evidence",
+        action="store_true",
+        help="split m, n and l along the axes the transition analysis supports",
+    )
+    parser.add_argument("--transition-permutations", type=int, default=4000)
     add_reclist_arguments(parser)
     args = parser.parse_args(argv)
 
@@ -44,6 +51,12 @@ def main(argv: list[str]) -> int:
     analysis = analyze_voicebank_inventory(args.voicebank)
     profile = build_speaker_profile(args.voicebank, analysis)
     inventory = build_synthesis_inventory(args.voicebank, profile)
+    transition_notes: list[str] = []
+    if args.transition_evidence:
+        inventory, transition_notes = apply_transition_evidence(
+            inventory,
+            collect_reports(args.voicebank, permutations=args.transition_permutations),
+        )
     raw_inventory = inventory
     inventory, merged = apply_tolerance(inventory, args.tolerance)
 
@@ -100,6 +113,8 @@ def main(argv: list[str]) -> int:
             encoding="utf-8",
         )
 
+    for note in transition_notes:
+        print(f"Transition evidence: {note}")
     if merged:
         print(f"Merged under tolerance {args.tolerance}: {' '.join(merged)}")
     print_summary(compiled, len(syllables), args.unresolved)

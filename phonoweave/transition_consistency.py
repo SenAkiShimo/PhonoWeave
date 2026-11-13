@@ -229,14 +229,13 @@ def _pair_level(
     )
 
 
-def _verdict(pairs: tuple[TransitionPairResult, ...]) -> str:
-    tested = [pair for pair in pairs if pair.p is not None]
-    if not tested:
-        return "insufficient_data"
+def supported_pairs(pairs: tuple[TransitionPairResult, ...]) -> tuple[tuple[str, str], ...]:
     by_pair: dict[tuple[str, str], list[TransitionPairResult]] = defaultdict(list)
-    for pair in tested:
-        by_pair[(pair.family_a, pair.family_b)].append(pair)
-    for rows in by_pair.values():
+    for pair in pairs:
+        if pair.p is not None:
+            by_pair[(pair.family_a, pair.family_b)].append(pair)
+    found = []
+    for key, rows in by_pair.items():
         hits = [
             row for row in rows
             if row.p_holm is not None
@@ -244,7 +243,15 @@ def _verdict(pairs: tuple[TransitionPairResult, ...]) -> str:
             and row.positive_layers * 2 > row.layers
         ]
         if len(hits) >= 2:
-            return "consistent_transition_difference"
+            found.append(key)
+    return tuple(found)
+
+
+def _verdict(pairs: tuple[TransitionPairResult, ...]) -> str:
+    if not any(pair.p is not None for pair in pairs):
+        return "insufficient_data"
+    if supported_pairs(pairs):
+        return "consistent_transition_difference"
     return "no_difference_detected"
 
 
