@@ -89,6 +89,7 @@ phonoweave analyze-affricate /path/to/voicebank --base q
 
 phonoweave analyze-rhotic /path/to/voicebank
 phonoweave splice-test /path/to/voicebank --base sh
+phonoweave splice-test /path/to/voicebank --base zh
 ```
 
 ## Experimental live calibration
@@ -120,7 +121,7 @@ The v0.0.1 core supports the current contrast-analysis path for:
 - affricates: `zh`, `ch`, `z`, `c`, `j`, `q`
 - rhotic `r` with plain/front/rounded realization analysis
 
-The current synthesis-relevance proxy is exploratory and does not replace perceptual validation.
+The current synthesis-relevance proxy is exploratory and does not replace perceptual validation. For affricates the proxy substitutes the detected frication body of one context for another and compares the junction with the same token's late frication; the release burst is not part of the substituted segment.
 
 ## Status and limitations
 

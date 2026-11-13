@@ -128,37 +128,70 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
 def _affricate_decision(root: Path, base_unit: str) -> InventoryDecision:
     result = analyze_affricate_contrast(root, base_unit)
     significant = sum(item.permutation_p < 0.05 for item in result.subbanks)
-    notes = (
+    notes = [
         f"cross_subbank_ba={result.cross_subbank_balanced_accuracy}",
         f"mean_distance={result.mean_distance}",
         f"significant_pitch_layers={significant}/{len(result.subbanks)}",
-    )
+    ]
 
-    if (
+    acoustic_supported = (
         result.cross_subbank_balanced_accuracy is not None
         and result.cross_subbank_balanced_accuracy >= 0.72
         and significant >= 2
         and result.mean_distance is not None
         and result.mean_distance >= 0.65
+    )
+    if not acoustic_supported:
+        return InventoryDecision(
+            base_unit=base_unit,
+            class_name="affricate",
+            acoustic_evidence="weak_or_inconsistent",
+            synthesis_evidence="not_tested",
+            decision="unresolved",
+            confidence="low",
+            notes=tuple(notes),
+        )
+
+    splice = splice_relevance_test(root, base_unit)
+    notes.extend(
+        [
+            f"splice_delta={splice.mean_delta}",
+            f"splice_relative_delta={splice.mean_relative_delta}",
+            f"splice_p={splice.permutation_p}",
+        ]
+    )
+
+    if (
+        splice.mean_delta is not None
+        and splice.mean_delta > 0
+        and splice.permutation_p is not None
+        and splice.permutation_p < 0.05
     ):
+        positive_layers = sum(item.mean_delta > 0 for item in splice.subbanks)
+        significant_layers = sum(
+            item.mean_delta > 0 and item.permutation_p < 0.05
+            for item in splice.subbanks
+        )
+        notes.append(f"positive_pitch_layers={positive_layers}/{len(splice.subbanks)}")
+        notes.append(f"significant_positive_pitch_layers={significant_layers}/{len(splice.subbanks)}")
         return InventoryDecision(
             base_unit=base_unit,
             class_name="affricate",
             acoustic_evidence="supported",
-            synthesis_evidence="not_tested",
-            decision="unresolved",
-            confidence="moderate",
-            notes=notes,
+            synthesis_evidence="supported_under_proxy",
+            decision="split_recommended",
+            confidence="high" if significant_layers >= 2 else "moderate",
+            notes=tuple(notes),
         )
 
     return InventoryDecision(
         base_unit=base_unit,
         class_name="affricate",
-        acoustic_evidence="weak_or_inconsistent",
-        synthesis_evidence="not_tested",
+        acoustic_evidence="supported",
+        synthesis_evidence="split_not_supported_under_proxy",
         decision="unresolved",
-        confidence="low",
-        notes=notes,
+        confidence="moderate",
+        notes=tuple(notes),
     )
 
 

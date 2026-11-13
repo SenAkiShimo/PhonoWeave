@@ -10,6 +10,9 @@ from .audio import AudioReadError, AudioSegment, consonant_segment, slice_segmen
 from .mandarin import collect_observations, context_for
 from .oto import OtoEntry, load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
+from .segmentation import detect_affricate_frication
+
+_AFFRICATES = {"zh", "ch", "z", "c", "j", "q"}
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,14 @@ class SpliceTestResult:
     permutation_p: float | None
     subbanks: list[SubbankSpliceResult]
     target_penalties: list[TargetPenalty]
+
+
+def _splice_segments(entry: OtoEntry, base_unit: str) -> tuple[AudioSegment, AudioSegment]:
+    if base_unit in _AFFRICATES:
+        frication = detect_affricate_frication(entry).frication
+        return slice_segment(frication, 0.10, 0.55), slice_segment(frication, 0.55, 1.0)
+    whole = consonant_segment(entry)
+    return slice_segment(whole, 0.20, 0.60), slice_segment(whole, 0.60, 0.92)
 
 
 def _subbank_name(root: Path, entry: OtoEntry) -> str:
@@ -171,9 +182,7 @@ def splice_relevance_test(root: Path, base_unit: str = "sh") -> SpliceTestResult
         if context not in {"plain", "rounded"}:
             continue
         try:
-            whole = consonant_segment(observation.entry)
-            core = slice_segment(whole, 0.20, 0.60)
-            late = slice_segment(whole, 0.60, 0.92)
+            core, late = _splice_segments(observation.entry, base_unit)
         except (AudioReadError, ValueError):
             skipped += 1
             continue

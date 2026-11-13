@@ -40,7 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     splice_parser = subparsers.add_parser("splice-test")
     splice_parser.add_argument("voicebank", type=Path)
-    splice_parser.add_argument("--base", default="sh", choices=("sh", "s", "x"))
+    splice_parser.add_argument(
+        "--base",
+        default="sh",
+        choices=("sh", "s", "x", "zh", "ch", "z", "c", "j", "q"),
+    )
     splice_parser.add_argument("--json", action="store_true")
 
     render_parser = subparsers.add_parser("render-ab")
