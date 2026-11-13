@@ -64,6 +64,14 @@ Compile the profile into synthesis units:
 phonoweave build-synthesis-inventory /path/to/voicebank -o synthesis_inventory.yaml
 ```
 
+Without a voicebank, generate a starter recording list from general Mandarin rules (395 toneless syllables, the 22 VC final classes used by common CVVC banks, y/w context units for m, n, l, h, s, sh, j, q, x, and shared stop VC connections):
+
+```bash
+phonoweave starter-reclist -o starter_reclist.txt
+```
+
+The scheme is a prior and has not been tested on any speaker. After recording, run `phonoweave plan` on the result to check it against the speaker's own acoustics.
+
 Run the whole chain in one pass. The speaker analysis is computed once and the command writes the synthesis inventory, the main reclist and an audit of the voicebank's own entries into one directory. Unresolved decisions are treated as one unit per onset and need no recording. The optional supplementary diagnostic reclist and evidence-gap report are written only with `--with-supplement`:
 
 ```bash

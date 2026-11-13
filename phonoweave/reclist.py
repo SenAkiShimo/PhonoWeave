@@ -5,9 +5,9 @@ import random
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Iterable, Mapping
 
-from .mandarin import collect_observations, context_for, structure_for
+from .mandarin import MandarinObservation, collect_observations, context_for, structure_for
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 from .synthesis_inventory import SynthesisInventory, SynthesisUnit
@@ -49,15 +49,12 @@ class Reclist:
         return "".join("_".join(item.text for item in line) + "\n" for line in self.lines)
 
 
-def observed_syllables(
-    root: Path,
+def syllables_from_observations(
+    observations: Iterable[MandarinObservation],
     final_classes: Mapping[tuple[str, str], str] | None = None,
 ) -> tuple[Syllable, ...]:
-    root = root.expanduser().resolve()
-    entries, _ = load_voicebank(root)
-    affixes = affix_pairs(load_prefix_maps(root))
     found: dict[tuple[str, str], Syllable] = {}
-    for observation in collect_observations(entries, affixes):
+    for observation in observations:
         structure = structure_for(observation)
         onset = structure.onset or ""
         key = (onset, structure.final)
@@ -69,6 +66,18 @@ def observed_syllables(
                 text=text, onset=onset, final=structure.final, vc_final=tail
             )
     return tuple(sorted(found.values(), key=lambda item: item.text))
+
+
+def observed_syllables(
+    root: Path,
+    final_classes: Mapping[tuple[str, str], str] | None = None,
+) -> tuple[Syllable, ...]:
+    root = root.expanduser().resolve()
+    entries, _ = load_voicebank(root)
+    affixes = affix_pairs(load_prefix_maps(root))
+    return syllables_from_observations(
+        collect_observations(entries, affixes), final_classes
+    )
 
 
 def _family(base: str, final: str) -> str:

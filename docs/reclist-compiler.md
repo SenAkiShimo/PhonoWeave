@@ -62,3 +62,7 @@ This is a phonetic argument, not a measured result.
 ## Final classes taken from the voicebank
 
 `--finals-from-bank` groups finals by the WAV file that holds their CV entries, keeping a group only when its name is one of the finals used by the voicebank's own VC and end entries. After zh/ch/sh/r and z/c/s the final `i` falls back to the voicebank's `ir` and `i0` classes when present.
+
+## Starter list
+
+`starter-reclist` compiles the same requirements from a built-in toneless Mandarin syllable table instead of a voicebank. Vowel-initial syllables without y or w are not part of the table, matching what the voicebank analysis recognizes, and `er` has no VC class. The unit scheme (written next to the list as `*.units.yaml`) splits m, n and l before i-series finals, h, s and sh before rounded finals, and j, q and x between i-series and rounded finals. It follows common CVVC practice and is not derived from any speaker.
