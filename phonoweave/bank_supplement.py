@@ -27,6 +27,40 @@ def select_rows(rows: list[ConcordanceRow], onsets: list[str] | None) -> list[Co
     return [row for row in rows if row.base in wanted]
 
 
+_CONTROL_LABELS = {
+    "s": ("w",), "sh": ("w",), "z": ("w",), "c": ("w",), "zh": ("w",), "ch": ("w",),
+    "r": ("w",), "h": ("w",), "f": ("w",),
+    "m": ("y",), "n": ("y",), "l": ("y",),
+    "j": ("y", "w"), "q": ("y", "w"), "x": ("y", "w"),
+}
+
+
+def control_rows(
+    onsets: list[str] | None,
+    syllables: tuple[Syllable, ...],
+    rows: list[ConcordanceRow],
+) -> list[ConcordanceRow]:
+    """Rows for onsets the comparison did not recommend, to record them as controls.
+
+    The labels follow the same y (before i) and w (before u) convention as the
+    voicebank comparison. Stops are skipped because their connections are shared.
+    """
+    if not onsets:
+        return []
+    present = {row.base for row in rows if row.status == SPLIT_STATUS and row.suggested}
+    tails = len({item.tail for item in syllables})
+    made = []
+    for base in onsets:
+        variants = _CONTROL_LABELS.get(base)
+        if base in present or variants is None:
+            continue
+        labels = tuple(base + variant for variant in variants)
+        made.append(
+            ConcordanceRow(base, "control", "single", SPLIT_STATUS, labels, tails * len(labels))
+        )
+    return made
+
+
 def _targets(
     rows: list[ConcordanceRow],
     syllables: tuple[Syllable, ...],

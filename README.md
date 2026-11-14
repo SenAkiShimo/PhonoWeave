@@ -124,6 +124,8 @@ For each onset, the report extracts a pitch-independent spectral envelope around
 
 `plan` also writes `summary.txt`, a one-page reading of the result: what to record grouped by strength of evidence, what was recommended but held back and why, what is unresolved, and which options were used.
 
+`--supplement-control s z` adds onsets to `bank_supplement.txt` even though no split is recommended for them. Recording such controls next to the recommended ones lets the decision rule be tested against recordings made in the same session; the summary lists them separately.
+
 `--supplement-onsets sh x m n` limits `bank_supplement.txt` to the named onsets, for example the ones whose evidence agrees across voicebanks.
 
 By default the transition report only informs; `plan --transition-evidence` lets it set the units of m, n and l. For each of those onsets that shows a consistent difference between context families (the same criterion as the report's verdict), the units follow the supported axes, `*_front` for i-series finals and, where supported, `*_rounded` for u-series ones. Onsets without a consistent difference, or whose current units already separate those families, keep their decision.

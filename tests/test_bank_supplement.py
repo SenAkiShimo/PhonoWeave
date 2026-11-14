@@ -61,3 +61,16 @@ def test_select_rows_limits_the_supplement_to_the_named_onsets() -> None:
     only = select_rows(rows, ["s"])
     assert [row.base for row in only] == ["s"]
     assert build_bank_supplement(only, syllables).labels == ("sw",)
+
+
+def test_control_rows_add_unrecommended_onsets_but_not_stops_or_duplicates() -> None:
+    from phonoweave.bank_supplement import control_rows
+
+    syllables = _syllables()
+    rows = _rows()
+    made = control_rows(["s", "z", "b", "m"], syllables, rows)
+
+    assert [row.base for row in made] == ["s", "m"]
+    assert made[0].suggested == ("sw",) and made[1].suggested == ("my",)
+    supplement = build_bank_supplement(rows + made, syllables)
+    assert set(supplement.labels) == {"zw", "sw", "my"}

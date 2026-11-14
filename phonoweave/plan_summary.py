@@ -28,12 +28,14 @@ def build_summary(
     supplement: BankSupplement,
     settings: dict[str, str],
     usable_layers: int | None = None,
+    controls: list[str] | None = None,
 ) -> str:
     recorded = {label for label in supplement.labels}
     by_tier: dict[str, list[str]] = {tier: [] for tier, _ in _TIERS}
+    controls = controls or []
     for row in rows:
         labels = [label for label in row.suggested if label in recorded]
-        if not labels or row.status != SPLIT_STATUS:
+        if not labels or row.status != SPLIT_STATUS or row.base in controls:
             continue
         confidence, evidence = _evidence(inventory, row.base)
         basis = _BASIS.get(evidence)
@@ -49,6 +51,14 @@ def build_summary(
             lines.append(f"  {label}: {'; '.join(by_tier[tier]) or 'none'}")
     else:
         lines.append("Record: nothing to add for this voicebank at these settings.")
+
+    control_rows_ = [row for row in rows if row.base in controls]
+    if supplement.lines and control_rows_:
+        lines.append("")
+        lines.append(
+            "Controls (no evidence for a split, listed only to test the rule): "
+            + "; ".join(f"{row.base} ({', '.join(row.suggested)})" for row in control_rows_)
+        )
 
     held_back = [
         row for row in rows

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .bank_audit import audit_bank, format_audit
 from .bank_concordance import compare_with_bank, format_concordance
-from .bank_supplement import build_bank_supplement, select_rows, uncovered_connections
+from .bank_supplement import build_bank_supplement, control_rows, select_rows, uncovered_connections
 from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
@@ -42,6 +42,13 @@ def main(argv: list[str]) -> int:
         help="split m, n and l along the axes the transition analysis supports",
     )
     parser.add_argument("--transition-permutations", type=int, default=4000)
+    parser.add_argument(
+        "--supplement-control",
+        nargs="+",
+        metavar="ONSET",
+        help="also list these onsets in bank_supplement.txt even without evidence, "
+        "to record them as controls",
+    )
     parser.add_argument(
         "--supplement-onsets",
         nargs="+",
@@ -104,6 +111,8 @@ def main(argv: list[str]) -> int:
 
     rows = compare_with_bank(audit, inventory, syllables, args.tolerance)
     supplement_rows = select_rows(rows, args.supplement_onsets)
+    controls = control_rows(args.supplement_control, syllables, supplement_rows)
+    supplement_rows = supplement_rows + controls
     bank_supplement = build_bank_supplement(supplement_rows, syllables, args.max_syllables)
     missing_connections = uncovered_connections(bank_supplement, supplement_rows, syllables)
     if missing_connections:
@@ -145,7 +154,7 @@ def main(argv: list[str]) -> int:
     summary_path = directory / "summary.txt"
     summary_path.write_text(
         build_summary(
-            rows,
+            rows + controls,
             inventory,
             bank_supplement,
             {
@@ -155,6 +164,7 @@ def main(argv: list[str]) -> int:
                 "supplement onsets": " ".join(args.supplement_onsets) if args.supplement_onsets else "all",
             },
             len(audit["usable_layers"]),
+            [row.base for row in controls],
         ),
         encoding="utf-8",
     )
