@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .bank_audit import audit_bank, format_audit
 from .bank_concordance import compare_with_bank, format_concordance
-from .bank_supplement import build_bank_supplement, uncovered_connections
+from .bank_supplement import build_bank_supplement, select_rows, uncovered_connections
 from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
@@ -41,6 +41,12 @@ def main(argv: list[str]) -> int:
         help="split m, n and l along the axes the transition analysis supports",
     )
     parser.add_argument("--transition-permutations", type=int, default=4000)
+    parser.add_argument(
+        "--supplement-onsets",
+        nargs="+",
+        metavar="ONSET",
+        help="only include these onsets in bank_supplement.txt",
+    )
     parser.add_argument(
         "--single-layer-evidence",
         action="store_true",
@@ -96,8 +102,9 @@ def main(argv: list[str]) -> int:
     )
 
     rows = compare_with_bank(audit, inventory, syllables, args.tolerance)
-    bank_supplement = build_bank_supplement(rows, syllables, args.max_syllables)
-    missing_connections = uncovered_connections(bank_supplement, rows, syllables)
+    supplement_rows = select_rows(rows, args.supplement_onsets)
+    bank_supplement = build_bank_supplement(supplement_rows, syllables, args.max_syllables)
+    missing_connections = uncovered_connections(bank_supplement, supplement_rows, syllables)
     if missing_connections:
         print(f"Supplement coverage check failed: {sorted(missing_connections)}", file=sys.stderr)
         return 1

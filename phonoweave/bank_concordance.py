@@ -24,6 +24,7 @@ class ConcordanceRow:
     suggested_vc: int = 0
     merge_labels: tuple[str, ...] = ()
     merge_saving: int = 0
+    plain_serves_one: bool = False
 
 
 def bank_variants(audit: dict) -> dict[str, set[str]]:
@@ -183,6 +184,11 @@ def compare_with_bank(
                 merge_saving=(
                     max(len(variants.get(base, set())) - 1, 0) * finals if merge_labels else 0
                 ),
+                plain_serves_one=(
+                    base in {"j", "q", "x"}
+                    and len(suggested) == 2
+                    and "plain" in variants.get(base, set())
+                ),
                 suggested_vc=(
                     0 if base in STOP_ONSETS else len(suggested) * tails
                 ),
@@ -206,6 +212,10 @@ def format_concordance(rows: list[ConcordanceRow]) -> str:
         lines.append("Splits recommended here that the voicebank does not have (VC entries per pitch layer):")
         for row in extra:
             note = f"{row.suggested_vc} VC entries" if row.suggested_vc else "no VC entries (stop connections are shared); CV entries already exist"
+            if row.plain_serves_one:
+                note += (
+                    f" at most; the existing {row.base} entries probably already serve one of the two"
+                )
             if row.status != "we split, voicebank does not":
                 note += f"; not in the supplement ({row.status})"
             lines.append(f"  {row.base}: add {', '.join(row.suggested)} -> {note}")

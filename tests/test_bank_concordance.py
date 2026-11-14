@@ -101,3 +101,22 @@ def test_suggested_additions_use_voicebank_labels() -> None:
     text = format_concordance(list(rows.values()))
     assert f"l: add lw -> {rows['l'].suggested_vc} VC entries" in text
     assert "g: add gw -> no VC entries" in text
+
+
+def test_palatal_split_with_a_plain_label_is_marked_as_an_upper_bound() -> None:
+    inventory = SynthesisInventory(
+        speaker_id="s",
+        language="zh",
+        source_voicebank=Path("."),
+        units=(
+            _unit("x_front", "x", ("plain",), "split_recommended"),
+            _unit("x_rounded", "x", ("rounded",), "split_recommended"),
+        ),
+    )
+    rows = {
+        row.base: row
+        for row in compare_with_bank(_audit(["x"]), inventory, _syllables())
+    }
+
+    assert rows["x"].suggested == ("xw", "xy") and rows["x"].plain_serves_one
+    assert "at most" in format_concordance([rows["x"]])

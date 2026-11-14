@@ -20,6 +20,13 @@ class BankSupplement:
         return "".join("_".join(item.text for item in line) + "\n" for line in self.lines)
 
 
+def select_rows(rows: list[ConcordanceRow], onsets: list[str] | None) -> list[ConcordanceRow]:
+    if not onsets:
+        return rows
+    wanted = set(onsets)
+    return [row for row in rows if row.base in wanted]
+
+
 def _targets(
     rows: list[ConcordanceRow],
     syllables: tuple[Syllable, ...],

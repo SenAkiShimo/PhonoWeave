@@ -46,3 +46,18 @@ def test_rows_without_a_new_split_give_nothing() -> None:
 def test_stop_splits_with_no_vc_cost_are_skipped() -> None:
     rows = [ConcordanceRow("b", "b_i:i | b_u:u", "single", SPLIT_STATUS, ("bw",), 0)]
     assert build_bank_supplement(rows, _syllables()).lines == ()
+
+
+def test_select_rows_limits_the_supplement_to_the_named_onsets() -> None:
+    from phonoweave.bank_supplement import select_rows
+
+    rows = [
+        ConcordanceRow("z", "z_plain:i,o | z_rounded:u", "single", SPLIT_STATUS, ("zw",), 8),
+        ConcordanceRow("s", "s_plain:i,o | s_rounded:u", "single", SPLIT_STATUS, ("sw",), 8),
+    ]
+    syllables = _syllables()
+
+    assert select_rows(rows, None) == rows
+    only = select_rows(rows, ["s"])
+    assert [row.base for row in only] == ["s"]
+    assert build_bank_supplement(only, syllables).labels == ("sw",)
