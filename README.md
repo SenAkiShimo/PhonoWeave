@@ -64,6 +64,82 @@ Compile the profile into synthesis units:
 phonoweave build-synthesis-inventory /path/to/voicebank -o synthesis_inventory.yaml
 ```
 
+Without a voicebank, generate a starter recording list from general Mandarin rules (396 toneless syllables, the 23 VC final classes used by common CVVC banks, y/w context units for m, n, l, h, s, sh, j, q, x, and shared stop VC connections):
+
+```bash
+phonoweave starter-reclist -o starter_reclist.txt
+```
+
+The scheme is a prior and has not been tested on any speaker. After recording, run `phonoweave plan` on the result to check it against the speaker's own acoustics.
+
+Run the whole chain in one pass. The speaker analysis is computed once and the command writes the synthesis inventory, the main reclist and an audit of the voicebank's own entries into one directory. Unresolved decisions are treated as one unit per onset and need no recording. The optional supplementary diagnostic reclist and evidence-gap report are written only with `--with-supplement`:
+
+```bash
+phonoweave plan /path/to/voicebank -o plan_output
+phonoweave plan /path/to/voicebank -o plan_output --with-supplement
+```
+
+Audit the entries an existing voicebank already has (plain CV, initial CV, VC, end) and list what is missing in some pitch layers but present in others:
+
+```bash
+phonoweave audit-bank /path/to/voicebank
+```
+
+Compare the onset units chosen from the acoustic analysis with the context variants the voicebank's own VC labels already distinguish (plain, `y` before i-series finals, `w` before u-series finals):
+
+```bash
+phonoweave compare-bank /path/to/voicebank
+```
+
+`plan` writes the same comparison to `bank_concordance.txt`.
+
+`--tolerance` (strict, balanced, loose) on `plan` and `build-reclist` sets how readily splits are merged: strict keeps every recommended split, balanced also merges splits that are not high-confidence, loose merges every split without strong acoustic evidence. At balanced and loose the comparison also lists the voicebank's own splits that could be merged and the VC entries that would save. A tolerance is a choice, not evidence that two contexts are equivalent.
+
+Generate a continuous recording list from the speaker's synthesis units:
+
+```bash
+phonoweave build-reclist /path/to/voicebank -o reclist.txt
+phonoweave build-reclist /path/to/voicebank --inventory synthesis_inventory.yaml -o reclist.txt
+```
+
+`--finals-from-bank` makes the VC requirements follow the final classes the voicebank itself uses (the WAV file grouping of its CV entries) instead of one VC final per syllable final; the mapping is written to the report as `final_classes`. Without `--inventory` the speaker analysis is run first. The command writes the recording list and a `reclist.report.json` file with requirement counts, the line-count lower bound and a one-unit-per-onset baseline for comparison. See `docs/reclist-compiler.md`.
+
+List the onsets whose decision is still unresolved, what evidence is missing, and a short supplementary diagnostic reclist for them:
+
+```bash
+phonoweave evidence-gaps /path/to/voicebank --write-reclist supplement_reclist.txt
+```
+
+Each supplementary line is meant to be recorded once at every pitch layer already present in the voicebank. After recording, re-run the analysis once; unresolved decisions stay frozen after that round.
+
+Transition consistency between vowel contexts can be inspected without listening:
+
+```bash
+phonoweave transition-report /path/to/voicebank --base m n l r --json transition.json
+```
+
+For each onset, the report extracts a pitch-independent spectral envelope around the consonant-vowel boundary, removes the vowel by projecting each sample onto the line between its own consonant and vowel states, and compares the remaining path at 25%, 50% and 75% progress between context families, within each pitch layer. It is exploratory and does not change any inventory decision.
+
+`plan` also writes `bank_supplement.txt`: the lines to record for splits that the inventory recommends and the voicebank does not have. Each line chains syllables so that every final that can precede the new onset variant is followed by a syllable of that variant (for example every final before `zu`), once per pitch layer. Only onsets the comparison reports as "we split, voicebank does not" are included; onsets whose axis disagrees with the voicebank's, stop onsets (their connections are shared) and onsets without evidence are not. With nothing to add the file is not written.
+
+`plan` also writes `summary.txt`, a one-page reading of the result: what to record grouped by strength of evidence, what was recommended but held back and why, what is unresolved, and which options were used.
+
+`--supplement-control s z` adds onsets to `bank_supplement.txt` even though no split is recommended for them. Recording such controls next to the recommended ones lets the decision rule be tested against recordings made in the same session; the summary lists them separately.
+
+`--supplement-onsets sh x m n` limits `bank_supplement.txt` to the named onsets, for example the ones whose evidence agrees across voicebanks.
+
+By default the transition report only informs; `plan --transition-evidence` lets it set the units of m, n and l. For each of those onsets that shows a consistent difference between context families (the same criterion as the report's verdict), the units follow the supported axes, `*_front` for i-series finals and, where supported, `*_rounded` for u-series ones. Onsets without a consistent difference, or whose current units already separate those families, keep their decision.
+
+A voicebank with a single usable layer cannot pass the cross-layer gate, so every fricative and affricate comes out unresolved. `--single-layer-evidence` (on `plan` and `shuffle-control`) replaces that gate for such voicebanks with within-layer tests: for s, sh, x and the affricates, one region must have a permutation p below 0.05 (divided by the number of regions tested), leave-one-out accuracy of at least 0.70 and a standardized distance of at least 0.60. The splice test still has to agree. The result is `split_recommended` with confidence `low` and evidence `single_layer_supported`, so the balanced and loose tolerance levels merge it. Voicebanks with two or more layers are not affected.
+
+To check how often the split decisions fire on data with no real context information, permute the finals among the CV aliases of each onset and pitch layer and repeat the analysis:
+
+```bash
+phonoweave shuffle-control /path/to/voicebank --runs 5 -o shuffle_control.txt
+```
+
+The table lists, per unit, the real call and the number of shuffled runs that still call a split. Splits on shuffled data are false positives of the current thresholds.
+
 Lower-level diagnostic commands remain available for supported Mandarin contrasts:
 
 ```bash
@@ -80,6 +156,7 @@ phonoweave analyze-affricate /path/to/voicebank --base q
 
 phonoweave analyze-rhotic /path/to/voicebank
 phonoweave splice-test /path/to/voicebank --base sh
+phonoweave splice-test /path/to/voicebank --base zh
 ```
 
 ## Experimental live calibration
@@ -111,7 +188,7 @@ The v0.0.1 core supports the current contrast-analysis path for:
 - affricates: `zh`, `ch`, `z`, `c`, `j`, `q`
 - rhotic `r` with plain/front/rounded realization analysis
 
-The current synthesis-relevance proxy is exploratory and does not replace perceptual validation.
+The current synthesis-relevance proxy is exploratory and does not replace perceptual validation. For affricates the proxy substitutes the detected frication body of one context for another and compares the junction with the same token's late frication; the release burst is not part of the substituted segment.
 
 ## Status and limitations
 
@@ -123,7 +200,8 @@ Not implemented yet:
 
 - final UTAU/OpenUtau alias compilation
 - adaptive `oto.ini` suggestions
-- supplementary reclist generation
+- merging supplementary diagnostic items into the compiled reclist
+- evidence-based removal of VC connections
 - broad cross-speaker validation
 - formal perceptual validation
 - general language-module support beyond the current Mandarin path

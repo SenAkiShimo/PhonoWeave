@@ -8,12 +8,19 @@ from pathlib import Path
 from .context_audit import audit_contexts
 from .coverage import analyze_coverage
 from .inventory import analyze_voicebank_inventory
+from .evidence_gap_cli import main as evidence_gap_main
 from .lateral import analyze_lateral
 from .lateral_relevance_cli import main as lateral_relevance_main
 from .lateral_timecourse_cli import main as lateral_timecourse_main
 from .nasal_cli import main as nasal_main
+from .transition_cli import main as transition_main
+from .bank_audit_cli import main as audit_bank_main
+from .starter_cli import main as starter_main
+from .compare_bank_cli import main as compare_bank_main
 from .nasal_relevance_cli import main as nasal_relevance_main
+from .plan_cli import main as plan_main
 from .profile import write_speaker_profile
+from .reclist_cli import main as reclist_main
 from .source_audit import audit_sources
 from .synthesis_inventory import write_synthesis_inventory
 
@@ -390,6 +397,24 @@ def main() -> int:
         return _build_profile(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "build-synthesis-inventory":
         return _build_synthesis_inventory(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "build-reclist":
+        return reclist_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "plan":
+        return plan_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "evidence-gaps":
+        return evidence_gap_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "starter-reclist":
+        return starter_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "compare-bank":
+        return compare_bank_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "audit-bank":
+        return audit_bank_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "shuffle-control":
+        from .shuffle_control_cli import main as shuffle_main
+
+        return shuffle_main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "transition-report":
+        return transition_main(sys.argv[2:])
 
     from .cli import main as legacy_main
 

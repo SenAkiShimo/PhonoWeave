@@ -84,3 +84,49 @@ def test_build_synthesis_inventory_entrypoint(monkeypatch, tmp_path, capsys) -> 
     stdout = capsys.readouterr().out
     assert "Speaker: TestSinger" in stdout
     assert "Synthesis units: 3" in stdout
+
+
+def test_evidence_gaps_entrypoint(monkeypatch) -> None:
+    called = {}
+
+    def fake_main(argv):
+        called["argv"] = argv
+        return 0
+
+    monkeypatch.setattr(entrypoint, "evidence_gap_main", fake_main)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["phonoweave", "evidence-gaps", "/tmp/voicebank", "--write-reclist", "/tmp/supplement.txt"],
+    )
+
+    assert entrypoint.main() == 0
+    assert called["argv"] == ["/tmp/voicebank", "--write-reclist", "/tmp/supplement.txt"]
+
+
+def test_reclist_entrypoint(monkeypatch) -> None:
+    called = {}
+
+    def fake_main(argv):
+        called["argv"] = argv
+        return 0
+
+    monkeypatch.setattr(entrypoint, "reclist_main", fake_main)
+    monkeypatch.setattr(sys, "argv", ["phonoweave", "build-reclist", "/tmp/voicebank"])
+
+    assert entrypoint.main() == 0
+    assert called["argv"] == ["/tmp/voicebank"]
+
+
+def test_plan_entrypoint(monkeypatch) -> None:
+    called = {}
+
+    def fake_main(argv):
+        called["argv"] = argv
+        return 0
+
+    monkeypatch.setattr(entrypoint, "plan_main", fake_main)
+    monkeypatch.setattr(sys, "argv", ["phonoweave", "plan", "/tmp/voicebank", "-o", "/tmp/plan"])
+
+    assert entrypoint.main() == 0
+    assert called["argv"] == ["/tmp/voicebank", "-o", "/tmp/plan"]

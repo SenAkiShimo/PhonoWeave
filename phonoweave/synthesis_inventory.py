@@ -117,3 +117,100 @@ def write_synthesis_inventory(root: Path, output: Path) -> SynthesisInventory:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(synthesis_inventory_yaml(inventory), encoding="utf-8")
     return inventory
+
+
+def _unquote(text: str) -> str:
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] == '"':
+        body = text[1:-1]
+        return body.replace('\\"', '"').replace("\\\\", "\\")
+    return text
+
+
+def _split_list(text: str) -> tuple[str, ...]:
+    body = text.strip()
+    if not (body.startswith("[") and body.endswith("]")):
+        raise ValueError(f"expected a list, got {text!r}")
+    body = body[1:-1]
+    items: list[str] = []
+    current: list[str] = []
+    quoted = False
+    escaped = False
+    for char in body:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\" and quoted:
+            current.append(char)
+            escaped = True
+        elif char == '"':
+            current.append(char)
+            quoted = not quoted
+        elif char == "," and not quoted:
+            items.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    if "".join(current).strip():
+        items.append("".join(current))
+    return tuple(_unquote(item) for item in items)
+
+
+def load_synthesis_inventory(path: Path) -> SynthesisInventory:
+    speaker_id = ""
+    language = ""
+    voicebank = ""
+    units: list[dict[str, object]] = []
+    section = ""
+    for raw in path.expanduser().read_text(encoding="utf-8").splitlines():
+        if not raw.strip():
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        line = raw.strip()
+        if indent == 0:
+            section = line.partition(":")[0]
+            continue
+        key, _, value = line.partition(":")
+        if section == "speaker" and indent == 2:
+            if key == "id":
+                speaker_id = _unquote(value)
+            elif key == "language":
+                language = _unquote(value)
+        elif section == "source" and indent == 2 and key == "voicebank":
+            voicebank = _unquote(value)
+        elif section == "units":
+            if line.startswith("- "):
+                units.append({})
+                key, _, value = line[2:].partition(":")
+            if not units:
+                continue
+            if key in {"acoustic", "synthesis"}:
+                units[-1][key] = _unquote(value)
+            elif key == "contexts":
+                units[-1][key] = _split_list(value)
+            elif key in {"id", "base_unit", "source_group", "decision", "confidence", "canonical_context"}:
+                units[-1][key] = _unquote(value)
+
+    return SynthesisInventory(
+        speaker_id=speaker_id,
+        language=language,
+        source_voicebank=Path(voicebank),
+        units=tuple(
+            SynthesisUnit(
+                id=str(item["id"]),
+                base_unit=str(item["base_unit"]),
+                contexts=tuple(item.get("contexts", ())),
+                source_group=str(item.get("source_group", item["id"])),
+                canonical_context=(
+                    None
+                    if item.get("canonical_context") in {None, "null"}
+                    else str(item["canonical_context"])
+                ),
+                decision=str(item.get("decision", "")),
+                confidence=str(item.get("confidence", "")),
+                acoustic_evidence=str(item.get("acoustic", "")),
+                synthesis_evidence=str(item.get("synthesis", "")),
+            )
+            for item in units
+        ),
+    )
