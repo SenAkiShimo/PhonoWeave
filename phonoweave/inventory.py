@@ -43,6 +43,11 @@ WITHIN_LAYER_ACCURACY = 0.70
 WITHIN_LAYER_DISTANCE = 0.60
 
 
+def _distance(region) -> float:
+    value = getattr(region, "standardized_distance", None)
+    return region.distance if value is None else value
+
+
 def within_layer_supported(regions) -> bool:
     """Single-layer stand-in for the cross-layer gate.
 
@@ -52,7 +57,7 @@ def within_layer_supported(regions) -> bool:
     return any(
         region.permutation_p < threshold
         and region.loo_balanced_accuracy >= WITHIN_LAYER_ACCURACY
-        and region.standardized_distance >= WITHIN_LAYER_DISTANCE
+        and _distance(region) >= WITHIN_LAYER_DISTANCE
         for region in regions
     )
 

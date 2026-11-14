@@ -37,3 +37,21 @@ def test_single_layer_rule_applies_only_to_one_layer_and_only_when_asked() -> No
     assert _fricative_acoustic_level(one) == "weak"
     assert _fricative_acoustic_level(one, single_layer=True) == "within_layer"
     assert _fricative_acoustic_level(two, single_layer=True) == "weak"
+
+
+def test_affricate_layer_results_are_accepted() -> None:
+    from phonoweave.affricate import AffricateSubbankContrast
+
+    layer = AffricateSubbankContrast(
+        subbank="a", plain_count=8, rounded_count=6, distance=0.9,
+        loo_balanced_accuracy=0.8, permutation_p=0.004,
+        mean_plain={}, mean_rounded={}, effects={},
+    )
+    weak = AffricateSubbankContrast(
+        subbank="a", plain_count=8, rounded_count=6, distance=0.3,
+        loo_balanced_accuracy=0.8, permutation_p=0.004,
+        mean_plain={}, mean_rounded={}, effects={},
+    )
+
+    assert within_layer_supported((layer,))
+    assert not within_layer_supported((weak,))
