@@ -43,3 +43,14 @@ def test_audit_reports_cross_layer_gaps(tmp_path) -> None:
     assert {row["label"] for row in audit["systematic_labels"]} == {"m", "sh"}
     assert [row["label"] for row in audit["partial_labels"]] == ["shw"]
     assert "D5 vc: 1 missing: a shw" in format_audit(audit)
+
+
+def test_audit_reports_entries_without_audio(tmp_path) -> None:
+    bank = _bank(tmp_path)
+    (bank / "D4" / "x.wav").write_bytes(b"")
+
+    audit = audit_bank(bank)
+
+    assert audit["missing_wav"] == {"D5": 8}
+    assert audit["missing_wav_examples"] == {"D5": ["x.wav"]}
+    assert "audio file is missing" in format_audit(audit)

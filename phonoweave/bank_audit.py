@@ -44,9 +44,15 @@ def audit_bank(root: Path) -> dict:
         lambda: {kind: set() for kind in KINDS}
     )
     unrecognized: Counter = Counter()
+    missing_wav: Counter = Counter()
+    missing_examples: dict[str, list[str]] = defaultdict(list)
     examples: dict[str, list[str]] = defaultdict(list)
     for entry in entries:
         layer = _layer_name(root, entry.oto_path)
+        if not entry.wav_path.exists():
+            missing_wav[layer] += 1
+            if entry.wav_path.name not in missing_examples[layer] and len(missing_examples[layer]) < 2:
+                missing_examples[layer].append(entry.wav_path.name)
         parsed = classify(normalize_alias(entry.alias, affixes))
         if parsed is None:
             unrecognized[layer] += 1
@@ -87,6 +93,8 @@ def audit_bank(root: Path) -> dict:
         "census": census,
         "unrecognized": dict(unrecognized),
         "unrecognized_examples": dict(examples),
+        "missing_wav": dict(missing_wav),
+        "missing_wav_examples": dict(missing_examples),
         "finals": sorted(finals),
         "systematic_labels": systematic,
         "partial_labels": [
@@ -113,6 +121,14 @@ def format_audit(audit: dict, limit: int = 30) -> str:
     if audit["unrecognized"]:
         lines.append(f"  Unrecognized aliases: {audit['unrecognized']}")
         for layer, found in audit["unrecognized_examples"].items():
+            lines.append(f"    {layer}: {found}")
+
+    if audit.get("missing_wav"):
+        lines.append(
+            "  Entries whose audio file is missing (left out of every analysis): "
+            f"{audit['missing_wav']}"
+        )
+        for layer, found in audit.get("missing_wav_examples", {}).items():
             lines.append(f"    {layer}: {found}")
 
     lines.append("")
