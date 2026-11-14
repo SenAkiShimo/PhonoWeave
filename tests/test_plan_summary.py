@@ -49,4 +49,4 @@ def test_summary_warns_when_only_one_layer_is_usable() -> None:
     assert "Only one layer holds usable CV entries" in build_summary([], inventory, supplement, {}, 1)
     assert "Only one layer" not in build_summary([], inventory, supplement, {}, 2)
     on = build_summary([], inventory, supplement, {"single-layer evidence": "on"}, 1)
-    assert "(h and f)" in on
+    assert "(r)" in on and "h and f" not in on

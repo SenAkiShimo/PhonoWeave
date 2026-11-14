@@ -83,9 +83,9 @@ def build_summary(
         covered = settings.get("single-layer evidence") == "on"
         lines.append("")
         lines.append(
-            "Only one layer holds usable CV entries. Onsets whose check compares layers "
-            + ("(h and f) " if covered else "(h, f, the fricatives and the affricates) ")
-            + "cannot be called, so they stay unresolved for lack of data."
+            "Only one layer holds usable CV entries. The checks that compare layers "
+            + ("(r) " if covered else "(s, sh, x, the affricates and r) ")
+            + "cannot be passed, so those onsets stay unresolved for lack of data."
         )
 
     lines.append("")
