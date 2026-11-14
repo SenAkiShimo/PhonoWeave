@@ -43,6 +43,10 @@ The report gives a lower bound computed from the requirement counts and the line
 
 `phonoweave shuffle-control` writes a temporary copy of the voicebank in which the finals of CV aliases are permuted among entries with the same onset, pitch layer and alias pattern (audio files are linked, VC and end entries are untouched), then runs the inventory analysis on it. Repeated with different seeds, the share of runs that still return `split_recommended` estimates the false-split rate of the current thresholds.
 
+## Supplement for an existing voicebank
+
+`bank_supplement.txt` covers the VC connections `(preceding final, new onset variant)` that a recommended split needs and the voicebank lacks. The preceding finals are the final classes of the syllable list, so the count is per class rather than per alias spelling in the voicebank. Lines are built greedily: a carrier syllable with the wanted final is followed by a syllable of the new variant, and the variant syllable's own final is used as the next carrier when a connection is still missing. Carriers are ordinary syllables and are not recording targets. The plan checks that every connection is covered and fails otherwise. This is a coverage list for the connections, not a test that the recorded split sounds different.
+
 ## Transition evidence in `plan` (opt-in)
 
 `phonoweave plan --transition-evidence` runs the transition analysis for m, n and l and rewrites their units before the tolerance level is applied. A family pair counts as supported when at least two of the three progress levels have Holm-corrected p below 0.05 with a positive difference in most pitch layers. The new units are marked `split_recommended`, confidence `moderate`, acoustic evidence `transition_supported`. A pair that cannot be tested (too few samples per pitch layer, or consonant regions under 50 ms) leaves the existing decision unchanged; it is not evidence of no difference.

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .bank_audit import audit_bank, format_audit
 from .bank_concordance import compare_with_bank, format_concordance
+from .bank_supplement import build_bank_supplement, uncovered_connections
 from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
@@ -88,9 +89,21 @@ def main(argv: list[str]) -> int:
         json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
+    rows = compare_with_bank(audit, inventory, syllables, args.tolerance)
+    bank_supplement = build_bank_supplement(rows, syllables, args.max_syllables)
+    missing_connections = uncovered_connections(bank_supplement, rows, syllables)
+    if missing_connections:
+        print(f"Supplement coverage check failed: {sorted(missing_connections)}", file=sys.stderr)
+        return 1
+    bank_supplement_path = directory / "bank_supplement.txt"
+    if bank_supplement.lines:
+        bank_supplement_path.write_text(bank_supplement.text(), encoding="utf-8")
+    elif bank_supplement_path.exists():
+        bank_supplement_path.unlink()
+
     concordance_path = directory / "bank_concordance.txt"
     concordance_path.write_text(
-        format_concordance(compare_with_bank(audit, inventory, syllables, args.tolerance)) + "\n",
+        format_concordance(rows) + "\n",
         encoding="utf-8",
     )
 
@@ -125,6 +138,13 @@ def main(argv: list[str]) -> int:
     print(f"Inventory: {inventory_path}")
     print(f"Bank audit: {audit_path}")
     print(f"Comparison with the voicebank's own splits: {concordance_path}")
+    if bank_supplement.lines:
+        print(
+            f"Supplement for this voicebank: {len(bank_supplement.lines)} lines for "
+            f"{', '.join(bank_supplement.labels)} ({bank_supplement_path})"
+        )
+    else:
+        print("Supplement for this voicebank: nothing to record at this tolerance")
     if supplement_reclist is not None:
         print(f"Supplement reclist lines: {len(supplement_reclist.lines)}")
         print(f"Supplement reclist: {supplement_path}")

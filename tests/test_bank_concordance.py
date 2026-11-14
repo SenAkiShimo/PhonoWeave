@@ -95,9 +95,9 @@ def test_suggested_additions_use_voicebank_labels() -> None:
 
     rows = {row.base: row for row in compare_with_bank(audit, inventory, _syllables())}
 
-    assert rows["l"].suggested == ("lw",) and rows["l"].suggested_vc == 20
+    assert rows["l"].suggested == ("lw",) and rows["l"].suggested_vc == len({s.tail for s in _syllables()})
     assert rows["g"].suggested == ("gw",) and rows["g"].suggested_vc == 0
     assert rows["sh"].suggested == ()
     text = format_concordance(list(rows.values()))
-    assert "l: add lw -> 20 VC entries" in text
+    assert f"l: add lw -> {rows['l'].suggested_vc} VC entries" in text
     assert "g: add gw -> no VC entries" in text

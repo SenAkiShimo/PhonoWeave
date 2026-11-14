@@ -126,6 +126,7 @@ def compare_with_bank(
     tolerated = {unit.base_unit for unit in inventory.units if unit.decision == MERGED}
     evidence = {unit.base_unit: unit.acoustic_evidence for unit in inventory.units}
     finals = len(audit.get("finals", []))
+    tails = len({item.tail for item in syllables}) or finals
     onsets = sorted({item.onset for item in syllables if item.onset})
 
     rows: list[ConcordanceRow] = []
@@ -183,7 +184,7 @@ def compare_with_bank(
                     max(len(variants.get(base, set())) - 1, 0) * finals if merge_labels else 0
                 ),
                 suggested_vc=(
-                    0 if base in STOP_ONSETS else len(suggested) * len(audit.get("finals", []))
+                    0 if base in STOP_ONSETS else len(suggested) * tails
                 ),
             )
         )
@@ -205,6 +206,8 @@ def format_concordance(rows: list[ConcordanceRow]) -> str:
         lines.append("Splits recommended here that the voicebank does not have (VC entries per pitch layer):")
         for row in extra:
             note = f"{row.suggested_vc} VC entries" if row.suggested_vc else "no VC entries (stop connections are shared); CV entries already exist"
+            if row.status != "we split, voicebank does not":
+                note += f"; not in the supplement ({row.status})"
             lines.append(f"  {row.base}: add {', '.join(row.suggested)} -> {note}")
 
     merges = [row for row in rows if row.merge_labels]
