@@ -122,6 +122,8 @@ For each onset, the report extracts a pitch-independent spectral envelope around
 
 `plan` also writes `bank_supplement.txt`: the lines to record for splits that the inventory recommends and the voicebank does not have. Each line chains syllables so that every final that can precede the new onset variant is followed by a syllable of that variant (for example every final before `zu`), once per pitch layer. Only onsets the comparison reports as "we split, voicebank does not" are included; onsets whose axis disagrees with the voicebank's, stop onsets (their connections are shared) and onsets without evidence are not. With nothing to add the file is not written.
 
+`plan` also writes `summary.txt`, a one-page reading of the result: what to record grouped by strength of evidence, what was recommended but held back and why, what is unresolved, and which options were used.
+
 `--supplement-onsets sh x m n` limits `bank_supplement.txt` to the named onsets, for example the ones whose evidence agrees across voicebanks.
 
 By default the transition report only informs; `plan --transition-evidence` lets it set the units of m, n and l. For each of those onsets that shows a consistent difference between context families (the same criterion as the report's verdict), the units follow the supported axes, `*_front` for i-series finals and, where supported, `*_rounded` for u-series ones. Onsets without a consistent difference, or whose current units already separate those families, keep their decision.

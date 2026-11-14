@@ -21,6 +21,7 @@ from .reclist_cli import (
 )
 from .supplement_plan import build_supplement_plan
 from .supplement_reclist import build_supplement_reclist
+from .plan_summary import build_summary
 from .tolerance import apply_tolerance
 from .transition_evidence import apply_transition_evidence, collect_reports
 from .synthesis_inventory import build_synthesis_inventory, synthesis_inventory_yaml
@@ -141,6 +142,22 @@ def main(argv: list[str]) -> int:
 
     for note in transition_notes:
         print(f"Transition evidence: {note}")
+    summary_path = directory / "summary.txt"
+    summary_path.write_text(
+        build_summary(
+            rows,
+            inventory,
+            bank_supplement,
+            {
+                "tolerance": args.tolerance,
+                "transition evidence": "on" if args.transition_evidence else "off",
+                "single-layer evidence": "on" if args.single_layer_evidence else "off",
+                "supplement onsets": " ".join(args.supplement_onsets) if args.supplement_onsets else "all",
+            },
+        ),
+        encoding="utf-8",
+    )
+
     if merged:
         print(f"Merged under tolerance {args.tolerance}: {' '.join(merged)}")
     print_summary(compiled, len(syllables), args.unresolved)
@@ -148,6 +165,7 @@ def main(argv: list[str]) -> int:
         f"Unresolved decisions: {len(gaps.gaps)} "
         "(treated as one unit per onset; no recording needed)"
     )
+    print(f"Summary: {summary_path}")
     print(f"Inventory: {inventory_path}")
     print(f"Bank audit: {audit_path}")
     print(f"Comparison with the voicebank's own splits: {concordance_path}")
