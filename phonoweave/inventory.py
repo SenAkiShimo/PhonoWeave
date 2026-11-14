@@ -38,7 +38,29 @@ class VoicebankInventoryAnalysis:
     decisions: list[InventoryDecision]
 
 
-def _fricative_acoustic_level(result) -> str:
+WITHIN_LAYER_P = 0.05
+WITHIN_LAYER_ACCURACY = 0.70
+WITHIN_LAYER_DISTANCE = 0.60
+
+
+def within_layer_supported(regions) -> bool:
+    """Single-layer stand-in for the cross-layer gate.
+
+    Any region may pass; the p threshold is divided by the number of regions tested.
+    """
+    threshold = WITHIN_LAYER_P / len(regions)
+    return any(
+        region.permutation_p < threshold
+        and region.loo_balanced_accuracy >= WITHIN_LAYER_ACCURACY
+        and region.standardized_distance >= WITHIN_LAYER_DISTANCE
+        for region in regions
+    )
+
+
+def _fricative_acoustic_level(result, single_layer: bool = False) -> str:
+    if single_layer and len(result.subbanks) == 1:
+        only = result.subbanks[0]
+        return "within_layer" if within_layer_supported((only.core, only.late)) else "weak"
     if result.cross_core_balanced_accuracy is None or result.mean_core_distance is None:
         return "weak"
 
@@ -59,9 +81,9 @@ def _fricative_acoustic_level(result) -> str:
     return "weak"
 
 
-def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
+def _fricative_decision(root: Path, base_unit: str, single_layer: bool = False) -> InventoryDecision:
     result = analyze_fricative_contrast(root, base_unit)
-    acoustic_level = _fricative_acoustic_level(result)
+    acoustic_level = _fricative_acoustic_level(result, single_layer)
     notes = [
         f"core_cross_subbank_ba={result.cross_core_balanced_accuracy}",
         f"core_mean_distance={result.mean_core_distance}",
@@ -88,7 +110,10 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
         ]
     )
 
-    acoustic_evidence = "strongly_supported" if acoustic_level == "strong" else "supported"
+    acoustic_evidence = {
+        "strong": "strongly_supported",
+        "within_layer": "single_layer_supported",
+    }.get(acoustic_level, "supported")
 
     if (
         splice.mean_delta is not None
@@ -104,6 +129,8 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
         notes.append(f"positive_pitch_layers={positive_layers}/{len(splice.subbanks)}")
         notes.append(f"significant_positive_pitch_layers={significant_layers}/{len(splice.subbanks)}")
         confidence = "high" if significant_layers >= 2 else "moderate"
+        if acoustic_level == "within_layer":
+            confidence = "low"
         return InventoryDecision(
             base_unit=base_unit,
             class_name="fricative",
@@ -125,7 +152,7 @@ def _fricative_decision(root: Path, base_unit: str) -> InventoryDecision:
     )
 
 
-def _affricate_decision(root: Path, base_unit: str) -> InventoryDecision:
+def _affricate_decision(root: Path, base_unit: str, single_layer: bool = False) -> InventoryDecision:
     result = analyze_affricate_contrast(root, base_unit)
     significant = sum(item.permutation_p < 0.05 for item in result.subbanks)
     notes = [
@@ -141,7 +168,13 @@ def _affricate_decision(root: Path, base_unit: str) -> InventoryDecision:
         and result.mean_distance is not None
         and result.mean_distance >= 0.65
     )
-    if not acoustic_supported:
+    within_layer = (
+        single_layer and not acoustic_supported and len(result.subbanks) == 1
+        and within_layer_supported(result.subbanks)
+    )
+    if within_layer:
+        notes.append("acoustic_gate=within_layer")
+    if not acoustic_supported and not within_layer:
         return InventoryDecision(
             base_unit=base_unit,
             class_name="affricate",
@@ -177,17 +210,17 @@ def _affricate_decision(root: Path, base_unit: str) -> InventoryDecision:
         return InventoryDecision(
             base_unit=base_unit,
             class_name="affricate",
-            acoustic_evidence="supported",
+            acoustic_evidence="single_layer_supported" if within_layer else "supported",
             synthesis_evidence="supported_under_proxy",
             decision="split_recommended",
-            confidence="high" if significant_layers >= 2 else "moderate",
+            confidence="low" if within_layer else ("high" if significant_layers >= 2 else "moderate"),
             notes=tuple(notes),
         )
 
     return InventoryDecision(
         base_unit=base_unit,
         class_name="affricate",
-        acoustic_evidence="supported",
+        acoustic_evidence="single_layer_supported" if within_layer else "supported",
         synthesis_evidence="split_not_supported_under_proxy",
         decision="unresolved",
         confidence="moderate",
@@ -522,13 +555,13 @@ def _nasal_decision(root: Path, base_unit: str) -> InventoryDecision:
     )
 
 
-def analyze_voicebank_inventory(root: Path) -> VoicebankInventoryAnalysis:
+def analyze_voicebank_inventory(root: Path, single_layer: bool = False) -> VoicebankInventoryAnalysis:
     from .stop_inventory import stop_decisions
 
     root = root.expanduser().resolve()
     decisions = [
-        *(_fricative_decision(root, base) for base in _FRICATIVES),
-        *(_affricate_decision(root, base) for base in _AFFRICATES),
+        *(_fricative_decision(root, base, single_layer) for base in _FRICATIVES),
+        *(_affricate_decision(root, base, single_layer) for base in _AFFRICATES),
         _rhotic_decision(root),
         _lateral_decision(root),
         *(_nasal_decision(root, base) for base in _NASALS),

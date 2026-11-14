@@ -43,6 +43,10 @@ The report gives a lower bound computed from the requirement counts and the line
 
 `phonoweave shuffle-control` writes a temporary copy of the voicebank in which the finals of CV aliases are permuted among entries with the same onset, pitch layer and alias pattern (audio files are linked, VC and end entries are untouched), then runs the inventory analysis on it. Repeated with different seeds, the share of runs that still return `split_recommended` estimates the false-split rate of the current thresholds.
 
+## Single-layer evidence (opt-in)
+
+The fricative and affricate gates compare layers, so a voicebank with one usable layer is always judged weak. With `--single-layer-evidence` the gate for those onsets becomes a within-layer test: any tested region (two for fricatives, one for affricates) needs a permutation p below 0.05 divided by the number of regions, leave-one-out balanced accuracy of at least 0.70 and a standardized distance of at least 0.60. These thresholds are provisional; `shuffle-control --single-layer-evidence` reports how often they fire on label-permuted data. A split that passes is `low` confidence and `single_layer_supported`, and the splice test must still support it.
+
 ## Supplement for an existing voicebank
 
 `bank_supplement.txt` covers the VC connections `(preceding final, new onset variant)` that a recommended split needs and the voicebank lacks. The preceding finals are the final classes of the syllable list, so the count is per class rather than per alias spelling in the voicebank. Lines are built greedily: a carrier syllable with the wanted final is followed by a syllable of the new variant, and the variant syllable's own final is used as the next carrier when a connection is still missing. Carriers are ordinary syllables and are not recording targets. The plan checks that every connection is covered and fails otherwise. This is a coverage list for the connections, not a test that the recorded split sounds different.

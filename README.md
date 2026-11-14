@@ -124,6 +124,8 @@ For each onset, the report extracts a pitch-independent spectral envelope around
 
 By default the transition report only informs; `plan --transition-evidence` lets it set the units of m, n and l. For each of those onsets that shows a consistent difference between context families (the same criterion as the report's verdict), the units follow the supported axes, `*_front` for i-series finals and, where supported, `*_rounded` for u-series ones. Onsets without a consistent difference, or whose current units already separate those families, keep their decision.
 
+A voicebank with a single usable layer cannot pass the cross-layer gate, so every fricative and affricate comes out unresolved. `--single-layer-evidence` (on `plan` and `shuffle-control`) replaces that gate for such voicebanks with within-layer tests: for s, sh, x and the affricates, one region must have a permutation p below 0.05 (divided by the number of regions tested), leave-one-out accuracy of at least 0.70 and a standardized distance of at least 0.60. The splice test still has to agree. The result is `split_recommended` with confidence `low` and evidence `single_layer_supported`, so the balanced and loose tolerance levels merge it. Voicebanks with two or more layers are not affected.
+
 To check how often the split decisions fire on data with no real context information, permute the finals among the CV aliases of each onset and pitch layer and repeat the analysis:
 
 ```bash

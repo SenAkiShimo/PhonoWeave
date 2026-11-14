@@ -22,7 +22,7 @@ def test_plan_runs_one_analysis_and_writes_every_output(monkeypatch, tmp_path, c
     bank = _voicebank(tmp_path)
     calls = []
 
-    def fake_analysis(root):
+    def fake_analysis(root, single_layer=False):
         calls.append(root)
         return VoicebankInventoryAnalysis(
             voicebank=root,
@@ -83,7 +83,7 @@ def test_plan_skips_supplement_by_default(monkeypatch, tmp_path, capsys) -> None
     monkeypatch.setattr(
         plan_cli,
         "analyze_voicebank_inventory",
-        lambda root: VoicebankInventoryAnalysis(voicebank=root, decisions=[]),
+        lambda root, single_layer=False: VoicebankInventoryAnalysis(voicebank=root, decisions=[]),
     )
     output = tmp_path / "out"
 

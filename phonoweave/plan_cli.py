@@ -41,6 +41,12 @@ def main(argv: list[str]) -> int:
         help="split m, n and l along the axes the transition analysis supports",
     )
     parser.add_argument("--transition-permutations", type=int, default=4000)
+    parser.add_argument(
+        "--single-layer-evidence",
+        action="store_true",
+        help="for a voicebank with one usable layer, judge s, sh, x and the affricates "
+        "from within-layer tests (low confidence)",
+    )
     add_reclist_arguments(parser)
     args = parser.parse_args(argv)
 
@@ -49,7 +55,7 @@ def main(argv: list[str]) -> int:
         print("No Mandarin syllables recognized in the voicebank.", file=sys.stderr)
         return 1
 
-    analysis = analyze_voicebank_inventory(args.voicebank)
+    analysis = analyze_voicebank_inventory(args.voicebank, args.single_layer_evidence)
     profile = build_speaker_profile(args.voicebank, analysis)
     inventory = build_synthesis_inventory(args.voicebank, profile)
     transition_notes: list[str] = []
