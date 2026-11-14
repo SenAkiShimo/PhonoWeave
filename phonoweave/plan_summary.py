@@ -80,11 +80,12 @@ def build_summary(
         )
 
     if usable_layers is not None and usable_layers <= 1:
+        covered = settings.get("single-layer evidence") == "on"
         lines.append("")
         lines.append(
             "Only one layer holds usable CV entries. Onsets whose check compares layers "
-            "(h, f and, without the single-layer option, the fricatives and affricates) "
-            "cannot be called, so they stay unresolved for lack of data."
+            + ("(h and f) " if covered else "(h, f, the fricatives and the affricates) ")
+            + "cannot be called, so they stay unresolved for lack of data."
         )
 
     lines.append("")
