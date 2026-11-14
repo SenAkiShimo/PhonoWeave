@@ -27,6 +27,7 @@ def build_summary(
     inventory: SynthesisInventory,
     supplement: BankSupplement,
     settings: dict[str, str],
+    usable_layers: int | None = None,
 ) -> str:
     recorded = {label for label in supplement.labels}
     by_tier: dict[str, list[str]] = {tier: [] for tier, _ in _TIERS}
@@ -76,6 +77,14 @@ def build_summary(
         lines.append(
             "Unresolved, treated as one unit per onset (no recording needed): "
             + " ".join(unresolved)
+        )
+
+    if usable_layers is not None and usable_layers <= 1:
+        lines.append("")
+        lines.append(
+            "Only one layer holds usable CV entries. Onsets whose check compares layers "
+            "(h, f and, without the single-layer option, the fricatives and affricates) "
+            "cannot be called, so they stay unresolved for lack of data."
         )
 
     lines.append("")

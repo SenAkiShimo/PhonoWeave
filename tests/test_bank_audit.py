@@ -54,3 +54,17 @@ def test_audit_reports_entries_without_audio(tmp_path) -> None:
     assert audit["missing_wav"] == {"D5": 8}
     assert audit["missing_wav_examples"] == {"D5": ["x.wav"]}
     assert "audio file is missing" in format_audit(audit)
+
+
+def test_layers_without_mandarin_cv_syllables_are_not_usable(tmp_path) -> None:
+    bank = _bank(tmp_path)
+    (bank / "D5" / "oto.ini").write_text(
+        "".join(f"x.wav=D5{a}Y,0,0,0,0,0\n" for a in ["ba", "ma", "pa", "ta"]),
+        encoding="utf-8",
+    )
+
+    audit = audit_bank(bank)
+
+    assert audit["mandarin_cv_syllables"] == {"D4": 2, "D5": 0}
+    assert audit["usable_layers"] == ["D4"]
+    assert "Layers used by the analyses: D4" in format_audit(audit)

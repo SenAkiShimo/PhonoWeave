@@ -40,3 +40,11 @@ def test_summary_groups_by_evidence_and_lists_what_is_held_back() -> None:
     assert "no evidence either way here: b" in text
     assert "no recording needed): c" in text
     assert "Settings: tolerance strict" in text
+
+
+def test_summary_warns_when_only_one_layer_is_usable() -> None:
+    inventory = SynthesisInventory("s", "zh", Path("."), ())
+    supplement = BankSupplement(lines=(), connections=frozenset(), labels=())
+
+    assert "Only one layer holds usable CV entries" in build_summary([], inventory, supplement, {}, 1)
+    assert "Only one layer" not in build_summary([], inventory, supplement, {}, 2)

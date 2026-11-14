@@ -154,6 +154,7 @@ def main(argv: list[str]) -> int:
                 "single-layer evidence": "on" if args.single_layer_evidence else "off",
                 "supplement onsets": " ".join(args.supplement_onsets) if args.supplement_onsets else "all",
             },
+            len(audit["usable_layers"]),
         ),
         encoding="utf-8",
     )

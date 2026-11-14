@@ -4,7 +4,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from .mandarin import normalize_alias
+from .mandarin import _split_syllable, normalize_alias
 from .oto import load_voicebank
 from .prefixmap import affix_pairs, load_prefix_maps
 
@@ -63,6 +63,12 @@ def audit_bank(root: Path) -> dict:
         items[layer][kind].add(key)
 
     layers = sorted(items)
+    syllable_counts = {
+        layer: sum(1 for key in items[layer]["cv"] if _split_syllable(key[0]) is not None)
+        for layer in layers
+    }
+    most = max(syllable_counts.values(), default=0)
+    usable = [layer for layer in layers if most and syllable_counts[layer] * 4 >= most]
     census = {layer: {kind: len(items[layer][kind]) for kind in KINDS} for layer in layers}
 
     union = {kind: set().union(*(items[layer][kind] for layer in layers)) if layers else set() for kind in KINDS}
@@ -93,6 +99,8 @@ def audit_bank(root: Path) -> dict:
         "census": census,
         "unrecognized": dict(unrecognized),
         "unrecognized_examples": dict(examples),
+        "mandarin_cv_syllables": syllable_counts,
+        "usable_layers": usable,
         "missing_wav": dict(missing_wav),
         "missing_wav_examples": dict(missing_examples),
         "finals": sorted(finals),
@@ -118,6 +126,17 @@ def format_audit(audit: dict, limit: int = 30) -> str:
             f"  {layer}: CV={row['cv']}, initial CV={row['initial']}, "
             f"VC={row['vc']}, end={row['end']}"
         )
+    counts = audit.get("mandarin_cv_syllables")
+    if counts is not None:
+        lines.append(
+            "  Plain CV entries that read as Mandarin syllables: "
+            + ", ".join(f"{layer}={count}" for layer, count in counts.items())
+        )
+        if len(audit["usable_layers"]) < len(audit["layers"]):
+            lines.append(
+                "  Layers used by the analyses: "
+                + (", ".join(audit["usable_layers"]) or "none")
+            )
     if audit["unrecognized"]:
         lines.append(f"  Unrecognized aliases: {audit['unrecognized']}")
         for layer, found in audit["unrecognized_examples"].items():
