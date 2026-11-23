@@ -94,3 +94,82 @@ def test_plan_skips_supplement_by_default(monkeypatch, tmp_path, capsys) -> None
     assert not (output / "supplement_reclist.txt").exists()
     assert not (output / "evidence_gaps.json").exists()
     assert "no recording needed" in capsys.readouterr().out
+
+
+def _unit(base, context, decision, confidence):
+    from phonoweave.synthesis_inventory import SynthesisUnit
+
+    return SynthesisUnit(
+        id=f"{base}_{context}",
+        base_unit=base,
+        contexts=(context,),
+        source_group=f"{base}_{context}",
+        canonical_context=None,
+        decision=decision,
+        confidence=confidence,
+        acoustic_evidence="supported",
+        synthesis_evidence="supported_under_proxy",
+    )
+
+
+def test_merge_keeps_a_split_any_analysis_calls() -> None:
+    from phonoweave.synthesis_inventory import SynthesisInventory, merge_inventories
+
+    def inventory(units):
+        return SynthesisInventory("s", "mandarin", Path("x"), tuple(units))
+
+    pooled = inventory([
+        _unit("x", "plain", "split_recommended", "moderate"),
+        _unit("x", "rounded", "split_recommended", "moderate"),
+        _unit("sh", "plain", "unresolved", "low"),
+        _unit("sh", "rounded", "unresolved", "low"),
+    ])
+    single = inventory([
+        _unit("sh", "plain", "split_recommended", "low"),
+        _unit("sh", "rounded", "split_recommended", "low"),
+        _unit("x", "plain", "unresolved", "low"),
+        _unit("x", "rounded", "unresolved", "low"),
+    ])
+
+    merged = merge_inventories([pooled, single])
+
+    decisions = {(u.base_unit, u.decision) for u in merged.units}
+    assert decisions == {("x", "split_recommended"), ("sh", "split_recommended")}
+    assert len(merged.units) == 4
+
+
+def test_plan_uses_given_inventories_without_analysing(monkeypatch, tmp_path, capsys) -> None:
+    from phonoweave.synthesis_inventory import SynthesisInventory, synthesis_inventory_yaml
+
+    bank = _voicebank(tmp_path)
+    given = tmp_path / "given.yaml"
+    given.write_text(
+        synthesis_inventory_yaml(
+            SynthesisInventory(
+                "s",
+                "mandarin",
+                Path("elsewhere"),
+                (
+                    _unit("sh", "plain", "split_recommended", "moderate"),
+                    _unit("sh", "rounded", "split_recommended", "moderate"),
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("the voicebank must not be analysed")
+
+    monkeypatch.setattr(plan_cli, "analyze_voicebank_inventory", refuse)
+    output = tmp_path / "out"
+
+    status = plan_cli.main(
+        [str(bank), "-o", str(output), "--restarts", "5", "--inventory", str(given)]
+    )
+
+    assert status == 0
+    report = json.loads((output / "reclist.report.json").read_text(encoding="utf-8"))
+    assert "sh_plain" in report["units"] and "sh_rounded" in report["units"]
+    assert "inventory given.yaml" in (output / "summary.txt").read_text(encoding="utf-8")
+    assert "Unresolved decisions: 0" in capsys.readouterr().out

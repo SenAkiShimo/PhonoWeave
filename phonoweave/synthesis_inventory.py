@@ -214,3 +214,50 @@ def load_synthesis_inventory(path: Path) -> SynthesisInventory:
             for item in units
         ),
     )
+
+
+_RANK = {"high": 2, "moderate": 1, "low": 0}
+
+
+def merge_inventories(inventories: list[SynthesisInventory]) -> SynthesisInventory:
+    """Combine analyses of the same speaker, keeping a split any of them calls.
+
+    For each onset, the units of the first inventory that recommends a split are
+    used (the most confident one when several do); otherwise the first
+    inventory's units are kept.
+    """
+    if not inventories:
+        raise ValueError("no inventories to merge")
+    order: list[str] = []
+    per_base: dict[str, list[list[SynthesisUnit]]] = {}
+    for inventory in inventories:
+        grouped: dict[str, list[SynthesisUnit]] = {}
+        for unit in inventory.units:
+            grouped.setdefault(unit.base_unit, []).append(unit)
+        for base, units in grouped.items():
+            if base not in per_base:
+                order.append(base)
+            per_base.setdefault(base, []).append(units)
+
+    merged: list[SynthesisUnit] = []
+    for base in order:
+        options = per_base[base]
+        splitting = [
+            units for units in options if any(u.decision == "split_recommended" for u in units)
+        ]
+        if splitting:
+            chosen = max(
+                splitting,
+                key=lambda units: max(_RANK.get(u.confidence, 0) for u in units),
+            )
+        else:
+            chosen = options[0]
+        merged.extend(chosen)
+
+    first = inventories[0]
+    return SynthesisInventory(
+        speaker_id=first.speaker_id,
+        language=first.language,
+        source_voicebank=first.source_voicebank,
+        units=tuple(merged),
+    )

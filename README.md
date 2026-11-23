@@ -134,6 +134,8 @@ A voicebank with a single usable layer cannot pass the cross-layer gate, so ever
 
 Some voicebanks put a different constant letter in front of every alias in each folder (one letter per timbre, say) without declaring it in a `prefix.map`. `--infer-layer-affixes`, accepted by every subcommand, looks for one such 1-2 character prefix or suffix per oto file: it must occur in at least 30% of that file's aliases and raise the number of aliases that read as Mandarin syllables by at least 20% of the file's alias count. Affixes already declared in a `prefix.map` are taken into account first, and `audit-bank` lists what was inferred. It is off by default so that existing results do not change.
 
+A voicebank with only CV recordings (for example several timbres of the same singer) can supply the evidence for a voicebank that has VC entries: run `plan` on the CV recordings, then run `plan --inventory FILE [FILE ...]` on the other voicebank with the resulting `synthesis_inventory.yaml` files. Nothing is analysed in that run; the decisions come from the files. When several files are given, a split called by any of them is kept (the most confident one when several call it).
+
 To check how often the split decisions fire on data with no real context information, permute the finals among the CV aliases of each onset and pitch layer and repeat the analysis:
 
 ```bash

@@ -24,7 +24,12 @@ from .supplement_reclist import build_supplement_reclist
 from .plan_summary import build_summary
 from .tolerance import apply_tolerance
 from .transition_evidence import apply_transition_evidence, collect_reports
-from .synthesis_inventory import build_synthesis_inventory, synthesis_inventory_yaml
+from .synthesis_inventory import (
+    build_synthesis_inventory,
+    load_synthesis_inventory,
+    merge_inventories,
+    synthesis_inventory_yaml,
+)
 
 
 def main(argv: list[str]) -> int:
@@ -61,18 +66,40 @@ def main(argv: list[str]) -> int:
         help="for a voicebank with one usable layer, judge s, sh, x and the affricates "
         "from within-layer tests (low confidence)",
     )
+    parser.add_argument(
+        "--inventory",
+        nargs="+",
+        type=Path,
+        metavar="FILE",
+        help="use the decisions from these synthesis_inventory.yaml files (analyses of the "
+        "same speaker, for example from a CV-only voicebank) instead of analysing this "
+        "voicebank; a split called by any of them is kept",
+    )
     add_reclist_arguments(parser)
     args = parser.parse_args(argv)
+    if args.inventory and (
+        args.with_supplement or args.transition_evidence or args.single_layer_evidence
+    ):
+        parser.error(
+            "--inventory cannot be combined with --with-supplement, "
+            "--transition-evidence or --single-layer-evidence"
+        )
 
     syllables = load_syllables(args)
     if not syllables:
         print("No Mandarin syllables recognized in the voicebank.", file=sys.stderr)
         return 1
 
-    analysis = analyze_voicebank_inventory(args.voicebank, args.single_layer_evidence)
-    profile = build_speaker_profile(args.voicebank, analysis)
-    inventory = build_synthesis_inventory(args.voicebank, profile)
+    analysis = None
     transition_notes: list[str] = []
+    if args.inventory:
+        inventory = merge_inventories(
+            [load_synthesis_inventory(path) for path in args.inventory]
+        )
+    else:
+        analysis = analyze_voicebank_inventory(args.voicebank, args.single_layer_evidence)
+        profile = build_speaker_profile(args.voicebank, analysis)
+        inventory = build_synthesis_inventory(args.voicebank, profile)
     if args.transition_evidence:
         inventory, transition_notes = apply_transition_evidence(
             inventory,
@@ -130,7 +157,7 @@ def main(argv: list[str]) -> int:
         encoding="utf-8",
     )
 
-    gaps = build_evidence_completion_plan(analysis)
+    gaps = build_evidence_completion_plan(analysis) if analysis is not None else None
     supplement_path = directory / "supplement_reclist.txt"
     gaps_path = directory / "evidence_gaps.json"
     supplement_reclist = None
@@ -161,6 +188,11 @@ def main(argv: list[str]) -> int:
                 "tolerance": args.tolerance,
                 "transition evidence": "on" if args.transition_evidence else "off",
                 "single-layer evidence": "on" if args.single_layer_evidence else "off",
+                **(
+                    {"inventory": ", ".join(path.name for path in args.inventory)}
+                    if args.inventory
+                    else {}
+                ),
                 "supplement onsets": " ".join(args.supplement_onsets) if args.supplement_onsets else "all",
             },
             len(audit["usable_layers"]),
@@ -172,8 +204,13 @@ def main(argv: list[str]) -> int:
     if merged:
         print(f"Merged under tolerance {args.tolerance}: {' '.join(merged)}")
     print_summary(compiled, len(syllables), args.unresolved)
+    unresolved_count = (
+        len(gaps.gaps)
+        if gaps is not None
+        else len({u.base_unit for u in raw_inventory.units if u.decision == "unresolved"})
+    )
     print(
-        f"Unresolved decisions: {len(gaps.gaps)} "
+        f"Unresolved decisions: {unresolved_count} "
         "(treated as one unit per onset; no recording needed)"
     )
     print(f"Summary: {summary_path}")
