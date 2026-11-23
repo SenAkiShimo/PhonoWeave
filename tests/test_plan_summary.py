@@ -50,3 +50,16 @@ def test_summary_warns_when_only_one_layer_is_usable() -> None:
     assert "Only one layer" not in build_summary([], inventory, supplement, {}, 2)
     on = build_summary([], inventory, supplement, {"single-layer evidence": "on"}, 1)
     assert "(r)" in on and "h and f" not in on
+
+
+def test_summary_explains_why_a_stop_needs_no_supplement() -> None:
+    inventory = SynthesisInventory(
+        "s", "zh", Path("."), (_unit("b", "split_recommended", "moderate", "supported"),)
+    )
+    rows = [ConcordanceRow("b", "b", "single", SPLIT_STATUS, ("bw", "by"), 0)]
+    supplement = BankSupplement(lines=(), connections=frozenset(), labels=())
+
+    text = build_summary(rows, inventory, supplement, {"tolerance": "strict"})
+
+    assert "b (bw, by): stop connections are shared, so no VC lines are needed" in text
+    assert "left out by --supplement-onsets" not in text

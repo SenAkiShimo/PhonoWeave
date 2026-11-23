@@ -68,7 +68,12 @@ def build_summary(
         lines.append("")
         lines.append("Recommended here but not in the supplement:")
         for row in held_back:
-            why = row.status if row.status != SPLIT_STATUS else "left out by --supplement-onsets"
+            if row.status != SPLIT_STATUS:
+                why = row.status
+            elif not row.suggested_vc:
+                why = "stop connections are shared, so no VC lines are needed"
+            else:
+                why = "left out by --supplement-onsets"
             lines.append(f"  {row.base} ({', '.join(row.suggested)}): {why}")
 
     no_evidence = [row.base for row in rows if row.status == "voicebank splits, we have no evidence"]
