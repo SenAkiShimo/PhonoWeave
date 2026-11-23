@@ -375,6 +375,11 @@ def _build_synthesis_inventory(argv: list[str]) -> int:
 
 
 def main() -> int:
+    if "--infer-layer-affixes" in sys.argv:
+        from .prefixmap import set_layer_affix_inference
+
+        sys.argv.remove("--infer-layer-affixes")
+        set_layer_affix_inference(True)
     if len(sys.argv) > 1 and sys.argv[1] == "analyze-voicebank":
         return _analyze_voicebank(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "coverage":

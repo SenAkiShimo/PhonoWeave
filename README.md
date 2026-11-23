@@ -132,6 +132,8 @@ By default the transition report only informs; `plan --transition-evidence` lets
 
 A voicebank with a single usable layer cannot pass the cross-layer gate, so every fricative and affricate comes out unresolved. `--single-layer-evidence` (on `plan` and `shuffle-control`) replaces that gate for such voicebanks with within-layer tests: for s, sh, x and the affricates, one region must have a permutation p below 0.05 (divided by the number of regions tested), leave-one-out accuracy of at least 0.70 and a standardized distance of at least 0.60. The splice test still has to agree. The result is `split_recommended` with confidence `low` and evidence `single_layer_supported`, so the balanced and loose tolerance levels merge it. Voicebanks with two or more layers are not affected.
 
+Some voicebanks put a different constant letter in front of every alias in each folder (one letter per timbre, say) without declaring it in a `prefix.map`. `--infer-layer-affixes`, accepted by every subcommand, looks for one such 1-2 character prefix or suffix per oto file: it must occur in at least 30% of that file's aliases and raise the number of aliases that read as Mandarin syllables by at least 20% of the file's alias count. Affixes already declared in a `prefix.map` are taken into account first, and `audit-bank` lists what was inferred. It is off by default so that existing results do not change.
+
 To check how often the split decisions fire on data with no real context information, permute the finals among the CV aliases of each onset and pitch layer and repeat the analysis:
 
 ```bash

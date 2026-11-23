@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .mandarin import _split_syllable, normalize_alias
 from .oto import load_voicebank
-from .prefixmap import affix_pairs, load_prefix_maps
+from .prefixmap import affix_pairs, inferred_layer_affixes, load_prefix_maps
 
 
 KINDS = ("cv", "initial", "vc", "end")
@@ -96,6 +96,17 @@ def audit_bank(root: Path) -> dict:
 
     return {
         "layers": layers,
+        "inferred_affixes": [
+            {
+                "layer": found.directory,
+                "prefix": found.prefix,
+                "suffix": found.suffix,
+                "readable_before": found.readable_before,
+                "readable_after": found.readable_after,
+                "aliases": found.aliases,
+            }
+            for found in inferred_layer_affixes(root)
+        ],
         "census": census,
         "unrecognized": dict(unrecognized),
         "unrecognized_examples": dict(examples),
@@ -119,7 +130,18 @@ def audit_bank(root: Path) -> dict:
 
 
 def format_audit(audit: dict, limit: int = 30) -> str:
-    lines = ["Alias census (distinct entries per pitch layer):"]
+    lines = []
+    inferred = audit.get("inferred_affixes") or []
+    if inferred:
+        lines.append("Affixes inferred per layer (--infer-layer-affixes):")
+        for row in inferred:
+            shown = f"prefix '{row['prefix']}'" if row["prefix"] else f"suffix '{row['suffix']}'"
+            lines.append(
+                f"  {row['layer']}: {shown}, readable aliases "
+                f"{row['readable_before']} -> {row['readable_after']} of {row['aliases']}"
+            )
+        lines.append("")
+    lines.append("Alias census (distinct entries per pitch layer):")
     for layer in audit["layers"]:
         row = audit["census"][layer]
         lines.append(
