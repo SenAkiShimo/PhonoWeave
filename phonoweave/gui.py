@@ -28,6 +28,15 @@ from .calibration_protocol import live_calibration_protocol
 from .gui_model import GuiAnalysisSnapshot, analyze_for_gui
 from .gui_page_remake import HTML
 from .profile import profile_yaml
+from .supplement_page import HTML as SUPPLEMENT_HTML
+from .supplement_session import (
+    create_session as create_supplement_session,
+    load_session as load_supplement_session,
+    parse_layers,
+    parse_lines,
+    save_take,
+    take_path,
+)
 from .synthesis_inventory import synthesis_inventory_yaml
 
 
@@ -36,6 +45,9 @@ class _GuiState:
     snapshot: GuiAnalysisSnapshot | None = None
     calibration_root: Path = Path.home() / "Downloads" / "PhonoWeaveCalibration"
     calibration_session_dir: Path | None = None
+    supplement_root: Path = Path.home() / "Downloads" / "PhonoWeaveSupplement"
+    supplement_session_dir: Path | None = None
+    supplement_defaults: dict[str, Any] | None = None
 
 
 _STATE = _GuiState()
@@ -235,6 +247,29 @@ class _Handler(BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
+        if path == "/supplement":
+            self._send_bytes(SUPPLEMENT_HTML.encode("utf-8"), "text/html; charset=utf-8")
+            return
+        if path == "/api/supplement/defaults":
+            with _STATE_LOCK:
+                self._json(_STATE.supplement_defaults or {})
+            return
+        if path == "/api/supplement/recording":
+            try:
+                query = parse_qs(parsed.query)
+                with _STATE_LOCK:
+                    session_dir = _STATE.supplement_session_dir
+                if session_dir is None:
+                    raise ValueError("no active recording session")
+                wav = take_path(
+                    session_dir,
+                    query.get("layer", [""])[0],
+                    int(query.get("index", ["-1"])[0]),
+                )
+                self._send_bytes(wav.read_bytes(), "audio/wav")
+            except ValueError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            return
         if path == "/negative-controls":
             self._send_bytes(NEGATIVE_HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
@@ -318,6 +353,63 @@ class _Handler(BaseHTTPRequestHandler):
                 with _STATE_LOCK:
                     _STATE.snapshot = snapshot
                 self._json(_snapshot_payload(snapshot))
+            except ValueError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/supplement/session":
+            try:
+                payload = self._read_json()
+                with _STATE_LOCK:
+                    root = _STATE.supplement_root
+                directory = create_supplement_session(
+                    root,
+                    parse_lines(str(payload.get("lines", ""))),
+                    parse_layers(str(payload.get("layers", ""))),
+                    int(payload.get("bpm", 90)),
+                )
+                with _STATE_LOCK:
+                    _STATE.supplement_session_dir = directory
+                self._json(load_supplement_session(directory))
+            except ValueError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/supplement/open":
+            try:
+                payload = self._read_json()
+                directory = Path(str(payload.get("path", "")).strip()).expanduser().resolve()
+                loaded = load_supplement_session(directory)
+                with _STATE_LOCK:
+                    _STATE.supplement_session_dir = directory
+                self._json(loaded)
+            except (ValueError, KeyError, json.JSONDecodeError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/supplement/recording":
+            try:
+                query = parse_qs(parsed.query)
+                with _STATE_LOCK:
+                    session_dir = _STATE.supplement_session_dir
+                if session_dir is None:
+                    raise ValueError("no active recording session")
+                beats = [float(item) for item in query.get("beats", [""])[0].split(",") if item]
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0:
+                    raise ValueError("invalid recording size")
+                saved = save_take(
+                    session_dir,
+                    query.get("layer", [""])[0],
+                    int(query.get("index", ["-1"])[0]),
+                    self.rfile.read(min(length, 64 * 1024 * 1024 + 1)),
+                    int(query.get("sample_rate", ["0"])[0]),
+                    beats,
+                )
+                self._json({"saved": str(saved)})
             except ValueError as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             except Exception as exc:
@@ -439,19 +531,40 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="phonoweave-gui")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument(
+        "--page",
+        choices=("workbench", "calibration", "supplement"),
+        default="workbench",
+        help="page to open in the browser",
+    )
+    parser.add_argument(
+        "--supplement-lines",
+        type=Path,
+        help="bank_supplement.txt from `plan`, preloaded into the supplement page",
+    )
+    parser.add_argument("--supplement-layers", nargs="+", metavar="LAYER")
+    parser.add_argument("--supplement-bpm", type=int, default=90)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.supplement_lines is not None:
+        _STATE.supplement_defaults = {
+            "lines": args.supplement_lines.expanduser().read_text(encoding="utf-8"),
+            "layers": args.supplement_layers or ["G3", "D4", "G4", "D5"],
+            "bpm": args.supplement_bpm,
+        }
     server = ThreadingHTTPServer(("127.0.0.1", args.port), _Handler)
     port = server.server_address[1]
     url = f"http://127.0.0.1:{port}/"
+    start = url + {"workbench": "", "calibration": "calibration", "supplement": "supplement"}[args.page]
     print(f"PhonoWeave GUI remake: {url}")
     print(f"Live calibration: {url}calibration")
+    print(f"Supplement recording: {url}supplement")
     print("Press Ctrl-C to stop.")
     if not args.no_browser:
-        threading.Timer(0.2, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.2, lambda: webbrowser.open(start)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

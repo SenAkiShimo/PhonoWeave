@@ -136,6 +136,8 @@ Some voicebanks put a different constant letter in front of every alias in each 
 
 A voicebank with only CV recordings (for example several timbres of the same singer) can supply the evidence for a voicebank that has VC entries: run `plan` on the CV recordings, then run `plan --inventory FILE [FILE ...]` on the other voicebank with the resulting `synthesis_inventory.yaml` files. Nothing is analysed in that run; the decisions come from the files. When several files are given, a split called by any of them is kept (the most confident one when several call it).
 
+`phonoweave-gui --page supplement --supplement-lines bank_supplement.txt` opens a browser page for recording the lines of a supplement list. It plays a reference tone for the pitch layer and a click track at the chosen tempo, records each line from the microphone and saves it per pitch layer together with the click times. Recordings go to `~/Downloads/PhonoWeaveSupplement/`.
+
 To check how often the split decisions fire on data with no real context information, permute the finals among the CV aliases of each onset and pitch layer and repeat the analysis:
 
 ```bash
