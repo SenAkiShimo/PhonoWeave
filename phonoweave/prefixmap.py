@@ -92,8 +92,44 @@ def _load_map(path: Path, color: str) -> list[PrefixMapRule]:
     return rules
 
 
+_INFER_LAYER_AFFIXES = False
+_INFERRED_CACHE: dict[Path, list] = {}
+
+
+def set_layer_affix_inference(enabled: bool) -> None:
+    global _INFER_LAYER_AFFIXES
+    _INFER_LAYER_AFFIXES = enabled
+
+
+def inferred_layer_affixes(root: Path) -> list:
+    if not _INFER_LAYER_AFFIXES:
+        return []
+    root = root.expanduser().resolve()
+    if root not in _INFERRED_CACHE:
+        from .layer_affixes import infer_layer_affixes
+
+        declared = affix_pairs(_declared_rules(root))
+        _INFERRED_CACHE[root] = infer_layer_affixes(root, declared)
+    return _INFERRED_CACHE[root]
+
+
 def load_prefix_maps(root: Path) -> list[PrefixMapRule]:
     root = root.expanduser().resolve()
+    rules = _declared_rules(root)
+    for found in inferred_layer_affixes(root):
+        rules.append(
+            PrefixMapRule(
+                color=f"inferred:{found.directory}",
+                prefix=found.prefix,
+                suffix=found.suffix,
+                tones=(),
+                tone_ranges=(),
+            )
+        )
+    return rules
+
+
+def _declared_rules(root: Path) -> list[PrefixMapRule]:
     rules: list[PrefixMapRule] = []
 
     main_map = root / "prefix.map"
