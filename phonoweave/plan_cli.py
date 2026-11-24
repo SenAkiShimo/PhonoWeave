@@ -7,7 +7,13 @@ from pathlib import Path
 
 from .bank_audit import audit_bank, format_audit
 from .bank_concordance import compare_with_bank, format_concordance
-from .bank_supplement import build_bank_supplement, control_rows, select_rows, uncovered_connections
+from .bank_supplement import (
+    build_bank_supplement,
+    control_rows,
+    include_different_axis,
+    select_rows,
+    uncovered_connections,
+)
 from .diagnostic_selector import select_diagnostic_items
 from .evidence_gap import build_evidence_completion_plan
 from .evidence_gap_cli import _payload
@@ -59,6 +65,12 @@ def main(argv: list[str]) -> int:
         nargs="+",
         metavar="ONSET",
         help="only include these onsets in bank_supplement.txt",
+    )
+    parser.add_argument(
+        "--supplement-different-axis",
+        action="store_true",
+        help="also record the extra variant for onsets the voicebank splits along a "
+        "different axis than the evidence does",
     )
     parser.add_argument(
         "--single-layer-evidence",
@@ -137,6 +149,8 @@ def main(argv: list[str]) -> int:
     )
 
     rows = compare_with_bank(audit, inventory, syllables, args.tolerance)
+    if args.supplement_different_axis:
+        rows = include_different_axis(rows, args.supplement_onsets)
     supplement_rows = select_rows(rows, args.supplement_onsets)
     controls = control_rows(args.supplement_control, syllables, supplement_rows)
     supplement_rows = supplement_rows + controls
@@ -193,6 +207,7 @@ def main(argv: list[str]) -> int:
                     if args.inventory
                     else {}
                 ),
+                "supplement different axis": "on" if args.supplement_different_axis else "off",
                 "supplement onsets": " ".join(args.supplement_onsets) if args.supplement_onsets else "all",
             },
             len(audit["usable_layers"]),

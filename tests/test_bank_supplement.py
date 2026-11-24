@@ -74,3 +74,16 @@ def test_control_rows_add_unrecommended_onsets_but_not_stops_or_duplicates() -> 
     assert made[0].suggested == ("sw",) and made[1].suggested == ("my",)
     supplement = build_bank_supplement(rows + made, syllables)
     assert set(supplement.labels) == {"zw", "sw", "my"}
+
+
+def test_different_axis_rows_can_be_recorded_on_request() -> None:
+    from phonoweave.bank_concordance import ConcordanceRow
+    from phonoweave.bank_supplement import SPLIT_STATUS, include_different_axis
+
+    axis = ConcordanceRow("n", "n", "y:i", "different axis", ("nw",), suggested_vc=36)
+    stop = ConcordanceRow("b", "b", "single", SPLIT_STATUS, ("bw",), suggested_vc=0)
+    other = ConcordanceRow("l", "l", "y:i", "different axis", ("lw",), suggested_vc=0)
+
+    changed = include_different_axis([axis, stop, other])
+    assert [row.status for row in changed] == [SPLIT_STATUS, SPLIT_STATUS, "different axis"]
+    assert include_different_axis([axis], ["m"])[0].status == "different axis"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .bank_concordance import ConcordanceRow, _family
 from .reclist import Syllable
@@ -25,6 +25,26 @@ def select_rows(rows: list[ConcordanceRow], onsets: list[str] | None) -> list[Co
         return rows
     wanted = set(onsets)
     return [row for row in rows if row.base in wanted]
+
+
+def include_different_axis(
+    rows: list[ConcordanceRow],
+    onsets: list[str] | None = None,
+) -> list[ConcordanceRow]:
+    """Treat onsets whose split runs along another axis than the voicebank's as missing.
+
+    The voicebank already splits these onsets, but not the way the evidence does, so
+    the connections for the extra variant (for example `nw`) are not in it.
+    """
+    wanted = set(onsets) if onsets else None
+    return [
+        replace(row, status=SPLIT_STATUS)
+        if row.status == "different axis"
+        and row.suggested_vc
+        and (wanted is None or row.base in wanted)
+        else row
+        for row in rows
+    ]
 
 
 _CONTROL_LABELS = {
